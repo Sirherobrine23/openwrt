@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 225 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index bc487b093..601a64d83 100644
+index bc487b093cfa..601a64d83365 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -159,6 +159,106 @@ static u8 an7581_zcal_to_r45ohm[64] = {
@@ -277,7 +277,7 @@ index bc487b093..601a64d83 100644
  };
  
 diff --git a/drivers/net/phy/mediatek/mtk.h b/drivers/net/phy/mediatek/mtk.h
-index cf3def990..4729aef2b 100644
+index cf3def99097a..4729aef2bbcd 100644
 --- a/drivers/net/phy/mediatek/mtk.h
 +++ b/drivers/net/phy/mediatek/mtk.h
 @@ -13,6 +13,7 @@

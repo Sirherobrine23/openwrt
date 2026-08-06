@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
-index 6d142d3a4..5c1c8501f 100644
+index 6d142d3a4cf6..5c1c8501fa6e 100644
 --- a/arch/arm/boot/dts/airoha/en7523.dtsi
 +++ b/arch/arm/boot/dts/airoha/en7523.dtsi
 @@ -165,7 +165,7 @@ pcie0: pcie@1fa91000 {

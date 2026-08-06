@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 24 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 8aeb605c0..c1bd54ad7 100644
+index 8aeb605c0bac..c1bd54ad70eb 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2244,6 +2244,7 @@ static int airoha_qdma_init_hfwd_queues(struct airoha_qdma *qdma)

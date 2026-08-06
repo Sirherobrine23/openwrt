@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 123 insertions(+), 43 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index fa5058a53..317caab52 100644
+index fa5058a53d08..317caab52bef 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3516,41 +3516,14 @@ static int airoha_dev_set_features(struct net_device *netdev,
@@ -146,7 +146,7 @@ index fa5058a53..317caab52 100644
  				const struct airoha_xpon_service_cfg *cfg)
  {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index d12f811ab..a87ceb94a 100644
+index d12f811abb94..a87ceb94a88f 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -503,6 +503,7 @@ struct airoha_flow_data {
@@ -168,7 +168,7 @@ index d12f811ab..a87ceb94a 100644
  				  u16 *gem_port_id);
  bool airoha_eth_xpon_has_gem_service(struct net_device *netdev,
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 8fcfe9e14..4e9a094c8 100644
+index 8fcfe9e143d7..4e9a094c8dc3 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -538,15 +538,35 @@ static void airoha_ppe_foe_set_bridge_addrs(struct airoha_foe_bridge *br,

@@ -25,7 +25,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 1502 insertions(+)
 
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index 429594f27..bc487b093 100644
+index 429594f27792..bc487b093cfa 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -1,16 +1,1493 @@
@@ -1566,7 +1566,7 @@ index 429594f27..bc487b093 100644
  
  MODULE_DEVICE_TABLE(mdio, airoha_socphy_tbl);
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
-index 40552d42a..834b61dbc 100644
+index 40552d42af6b..834b61dbc690 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.h
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
 @@ -12,6 +12,7 @@

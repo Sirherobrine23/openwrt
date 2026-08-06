@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 422 insertions(+), 181 deletions(-)
 
 diff --git a/drivers/net/pcs/airoha/pcs-en7523.c b/drivers/net/pcs/airoha/pcs-en7523.c
-index f307127fc..cf3e5c7fc 100644
+index f307127fc11f..cf3e5c7fcc09 100644
 --- a/drivers/net/pcs/airoha/pcs-en7523.c
 +++ b/drivers/net/pcs/airoha/pcs-en7523.c
 @@ -541,8 +541,23 @@ static int en7523_pcs_config(struct phylink_pcs *pcs, unsigned int neg_mode,
@@ -58,7 +58,7 @@ index f307127fc..cf3e5c7fc 100644
  		port->interface = interface;
  		return 0;
 diff --git a/drivers/net/phy/air_en8801s.c b/drivers/net/phy/air_en8801s.c
-index aa97b19df..2ebc7e325 100644
+index aa97b19dff45..2ebc7e3257d9 100644
 --- a/drivers/net/phy/air_en8801s.c
 +++ b/drivers/net/phy/air_en8801s.c
 @@ -78,14 +78,15 @@ Tx Reverse, Rx Reverse

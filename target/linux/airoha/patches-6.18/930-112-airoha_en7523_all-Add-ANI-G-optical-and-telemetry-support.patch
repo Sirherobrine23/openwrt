@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 247 insertions(+), 12 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 294b2721e..772cb6974 100644
+index 294b2721e32c..772cb6974fef 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -9,7 +9,10 @@
@@ -354,7 +354,7 @@ index 294b2721e..772cb6974 100644
  		atomic64_inc(&agent->duplicates);
  	if (unsupported) {
 diff --git a/net/omci/identity.c b/net/omci/identity.c
-index f72a512c0..5c2dddea2 100644
+index f72a512c05a5..5c2dddea2df9 100644
 --- a/net/omci/identity.c
 +++ b/net/omci/identity.c
 @@ -221,8 +221,9 @@ static int omci_identity_set_password(struct omci_identity *identity,

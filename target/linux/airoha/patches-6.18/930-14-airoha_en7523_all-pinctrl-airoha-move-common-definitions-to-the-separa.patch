@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/drivers/pinctrl/airoha/airoha-common.h b/drivers/pinctrl/airoha/airoha-common.h
 new file mode 100644
-index 000000000..bff162062
+index 000000000000..bff162062b06
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/airoha-common.h
 @@ -0,0 +1,165 @@
@@ -197,7 +197,7 @@ index 000000000..bff162062
 +
 +#endif
 diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-index 4dae8c654..e67c19df9 100644
+index 4dae8c654f99..e67c19df9f45 100644
 --- a/drivers/pinctrl/airoha/pinctrl-airoha.c
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -5,47 +5,7 @@

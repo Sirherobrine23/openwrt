@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  7 files changed, 126 insertions(+), 16 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index d8d6910a9..73c2e9c2d 100644
+index d8d6910a958f..73c2e9c2dcdd 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -69,6 +69,14 @@ airoha_gpon_omci_set_olt_profile(struct omci_device *odev,
@@ -50,7 +50,7 @@ index d8d6910a9..73c2e9c2d 100644
  
  int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index a268f340a..c9a49b933 100644
+index a268f340a80e..c9a49b933786 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -41,5 +41,6 @@ int airoha_gpon_omci_hw_get_telemetry(void *hw_priv,
@@ -61,7 +61,7 @@ index a268f340a..c9a49b933 100644
  
  #endif /* _AIROHA_GPON_OMCI_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 2c2b93262..abbb032b8 100644
+index 2c2b93262fd7..abbb032b85ca 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -15,6 +15,7 @@
@@ -253,7 +253,7 @@ index 2c2b93262..abbb032b8 100644
  	memset(priv->tcont_entity_id, 0xff, sizeof(priv->tcont_entity_id));
  
 diff --git a/include/net/omci.h b/include/net/omci.h
-index 710d52909..07897dbc0 100644
+index 710d52909090..07897dbc03cc 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -226,6 +226,7 @@ struct omci_telemetry {
@@ -273,7 +273,7 @@ index 710d52909..07897dbc0 100644
  
  struct omci_device *
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index ae56259b0..512befacb 100644
+index ae56259b0b50..512befacbac3 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,7 +3,7 @@
@@ -302,7 +302,7 @@ index ae56259b0..512befacb 100644
  
  enum omci_config_key {
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 607889d6a..ec0b71399 100644
+index 607889d6a234..ec0b71399e01 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -1891,6 +1891,14 @@ static bool omci_agent_build_response_locked(struct omci_device *odev,
@@ -433,7 +433,7 @@ index 607889d6a..ec0b71399 100644
  }
  
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index db254b7a0..7ba4d508a 100644
+index db254b7a0bec..7ba4d508a93a 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -76,6 +76,7 @@ struct omci_agent {

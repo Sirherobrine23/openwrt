@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 30 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index 59da4b15c..a53312aec 100644
+index 59da4b15cee9..a53312aecd1f 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -1379,18 +1379,16 @@ static int en7523_reset_update(struct reset_controller_dev *rcdev,

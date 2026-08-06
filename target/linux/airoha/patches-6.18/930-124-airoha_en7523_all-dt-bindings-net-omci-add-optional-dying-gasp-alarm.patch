@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 6 insertions(+)
 
 diff --git a/Documentation/devicetree/bindings/net/omci.yaml b/Documentation/devicetree/bindings/net/omci.yaml
-index 569b0ed12..49e372f66 100644
+index 569b0ed12645..49e372f669b2 100644
 --- a/Documentation/devicetree/bindings/net/omci.yaml
 +++ b/Documentation/devicetree/bindings/net/omci.yaml
 @@ -84,5 +84,11 @@ properties:

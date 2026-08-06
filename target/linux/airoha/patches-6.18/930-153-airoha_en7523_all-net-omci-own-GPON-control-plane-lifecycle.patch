@@ -28,7 +28,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  8 files changed, 276 insertions(+), 64 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 83b5c1a13..4cb259fe0 100644
+index 83b5c1a132c9..4cb259fe0643 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2873,6 +2873,69 @@ static void airoha_qdma_stop(struct airoha_qdma *qdma)
@@ -127,7 +127,7 @@ index 83b5c1a13..4cb259fe0 100644
  					    REG_GDM_FWD_CFG(port->id),
  					    FE_PSE_PORT_DROP);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 6c03a418a..d12f811ab 100644
+index 6c03a418a1bc..d12f811abb94 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -600,9 +600,12 @@ struct airoha_xpon_oam_handler {
@@ -171,7 +171,7 @@ index 6c03a418a..d12f811ab 100644
  int airoha_eth_register_xpon_oam(struct net_device *netdev,
  				 struct airoha_xpon_oam_handler *handler);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 2d7f2e58f..36e0eaf3a 100644
+index 2d7f2e58fbbb..36e0eaf3a6db 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -11,6 +11,30 @@
@@ -232,7 +232,7 @@ index 2d7f2e58f..36e0eaf3a 100644
  {
  	omci_device_unregister(omci->odev);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index ef637092a..d219cff38 100644
+index ef637092a16e..d219cff3862d 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -25,6 +25,8 @@ int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
@@ -254,7 +254,7 @@ index ef637092a..d219cff38 100644
  				  u16 alloc_id, bool valid);
  int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 5e50df0eb..029a45de7 100644
+index 5e50df0eb314..029a45de7f1a 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -2619,6 +2619,52 @@ static void gpon_restart_work_fn(struct work_struct *work)
@@ -490,7 +490,7 @@ index 5e50df0eb..029a45de7 100644
  	sfp_bus_put(priv->sfp_bus);
  	if (priv->lddla_dev)
 diff --git a/include/net/omci.h b/include/net/omci.h
-index d294eb4ae..a757a8634 100644
+index d294eb4ae571..a757a863477c 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -288,6 +288,8 @@ struct omci_ani_topology {
@@ -521,7 +521,7 @@ index d294eb4ae..a757a8634 100644
  void *omci_device_priv(const struct omci_device *odev);
  u32 omci_device_id(const struct omci_device *odev);
 diff --git a/net/omci/core.c b/net/omci/core.c
-index 5297d0cbc..872105ee9 100644
+index 5297d0cbc58d..872105ee90d8 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -330,6 +330,9 @@ int omci_device_xmit(struct omci_device *odev, const void *data, size_t len)
@@ -627,7 +627,7 @@ index 5297d0cbc..872105ee9 100644
  	spin_lock_bh(&odev->state_lock);
  	channel_up = odev->channel_up;
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index 06a696cf2..bc3e0c939 100644
+index 06a696cf2efe..bc3e0c9390a3 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -118,6 +118,9 @@ struct omci_device {

@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 763 insertions(+), 24 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_npu.c b/drivers/net/ethernet/airoha/airoha_npu.c
-index 419fe3edc..2266c6429 100644
+index 419fe3edcac3..2266c6429ca7 100644
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
 @@ -4,6 +4,7 @@

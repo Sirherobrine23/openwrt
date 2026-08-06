@@ -31,7 +31,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  7 files changed, 518 insertions(+), 197 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 716058554..708d3dd31 100644
+index 7160585546ea..708d3dd31d55 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -247,6 +247,128 @@ int airoha_eth_set_xpon_datapath(struct net_device *netdev,
@@ -410,7 +410,7 @@ index 716058554..708d3dd31 100644
  
  	return airoha_setup_phylink(netdev);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index a7afbe464..c2e1d0566 100644
+index a7afbe464bc7..c2e1d05661aa 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -11,6 +11,7 @@
@@ -524,7 +524,7 @@ index a7afbe464..c2e1d0566 100644
  bool airoha_is_valid_gdm_dev(struct airoha_eth *eth,
  			     struct airoha_gdm_dev *dev);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 383e872db..119554c14 100644
+index 383e872dbbf0..119554c14788 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -32,14 +32,15 @@ static int airoha_gpon_omci_set_tcont(struct omci_device *odev,
@@ -563,7 +563,7 @@ index 383e872db..119554c14 100644
  					  &airoha_gpon_omci_ops, omci);
  	if (IS_ERR(omci->odev))
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 39f7b790e..47c3b45f8 100644
+index 39f7b790edd7..47c3b45f8aa0 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -17,7 +17,6 @@ struct airoha_gpon_omci {
@@ -586,7 +586,7 @@ index 39f7b790e..47c3b45f8 100644
  
  #endif /* _AIROHA_GPON_OMCI_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 368333841..0c735e85e 100644
+index 3683338417ac..0c735e85e566 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -583,8 +583,8 @@ struct gpon_priv {
@@ -1310,7 +1310,7 @@ index 368333841..0c735e85e 100644
  
  /* -------------------------------------------------------------------------
 diff --git a/include/net/omci.h b/include/net/omci.h
-index 39bb587da..7647c5127 100644
+index 39bb587da3e6..7647c5127552 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -22,7 +22,8 @@ struct omci_device_ops {
@@ -1324,7 +1324,7 @@ index 39bb587da..7647c5127 100644
  };
  
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index bc7c96562..e1909c91f 100644
+index bc7c965626de..e1909c91f3dc 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -343,7 +343,8 @@ static int omci_agent_hw_update(struct omci_device *odev,

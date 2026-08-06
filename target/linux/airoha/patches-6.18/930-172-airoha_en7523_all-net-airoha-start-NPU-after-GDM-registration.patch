@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 158 insertions(+), 47 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 4f8a7168c..ccaa2d3d5 100644
+index 4f8a7168c7bf..ccaa2d3d5698 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -5234,7 +5234,8 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
@@ -59,7 +59,7 @@ index 4f8a7168c..ccaa2d3d5 100644
  
  error_napi_stop:
 diff --git a/drivers/net/ethernet/airoha/airoha_npu.c b/drivers/net/ethernet/airoha/airoha_npu.c
-index 2266c6429..e44cb5ec9 100644
+index 2266c6429ca7..e44cb5ec99ec 100644
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
 @@ -129,6 +129,20 @@ struct airoha_npu_soc_data {
@@ -325,7 +325,7 @@ index 2266c6429..e44cb5ec9 100644
  		[WLAN_FUNC_SET_WAIT_TX_PKT_BUF_ADDR] = WLAN_FUNC_SET_WAIT_MAX,
  		[WLAN_FUNC_SET_WAIT_INODE_TXRX_REG_ADDR] = WLAN_FUNC_SET_WAIT_MAX,
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index 3054538b9..1c8f47ed8 100644
+index 3054538b9afa..1c8f47ed8bb1 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -220,6 +220,7 @@ struct airoha_npu {

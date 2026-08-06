@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 2c2740007..d7c4ce3fb 100644
+index 2c274000785c..d7c4ce3fb3e1 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -54,7 +54,6 @@ config AIROHA_XPON

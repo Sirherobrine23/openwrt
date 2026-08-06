@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 11 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index c33560fc9..478b47e71 100644
+index c33560fc98b4..478b47e71f46 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2841,10 +2841,17 @@ static int airoha_dev_open(struct net_device *netdev)

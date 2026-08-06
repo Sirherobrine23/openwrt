@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 47 insertions(+), 22 deletions(-)
 
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index ac8b4db91..622bf0e0c 100644
+index ac8b4db91b97..622bf0e0cabf 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -36,6 +36,12 @@

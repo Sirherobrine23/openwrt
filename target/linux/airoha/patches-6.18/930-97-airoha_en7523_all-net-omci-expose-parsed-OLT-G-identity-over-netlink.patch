@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 159 insertions(+), 11 deletions(-)
 
 diff --git a/include/net/omci.h b/include/net/omci.h
-index d84d674a2..5f3e4648a 100644
+index d84d674a2f43..5f3e4648a9e5 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -15,6 +15,26 @@ enum omci_gem_port_direction {
@@ -53,7 +53,7 @@ index d84d674a2..5f3e4648a 100644
   * struct omci_vlan_filter_entry - parsed VLAN tagging filter entry
   * @tci: original VLAN tag control information value
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index 99739f7b3..c3b1d3627 100644
+index 99739f7b3c7d..c3b1d3627d73 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,13 +3,16 @@
@@ -104,7 +104,7 @@ index 99739f7b3..c3b1d3627 100644
  	OMCI_EVENT_UNSPEC,
  	OMCI_EVENT_CHANNEL_UP,
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 58febf617..ef24763fe 100644
+index 58febf61753e..ef24763fe4e9 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -67,7 +67,6 @@ static bool omci_agent_result_can_be_faked(u8 result)
@@ -257,7 +257,7 @@ index 58febf617..ef24763fe 100644
  	} else if (local.class_id == OMCI_CLASS_EXTENDED_VLAN) {
  		local.extended_vlan.max_table_size = OMCI_EXT_VLAN_MAX_RULES;
 diff --git a/net/omci/core.c b/net/omci/core.c
-index cefcdbf4d..3f61b896f 100644
+index cefcdbf4d3dc..3f61b896fc8e 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -423,6 +423,33 @@ static int omci_cmd_tx(struct sk_buff *skb, struct genl_info *info)
@@ -305,7 +305,7 @@ index cefcdbf4d..3f61b896f 100644
  		return -EMSGSIZE;
  	return 0;
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index 9f67a3ada..52abe6b14 100644
+index 9f67a3ada5b2..52abe6b14c72 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -23,6 +23,7 @@

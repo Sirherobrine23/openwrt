@@ -25,7 +25,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 130 insertions(+), 23 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index a41e9e47b..011ce33e6 100644
+index a41e9e47bcf3..011ce33e6dee 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -531,6 +531,9 @@ static void airoha_xpon_phy_stop(struct device *dev, struct phy *phy,

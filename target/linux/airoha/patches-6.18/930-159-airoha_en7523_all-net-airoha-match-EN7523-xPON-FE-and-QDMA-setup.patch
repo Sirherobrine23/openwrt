@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 49 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 9ea74f8c7..415834d12 100644
+index 9ea74f8c7cce..415834d1272a 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -29,6 +29,10 @@
@@ -101,7 +101,7 @@ index 9ea74f8c7..415834d12 100644
  	airoha_qdma_set(qdma, REG_EGRESS_RATE_METER_CFG,
  			EGRESS_RATE_METER_EN_MASK |
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index a4b943523..30aec0a14 100644
+index a4b943523dfe..30aec0a14d81 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -920,6 +920,10 @@

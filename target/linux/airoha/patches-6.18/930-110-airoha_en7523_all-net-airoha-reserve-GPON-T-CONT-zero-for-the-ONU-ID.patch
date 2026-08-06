@@ -24,7 +24,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 200 insertions(+), 46 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 18d1d47e2..dad021c6f 100644
+index 18d1d47e261c..dad021c6fc38 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -24,6 +24,7 @@

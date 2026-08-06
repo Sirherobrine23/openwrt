@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 145 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 96a785f19..d7c4ce3fb 100644
+index 96a785f1938d..d7c4ce3fb3e1 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -58,7 +58,7 @@ config AIROHA_XPON
@@ -33,7 +33,7 @@ index 96a785f19..d7c4ce3fb 100644
  
  endif #NET_VENDOR_AIROHA
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index bd4c7543d..383e872db 100644
+index bd4c7543dbfd..383e872dbbf0 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -19,22 +19,61 @@ static int airoha_gpon_omci_xmit(struct omci_device *odev,
@@ -108,7 +108,7 @@ index bd4c7543d..383e872db 100644
  
  void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id)
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index e1582e10b..39f7b790e 100644
+index e1582e10b31d..39f7b790edd7 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -12,12 +12,16 @@ struct sk_buff;
@@ -142,7 +142,7 @@ index e1582e10b..39f7b790e 100644
 +
  #endif /* _AIROHA_GPON_OMCI_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index f067408e5..97511a9c6 100644
+index f067408e5b14..97511a9c6828 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -932,6 +932,46 @@ static void gpon_load_aes_shadow(struct gpon_priv *priv, const u8 key[16],

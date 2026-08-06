@@ -24,7 +24,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 618 insertions(+), 4 deletions(-)
 
 diff --git a/include/net/omci.h b/include/net/omci.h
-index b714d35b8..d84d674a2 100644
+index b714d35b88bc..d84d674a2f43 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -15,6 +15,98 @@ enum omci_gem_port_direction {
@@ -127,7 +127,7 @@ index b714d35b8..d84d674a2 100644
   * struct omci_telemetry - current PON and optical telemetry
   * @valid: OMCI_TELEMETRY_F_* bitmap
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index 0d89dc57c..0cd9bc05d 100644
+index 0d89dc57c71c..0cd9bc05d671 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,10 +3,13 @@
@@ -240,7 +240,7 @@ index 0d89dc57c..0cd9bc05d 100644
  	OMCI_EVENT_UNSPEC,
  	OMCI_EVENT_CHANNEL_UP,
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 4e5528f84..b64dbd3bd 100644
+index 4e5528f84cfd..b64dbd3bdcb7 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -54,11 +54,9 @@
@@ -569,7 +569,7 @@ index 4e5528f84..b64dbd3bd 100644
  	ret = omci_mib_store_locked(agent, &local);
  	if (!ret)
 diff --git a/net/omci/core.c b/net/omci/core.c
-index afb2490c4..d310c12e2 100644
+index afb2490c4ceb..d310c12e2c5a 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -48,6 +48,8 @@ static const struct nla_policy omci_policy[OMCI_ATTR_MAX + 1] = {
@@ -753,7 +753,7 @@ index afb2490c4..d310c12e2 100644
  		return -ENOMEM;
  	hdr = genlmsg_put_reply(msg, info, &omci_genl_family, 0, command);
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index 5c22151a2..f17bfb376 100644
+index 5c22151a2c72..f17bfb3762f2 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -22,6 +22,9 @@

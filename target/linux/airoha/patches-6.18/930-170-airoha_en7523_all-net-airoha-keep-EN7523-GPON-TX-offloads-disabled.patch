@@ -24,7 +24,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 15 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 688bba19f..4f8a7168c 100644
+index 688bba19fc5c..4f8a7168c7bf 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -44,6 +44,10 @@ static int airoha_qdma_set_gpon_dba_report(struct net_device *netdev,

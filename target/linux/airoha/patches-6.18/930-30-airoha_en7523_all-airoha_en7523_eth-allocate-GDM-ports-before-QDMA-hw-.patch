@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 19 insertions(+), 11 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 15c093024..3c6455e17 100644
+index 15c093024f48..3c6455e17b51 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -4085,13 +4085,15 @@ static int airoha_probe(struct platform_device *pdev)

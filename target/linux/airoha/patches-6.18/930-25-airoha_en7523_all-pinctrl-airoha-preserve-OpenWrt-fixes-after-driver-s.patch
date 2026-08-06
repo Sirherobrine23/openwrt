@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 136 insertions(+), 85 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
-index f016e0da6..4609cc76b 100644
+index f016e0da65a5..4609cc76babe 100644
 --- a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 +++ b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 @@ -60,7 +60,7 @@ patternProperties:
@@ -41,7 +41,7 @@ index f016e0da6..4609cc76b 100644
                properties:
                  function:
 diff --git a/drivers/pinctrl/airoha/airoha-common.h b/drivers/pinctrl/airoha/airoha-common.h
-index 47900be19..c6144e249 100644
+index 47900be19c2b..c6144e2494ae 100644
 --- a/drivers/pinctrl/airoha/airoha-common.h
 +++ b/drivers/pinctrl/airoha/airoha-common.h
 @@ -153,6 +153,11 @@ struct airoha_pinctrl {
@@ -66,7 +66,7 @@ index 47900be19..c6144e249 100644
  };
  
 diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-index e24e03b39..6dcd939cb 100644
+index e24e03b39d3d..6dcd939cbd95 100644
 --- a/drivers/pinctrl/airoha/pinctrl-airoha.c
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -341,7 +341,7 @@ static int airoha_pinmux_set_direction(struct pinctrl_dev *pctrl_dev,
@@ -112,7 +112,7 @@ index e24e03b39..6dcd939cb 100644
  	pinctrl->desc.name = data->pinctrl_name;
  	pinctrl->desc.owner = data->pinctrl_owner;
 diff --git a/drivers/pinctrl/airoha/pinctrl-an7581.c b/drivers/pinctrl/airoha/pinctrl-an7581.c
-index 6d6c5f1ee..e9b1d03cf 100644
+index 6d6c5f1ee5d2..e9b1d03cf6a4 100644
 --- a/drivers/pinctrl/airoha/pinctrl-an7581.c
 +++ b/drivers/pinctrl/airoha/pinctrl-an7581.c
 @@ -594,16 +594,20 @@ static const char *const pwm_groups[] = {
@@ -236,7 +236,7 @@ index 6d6c5f1ee..e9b1d03cf 100644
  		[AIROHA_PINCTRL_CONFS_PULLUP] = {
  			.confs = pinctrl_pullup_conf,
 diff --git a/drivers/pinctrl/airoha/pinctrl-an7583.c b/drivers/pinctrl/airoha/pinctrl-an7583.c
-index 6d3ef32ac..e106c1640 100644
+index 6d3ef32acf62..e106c16407f9 100644
 --- a/drivers/pinctrl/airoha/pinctrl-an7583.c
 +++ b/drivers/pinctrl/airoha/pinctrl-an7583.c
 @@ -38,6 +38,7 @@

@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/airoha,an7563-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/airoha,an7563-pinctrl.yaml
 new file mode 100644
-index 000000000..e626d3466
+index 000000000000..e626d3466128
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/pinctrl/airoha,an7563-pinctrl.yaml
 @@ -0,0 +1,348 @@
@@ -372,7 +372,7 @@ index 000000000..e626d3466
 +      };
 +    };
 diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-index 159b4496f..480ff2f26 100644
+index 159b4496f64a..480ff2f26911 100644
 --- a/drivers/pinctrl/airoha/Kconfig
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -13,6 +13,7 @@ config PINCTRL_AIROHA
@@ -396,7 +396,7 @@ index 159b4496f..480ff2f26 100644
  	tristate "AN7581 pinctrl"
  	depends on ARM64 || COMPILE_TEST
 diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
-index 8b9202321..30e4bee57 100644
+index 8b9202321ba8..30e4bee57a4a 100644
 --- a/drivers/pinctrl/airoha/Makefile
 +++ b/drivers/pinctrl/airoha/Makefile
 @@ -4,6 +4,7 @@
@@ -409,7 +409,7 @@ index 8b9202321..30e4bee57 100644
  obj-$(CONFIG_PINCTRL_AIROHA_EN7523)	+= pinctrl-en7523.o
 diff --git a/drivers/pinctrl/airoha/pinctrl-an7563.c b/drivers/pinctrl/airoha/pinctrl-an7563.c
 new file mode 100644
-index 000000000..40cbbe90c
+index 000000000000..40cbbe90cc46
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/pinctrl-an7563.c
 @@ -0,0 +1,1115 @@
