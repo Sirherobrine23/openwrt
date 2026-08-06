@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 8 insertions(+), 6 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
-index 3484719b1..46ecc7bb9 100644
+index 3484719b16a4..46ecc7bb9eac 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.c
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -19,8 +19,8 @@

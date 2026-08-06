@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 112 insertions(+), 64 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 0a4961cc4..294b2721e 100644
+index 0a4961cc4b91..294b2721e32c 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -976,16 +976,23 @@ static int omci_mib_store_locked(struct omci_agent *agent,
@@ -201,7 +201,7 @@ index 0a4961cc4..294b2721e 100644
  }
  
 diff --git a/net/omci/core.c b/net/omci/core.c
-index 05de49db1..741e4e457 100644
+index 05de49db1049..741e4e457259 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -830,7 +830,7 @@ static int omci_cmd_config_set(struct sk_buff *skb, struct genl_info *info)
@@ -322,7 +322,7 @@ index 05de49db1..741e4e457 100644
  }
  
 diff --git a/net/omci/identity.c b/net/omci/identity.c
-index 7c60ba821..84ae69a62 100644
+index 7c60ba821e28..84ae69a62c03 100644
 --- a/net/omci/identity.c
 +++ b/net/omci/identity.c
 @@ -13,13 +13,13 @@

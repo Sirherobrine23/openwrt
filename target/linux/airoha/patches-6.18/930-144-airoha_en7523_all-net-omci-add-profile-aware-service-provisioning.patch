@@ -32,7 +32,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 net/omci/wire.h
 
 diff --git a/include/net/omci.h b/include/net/omci.h
-index bfd7e7e2c..d294eb4ae 100644
+index bfd7e7e2c42e..d294eb4ae571 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -234,6 +234,46 @@ struct omci_telemetry {
@@ -102,7 +102,7 @@ index bfd7e7e2c..d294eb4ae 100644
  			     struct omci_telemetry *telemetry);
  	int (*set_olt_profile)(struct omci_device *odev,
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index 6c6b7e1b2..b992c71eb 100644
+index 6c6b7e1b24b6..b992c71eb907 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,9 +3,9 @@
@@ -118,7 +118,7 @@ index 6c6b7e1b2..b992c71eb 100644
  #define OMCI_VLAN_FILTER_MAX_ENTRIES	12
  #define OMCI_EXT_VLAN_MAX_RULES	32
 diff --git a/net/omci/Makefile b/net/omci/Makefile
-index d5620bd71..6b53a0e9b 100644
+index d5620bd711e9..6b53a0e9b137 100644
 --- a/net/omci/Makefile
 +++ b/net/omci/Makefile
 @@ -1,3 +1,3 @@
@@ -127,7 +127,7 @@ index d5620bd71..6b53a0e9b 100644
 -omci-y := core.o agent.o identity.o profiles.o
 +omci-y := core.o agent.o me.o wire.o identity.o profiles.o
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 146a1b285..14d480a39 100644
+index 146a1b285c18..14d480a39cd0 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -10,6 +10,8 @@
@@ -3120,7 +3120,7 @@ index 146a1b285..14d480a39 100644
  	mutex_unlock(&agent->lock);
  	return ret;
 diff --git a/net/omci/core.c b/net/omci/core.c
-index 73c8d5b6b..5297d0cbc 100644
+index 73c8d5b6b0b3..5297d0cbc58d 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -688,33 +688,52 @@ static int omci_reply_class(struct genl_info *info, u8 command,
@@ -3209,7 +3209,7 @@ index 73c8d5b6b..5297d0cbc 100644
  	mutex_lock(&omci_devices_lock);
  	odev = omci_get_from_info(info);
 diff --git a/net/omci/identity.c b/net/omci/identity.c
-index 5c2dddea2..ce6ee3a7e 100644
+index 5c2dddea2df9..ce6ee3a7ef22 100644
 --- a/net/omci/identity.c
 +++ b/net/omci/identity.c
 @@ -12,6 +12,7 @@
@@ -3221,7 +3221,7 @@ index 5c2dddea2..ce6ee3a7e 100644
  #include "internal.h"
  
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index eb064155f..567e71f49 100644
+index eb064155f98b..567e71f4957c 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -14,6 +14,8 @@
@@ -3310,7 +3310,7 @@ index eb064155f..567e71f49 100644
  #endif /* _NET_OMCI_INTERNAL_H */
 diff --git a/net/omci/me.c b/net/omci/me.c
 new file mode 100644
-index 000000000..402977b1e
+index 000000000000..402977b1ede7
 --- /dev/null
 +++ b/net/omci/me.c
 @@ -0,0 +1,1024 @@
@@ -4340,7 +4340,7 @@ index 000000000..402977b1e
 +}
 diff --git a/net/omci/me.h b/net/omci/me.h
 new file mode 100644
-index 000000000..b938dbdcc
+index 000000000000..b938dbdcc20b
 --- /dev/null
 +++ b/net/omci/me.h
 @@ -0,0 +1,123 @@
@@ -4468,7 +4468,7 @@ index 000000000..b938dbdcc
 +
 +#endif /* _NET_OMCI_ME_H */
 diff --git a/net/omci/profiles.c b/net/omci/profiles.c
-index ab5843811..9a3dc8c49 100644
+index ab58438114a9..9a3dc8c49b17 100644
 --- a/net/omci/profiles.c
 +++ b/net/omci/profiles.c
 @@ -177,3 +177,49 @@ void omci_profile_sanitize_olt_g(struct omci_olt_g *olt, u32 quirks)
@@ -4523,7 +4523,7 @@ index ab5843811..9a3dc8c49 100644
 +}
 diff --git a/net/omci/wire.c b/net/omci/wire.c
 new file mode 100644
-index 000000000..d60b68587
+index 000000000000..d60b68587cfa
 --- /dev/null
 +++ b/net/omci/wire.c
 @@ -0,0 +1,99 @@
@@ -4628,7 +4628,7 @@ index 000000000..d60b68587
 +}
 diff --git a/net/omci/wire.h b/net/omci/wire.h
 new file mode 100644
-index 000000000..9a6b748b2
+index 000000000000..9a6b748b243e
 --- /dev/null
 +++ b/net/omci/wire.h
 @@ -0,0 +1,24 @@

@@ -26,7 +26,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 168 insertions(+), 35 deletions(-)
 
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index b992c71eb..a404dd2d6 100644
+index b992c71eb907..a404dd2d6148 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,7 +3,7 @@
@@ -59,7 +59,7 @@ index b992c71eb..a404dd2d6 100644
  	__OMCI_CONFIG_MAX,
  };
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 82d518a8a..fa52fe851 100644
+index 82d518a8a42c..fa52fe851d3c 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -687,6 +687,21 @@ omci_mib_lookup(struct omci_agent *agent, u16 class_id, u16 entity_id)
@@ -422,7 +422,7 @@ index 82d518a8a..fa52fe851 100644
  	omci_agent_populate_defaults(odev);
  	omci_agent_profile_refresh_locked(odev, NULL, NULL);
 diff --git a/net/omci/identity.c b/net/omci/identity.c
-index ce6ee3a7e..5ed23fb38 100644
+index ce6ee3a7ef22..5ed23fb38e3b 100644
 --- a/net/omci/identity.c
 +++ b/net/omci/identity.c
 @@ -288,7 +288,10 @@ int omci_identity_normalize_config(u16 key, const void *value, size_t len,
@@ -438,7 +438,7 @@ index ce6ee3a7e..5ed23fb38 100644
  			return -ENOSPC;
  		ret = omci_normalize_string(value, len, output, required);
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index 2bce5dab4..06a696cf2 100644
+index 2bce5dab4f83..06a696cf2efe 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -54,12 +54,16 @@ struct omci_service_state {
@@ -460,7 +460,7 @@ index 2bce5dab4..06a696cf2 100644
  	u8 password_source;
  	u8 traffic_mgmt_option;
 diff --git a/net/omci/me.c b/net/omci/me.c
-index f89715957..90bdbd174 100644
+index f89715957c99..90bdbd174da2 100644
 --- a/net/omci/me.c
 +++ b/net/omci/me.c
 @@ -345,6 +345,13 @@ static const struct omci_class_name omci_classes[] = {

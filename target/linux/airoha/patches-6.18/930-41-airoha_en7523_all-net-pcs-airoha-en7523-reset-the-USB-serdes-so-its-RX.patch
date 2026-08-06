@@ -29,7 +29,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 25 insertions(+)
 
 diff --git a/drivers/net/pcs/airoha/pcs-en7523.c b/drivers/net/pcs/airoha/pcs-en7523.c
-index d36ee6e25..f307127fc 100644
+index d36ee6e258de..f307127fc11f 100644
 --- a/drivers/net/pcs/airoha/pcs-en7523.c
 +++ b/drivers/net/pcs/airoha/pcs-en7523.c
 @@ -289,6 +289,28 @@ static void en7523_pcs_xsi_serdes_init(struct en7523_pcs_port *port,

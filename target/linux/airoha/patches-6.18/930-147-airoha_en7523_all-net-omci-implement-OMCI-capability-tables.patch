@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 282 insertions(+), 9 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 95521431a..239cec259 100644
+index 95521431a4b0..239cec259c18 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -8,9 +8,11 @@
@@ -391,7 +391,7 @@ index 95521431a..239cec259 100644
  	if (!valid) {
  		agent->alarm_sequence = 0;
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index 567e71f49..2bce5dab4 100644
+index 567e71f4957c..2bce5dab4f83 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -93,6 +93,12 @@ struct omci_agent {
@@ -408,7 +408,7 @@ index 567e71f49..2bce5dab4 100644
  	atomic64_t responses;
  	atomic64_t duplicates;
 diff --git a/net/omci/me.c b/net/omci/me.c
-index 402977b1e..13ac8cd06 100644
+index 402977b1ede7..13ac8cd06138 100644
 --- a/net/omci/me.c
 +++ b/net/omci/me.c
 @@ -534,6 +534,11 @@ static const struct omci_attr_desc omci_nokia_65306_attrs[] = {
@@ -437,7 +437,7 @@ index 402977b1e..13ac8cd06 100644
  		      STANDARD_ACTIONS, OMCI_ME_F_ONU_CREATED | OMCI_ME_F_DATAPATH,
  		      GENMASK(15, 11), GENMASK(15, 11), 31,
 diff --git a/net/omci/me.h b/net/omci/me.h
-index b938dbdcc..f97bd86f2 100644
+index b938dbdcc20b..f97bd86f2027 100644
 --- a/net/omci/me.h
 +++ b/net/omci/me.h
 @@ -31,6 +31,7 @@ struct omci_mib_object;

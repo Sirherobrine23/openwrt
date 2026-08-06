@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 22 insertions(+), 26 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index a3b4fa455..c8d0e514a 100644
+index a3b4fa4557d4..c8d0e514a5f0 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -446,8 +446,8 @@ static void airoha_xpon_phy_stop(struct device *dev, struct phy *phy,
@@ -75,7 +75,7 @@ index a3b4fa455..c8d0e514a 100644
  	mutex_lock(&priv->link_state_lock);
  	priv->gpon_o5 = false;
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 66c2933f3..ae43d6e61 100644
+index 66c2933f3ee4..ae43d6e61fab 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -2479,27 +2479,6 @@ void omci_agent_channel_changed(struct omci_device *odev, bool valid)
@@ -107,7 +107,7 @@ index 66c2933f3..ae43d6e61 100644
  {
  	struct omci_agent *agent = &odev->agent;
 diff --git a/net/omci/core.c b/net/omci/core.c
-index 36826c437..73c8d5b6b 100644
+index 36826c4370c9..73c8d5b6b0b3 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -1485,6 +1485,14 @@ void omci_device_reset_session(struct omci_device *odev)
@@ -135,7 +135,7 @@ index 36826c437..73c8d5b6b 100644
  }
  EXPORT_SYMBOL_GPL(omci_device_reset_session);
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index f59ddfc1e..eb064155f 100644
+index f59ddfc1e489..eb064155f98b 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -138,7 +138,6 @@ int omci_agent_init(struct omci_device *odev);

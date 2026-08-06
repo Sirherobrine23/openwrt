@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 40 insertions(+)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 29ebf07c9..ec4015c6e 100644
+index 29ebf07c9653..ec4015c6ed46 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -19,6 +19,15 @@ static int airoha_gpon_omci_xmit(struct omci_device *odev,
@@ -47,7 +47,7 @@ index 29ebf07c9..ec4015c6e 100644
  	.set_gem_port = airoha_gpon_omci_set_gem_port,
  	.set_uni = airoha_gpon_omci_set_uni,
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index bfbc6c30c..f790aba4c 100644
+index bfbc6c30cb1e..f790aba4c700 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -8,6 +8,7 @@ struct device;
@@ -68,7 +68,7 @@ index bfbc6c30c..f790aba4c 100644
  				  u16 alloc_id, bool valid);
  int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 1c2bb4986..c0bc45acc 100644
+index 1c2bb498628c..c0bc45acc13d 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1850,6 +1850,33 @@ void airoha_gpon_omci_hw_config_changed(void *hw_priv, u16 key,

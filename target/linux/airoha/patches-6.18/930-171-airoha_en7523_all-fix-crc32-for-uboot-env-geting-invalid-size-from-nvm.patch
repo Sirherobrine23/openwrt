@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/mtd/ubi/nvmem.c b/drivers/mtd/ubi/nvmem.c
-index 34f8c1d3c..d887c033f 100644
+index 34f8c1d3cdee..d887c033fcd8 100644
 --- a/drivers/mtd/ubi/nvmem.c
 +++ b/drivers/mtd/ubi/nvmem.c
 @@ -85,7 +85,9 @@ static int ubi_nvmem_add(struct ubi_volume_info *vi)

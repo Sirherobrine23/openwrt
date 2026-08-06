@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 199 insertions(+), 199 deletions(-)
 
 diff --git a/drivers/pinctrl/airoha/pinctrl-an7581.c b/drivers/pinctrl/airoha/pinctrl-an7581.c
-index 522b35bba..6e53143e9 100644
+index 522b35bbaa12..6e53143e91d7 100644
 --- a/drivers/pinctrl/airoha/pinctrl-an7581.c
 +++ b/drivers/pinctrl/airoha/pinctrl-an7581.c
 @@ -316,7 +316,7 @@

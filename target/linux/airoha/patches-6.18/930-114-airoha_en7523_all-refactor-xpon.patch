@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 455 insertions(+), 571 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 52be39ce1..c33560fc9 100644
+index 52be39ce124e..c33560fc98b4 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3729,7 +3729,7 @@ airoha_ethtool_get_link_ksettings(struct net_device *netdev,
@@ -25,7 +25,7 @@ index 52be39ce1..c33560fc9 100644
  	cmd->base.phy_address = 0xff;
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 3b83d6d3a..db6bae9f7 100644
+index 3b83d6d3aad2..db6bae9f71c7 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -157,6 +157,7 @@ enum airoha_gdm_index {
@@ -37,7 +37,7 @@ index 3b83d6d3a..db6bae9f7 100644
  
  enum {
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
-index 93b8486e3..1af07320b 100644
+index 93b8486e3625..1af07320b3bc 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.c
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -599,8 +599,8 @@ struct ploam_priv *ploam_alloc(const struct ploam_ops *ops, void *hw_priv,
@@ -52,7 +52,7 @@ index 93b8486e3..1af07320b 100644
  	return pp;
  }
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 3a3ab2787..58cd81240 100644
+index 3a3ab2787a1b..58cd812406f2 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -55,10 +55,10 @@

@@ -42,7 +42,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 net/omci/core.c
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 78823e1f7..96a785f19 100644
+index 78823e1f79d1..96a785f1938d 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -53,11 +53,12 @@ config AIROHA_XPON
@@ -61,7 +61,7 @@ index 78823e1f7..96a785f19 100644
  
  endif #NET_VENDOR_AIROHA
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index e7df3150f..2bf64c08f 100644
+index e7df3150f23a..2bf64c08fbd1 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -12,4 +12,4 @@ airoha-eth-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed.o airoha_wed_debugfs.o
@@ -71,7 +71,7 @@ index e7df3150f..2bf64c08f 100644
 -airoha-xpon-y := airoha_xpon.o airoha_ploam.o
 +airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_gpon_omci.o
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 508727daf..716058554 100644
+index 508727daf3d9..7160585546ea 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -247,6 +247,41 @@ int airoha_eth_set_xpon_datapath(struct net_device *netdev,
@@ -304,7 +304,7 @@ index 508727daf..716058554 100644
  				       struct ethtool_drvinfo *info)
  {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 30b26f138..a7afbe464 100644
+index 30b26f1386c2..a7afbe464bc7 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -584,6 +584,16 @@ enum airoha_priv_flags {
@@ -348,7 +348,7 @@ index 30b26f138..a7afbe464 100644
  int airoha_eth_set_xpon_datapath(struct net_device *netdev,
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 new file mode 100644
-index 000000000..bd4c7543d
+index 000000000000..bd4c7543dbfd
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -0,0 +1,79 @@
@@ -433,7 +433,7 @@ index 000000000..bd4c7543d
 +}
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 new file mode 100644
-index 000000000..e1582e10b
+index 000000000000..e1582e10b31d
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -0,0 +1,29 @@
@@ -467,7 +467,7 @@ index 000000000..e1582e10b
 +
 +#endif /* _AIROHA_GPON_OMCI_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 6c8dd6e87..c21fba705 100644
+index 6c8dd6e87b1f..c21fba705c0a 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -973,6 +973,13 @@
@@ -485,7 +485,7 @@ index 6c8dd6e87..c21fba705 100644
  /* RX MSG1 */
  #define QDMA_ETH_RXMSG_DEI_MASK		BIT(31)
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 5a6c344ff..f067408e5 100644
+index 5a6c344ffdf0..f067408e5b14 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -37,11 +37,12 @@
@@ -848,7 +848,7 @@ index 5a6c344ff..f067408e5 100644
  MODULE_DESCRIPTION("Airoha/EcoNet unified GPON and EPON MAC driver");
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
 deleted file mode 100644
-index 25b6a0232..000000000
+index 25b6a0232c85..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_xpon.h
 +++ /dev/null
 @@ -1,10 +0,0 @@
@@ -864,7 +864,7 @@ index 25b6a0232..000000000
 -#endif /* _AIROHA_XPON_H */
 diff --git a/include/net/omci.h b/include/net/omci.h
 new file mode 100644
-index 000000000..39e5f7862
+index 000000000000..39e5f7862be0
 --- /dev/null
 +++ b/include/net/omci.h
 @@ -0,0 +1,36 @@
@@ -906,7 +906,7 @@ index 000000000..39e5f7862
 +#endif /* _NET_OMCI_H */
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
 new file mode 100644
-index 000000000..1ff402795
+index 000000000000..1ff402795a2e
 --- /dev/null
 +++ b/include/uapi/linux/omci.h
 @@ -0,0 +1,76 @@
@@ -987,7 +987,7 @@ index 000000000..1ff402795
 +
 +#endif /* _UAPI_LINUX_OMCI_H */
 diff --git a/net/Kconfig b/net/Kconfig
-index eef9cf905..97a870e0c 100644
+index eef9cf905f0d..97a870e0c058 100644
 --- a/net/Kconfig
 +++ b/net/Kconfig
 @@ -87,6 +87,7 @@ config NET_CRC32C
@@ -999,7 +999,7 @@ index eef9cf905..97a870e0c 100644
  source "net/psp/Kconfig"
  source "net/unix/Kconfig"
 diff --git a/net/Makefile b/net/Makefile
-index a6b206fcd..cbafce2eb 100644
+index a6b206fcd14d..cbafce2eb242 100644
 --- a/net/Makefile
 +++ b/net/Makefile
 @@ -20,6 +20,7 @@ obj-$(CONFIG_XFRM)		+= xfrm/
@@ -1012,7 +1012,7 @@ index a6b206fcd..cbafce2eb 100644
  obj-$(CONFIG_BRIDGE)		+= bridge/
 diff --git a/net/omci/Kconfig b/net/omci/Kconfig
 new file mode 100644
-index 000000000..21e7a7f21
+index 000000000000..21e7a7f2160a
 --- /dev/null
 +++ b/net/omci/Kconfig
 @@ -0,0 +1,9 @@
@@ -1027,7 +1027,7 @@ index 000000000..21e7a7f21
 +	  entity MIB and the ITU-T G.988 state machine remain in userspace.
 diff --git a/net/omci/Makefile b/net/omci/Makefile
 new file mode 100644
-index 000000000..b3480a10a
+index 000000000000..b3480a10a57c
 --- /dev/null
 +++ b/net/omci/Makefile
 @@ -0,0 +1,4 @@
@@ -1037,7 +1037,7 @@ index 000000000..b3480a10a
 +omci-y := core.o
 diff --git a/net/omci/core.c b/net/omci/core.c
 new file mode 100644
-index 000000000..60cc7afb1
+index 000000000000..60cc7afb1c43
 --- /dev/null
 +++ b/net/omci/core.c
 @@ -0,0 +1,763 @@

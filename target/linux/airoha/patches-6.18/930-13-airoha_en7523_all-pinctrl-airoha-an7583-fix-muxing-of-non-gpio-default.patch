@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 98 insertions(+), 15 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
-index 8d8ec6adb..bedcb6374 100644
+index 8d8ec6adb97d..bedcb6374f1a 100644
 --- a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 +++ b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 @@ -61,7 +61,7 @@ patternProperties:
@@ -61,7 +61,7 @@ index 8d8ec6adb..bedcb6374 100644
                properties:
                  function:
 diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-index 4bbda3926..4dae8c654 100644
+index 4bbda392625a..4dae8c654f99 100644
 --- a/drivers/pinctrl/airoha/pinctrl-airoha.c
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -84,6 +84,18 @@

@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 76 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 76318bb27..83b5c1a13 100644
+index 76318bb27ba1..83b5c1a132c9 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3396,6 +3396,24 @@ airoha_eth_xpon_classify(struct airoha_gdm_dev *dev, struct sk_buff *skb,
@@ -50,7 +50,7 @@ index 76318bb27..83b5c1a13 100644
  
  	spin_lock_bh(&dev->xpon_service_lock);
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index f17d0d108..5e50df0eb 100644
+index f17d0d108099..5e50df0eb314 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1983,9 +1983,9 @@ int airoha_gpon_omci_hw_replace_service(void *hw_priv,
@@ -66,7 +66,7 @@ index f17d0d108..5e50df0eb 100644
  		service->pcp_valid ? "" : "any/", service->pcp,
  		service->multicast_ani_valid ? "" : "none/",
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index fa52fe851..70a48d48d 100644
+index fa52fe851d3c..70a48d48d859 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -2534,6 +2534,11 @@ static u32 omci_agent_service_cookie(u16 lan_port, u16 gem_ctp,

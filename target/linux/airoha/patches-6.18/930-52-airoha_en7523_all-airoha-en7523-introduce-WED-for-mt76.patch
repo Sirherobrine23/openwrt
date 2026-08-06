@@ -37,7 +37,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml
 new file mode 100644
-index 000000000..35ba702c3
+index 000000000000..35ba702c3d49
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml
 @@ -0,0 +1,56 @@
@@ -98,7 +98,7 @@ index 000000000..35ba702c3
 +      interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
 +    };
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml b/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
-index 6d22131ac..cabf0d81a 100644
+index 6d22131ac2f9..cabf0d81a45c 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
 @@ -81,6 +81,14 @@ properties:
@@ -117,7 +117,7 @@ index 6d22131ac..cabf0d81a 100644
    "^ethernet@[1-4]$":
      type: object
 diff --git a/MAINTAINERS b/MAINTAINERS
-index e53600f4e..ecd9ae409 100644
+index e53600f4e7e0..ecd9ae409d4a 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -743,6 +743,7 @@ L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
@@ -138,7 +138,7 @@ index e53600f4e..ecd9ae409 100644
  MEDIATEK ETHERNET PCS DRIVER
  M:	Alexander Couzens <lynxis@fe80.eu>
 diff --git a/drivers/net/ethernet/Kconfig b/drivers/net/ethernet/Kconfig
-index aead145dd..0d56c93ce 100644
+index aead145dd91d..0d56c93ce86e 100644
 --- a/drivers/net/ethernet/Kconfig
 +++ b/drivers/net/ethernet/Kconfig
 @@ -15,6 +15,9 @@ if ETHERNET
@@ -152,7 +152,7 @@ index aead145dd..0d56c93ce 100644
  source "drivers/net/ethernet/actions/Kconfig"
  source "drivers/net/ethernet/adaptec/Kconfig"
 diff --git a/drivers/net/ethernet/Makefile b/drivers/net/ethernet/Makefile
-index 998dd628b..e691a3a35 100644
+index 998dd628b202..e691a3a35935 100644
 --- a/drivers/net/ethernet/Makefile
 +++ b/drivers/net/ethernet/Makefile
 @@ -11,6 +11,7 @@ obj-$(CONFIG_GRETH) += aeroflex/
@@ -164,7 +164,7 @@ index 998dd628b..e691a3a35 100644
  obj-$(CONFIG_NET_VENDOR_ALLWINNER) += allwinner/
  obj-$(CONFIG_NET_VENDOR_ALTEON) += alteon/
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 789906516..40aebb5fc 100644
+index 789906516bf8..40aebb5fc5fe 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -32,4 +32,16 @@ config NET_AIROHA_FLOW_STATS
@@ -185,7 +185,7 @@ index 789906516..40aebb5fc 100644
 +
  endif #NET_VENDOR_AIROHA
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 94468053e..21eeb688d 100644
+index 94468053e34b..21eeb688d8dc 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -7,3 +7,5 @@ obj-$(CONFIG_NET_AIROHA) += airoha-eth.o
@@ -195,7 +195,7 @@ index 94468053e..21eeb688d 100644
 +
 +airoha-eth-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed.o airoha_wed_debugfs.o
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 77ca52fb2..34608ea3c 100644
+index 77ca52fb2a69..34608ea3c8e0 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -20,6 +20,7 @@
@@ -245,7 +245,7 @@ index 77ca52fb2..34608ea3c 100644
  		airoha_qdma_stop_napi(&eth->qdma[i]);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 8af2e2125..8fcfe9e14 100644
+index 8af2e2125829..8fcfe9e143d7 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -572,7 +572,11 @@ static int airoha_ppe_foe_entry_prepare(struct airoha_eth *eth,
@@ -273,7 +273,7 @@ index 8af2e2125..8fcfe9e14 100644
  	airoha_ppe_foe_flow_stat_entry_reset(ppe, npu, index);
 diff --git a/drivers/net/ethernet/airoha/airoha_wed.c b/drivers/net/ethernet/airoha/airoha_wed.c
 new file mode 100644
-index 000000000..e7925288f
+index 000000000000..e7925288f7b1
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_wed.c
 @@ -0,0 +1,1493 @@
@@ -1772,7 +1772,7 @@ index 000000000..e7925288f
 +}
 diff --git a/drivers/net/ethernet/airoha/airoha_wed.h b/drivers/net/ethernet/airoha/airoha_wed.h
 new file mode 100644
-index 000000000..d04183b7a
+index 000000000000..d04183b7a9da
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_wed.h
 @@ -0,0 +1,58 @@
@@ -1836,7 +1836,7 @@ index 000000000..d04183b7a
 +#endif
 diff --git a/drivers/net/ethernet/airoha/airoha_wed_debugfs.c b/drivers/net/ethernet/airoha/airoha_wed_debugfs.c
 new file mode 100644
-index 000000000..610f71755
+index 000000000000..610f71755608
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_wed_debugfs.c
 @@ -0,0 +1,120 @@
@@ -1961,7 +1961,7 @@ index 000000000..610f71755
 +				   &wed_txinfo_fops);
 +}
 diff --git a/drivers/net/ethernet/mediatek/Kconfig b/drivers/net/ethernet/mediatek/Kconfig
-index 64909b09e..c912b202e 100644
+index 64909b09eae1..c912b202eb8a 100644
 --- a/drivers/net/ethernet/mediatek/Kconfig
 +++ b/drivers/net/ethernet/mediatek/Kconfig
 @@ -10,6 +10,7 @@ if NET_VENDOR_MEDIATEK
@@ -1973,7 +1973,7 @@ index 64909b09e..c912b202e 100644
  config NET_MEDIATEK_SOC
  	tristate "MediaTek SoC Gigabit Ethernet support"
 diff --git a/drivers/net/ethernet/mediatek/Makefile b/drivers/net/ethernet/mediatek/Makefile
-index 03e008fbc..6cf15fcff 100644
+index 03e008fbc859..6cf15fcff3aa 100644
 --- a/drivers/net/ethernet/mediatek/Makefile
 +++ b/drivers/net/ethernet/mediatek/Makefile
 @@ -9,5 +9,4 @@ mtk_eth-$(CONFIG_NET_MEDIATEK_SOC_WED) += mtk_wed.o mtk_wed_mcu.o mtk_wed_wo.o
@@ -1983,7 +1983,7 @@ index 03e008fbc..6cf15fcff 100644
 -obj-$(CONFIG_NET_MEDIATEK_SOC_WED) += mtk_wed_ops.o
  obj-$(CONFIG_NET_MEDIATEK_STAR_EMAC) += mtk_star_emac.o
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index 1ed1f88dd..2106e3db1 100644
+index 1ed1f88dd7f8..2106e3db115d 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
 @@ -2769,31 +2769,32 @@ mtk_wed_setup_tc(struct mtk_wed_device *wed, struct net_device *dev,
@@ -2073,7 +2073,7 @@ index 1ed1f88dd..2106e3db1 100644
  	for (i = 0; i < ARRAY_SIZE(hw_list); i++) {
  		struct mtk_wed_hw *hw;
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed.h b/drivers/net/ethernet/mediatek/mtk_wed.h
-index b49aee9a8..853a09aba 100644
+index b49aee9a8b65..853a09abae98 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.h
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.h
 @@ -4,54 +4,7 @@
@@ -2271,7 +2271,7 @@ index b49aee9a8..853a09aba 100644
  }
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_ops.c b/drivers/net/ethernet/mediatek/mtk_wed_ops.c
 deleted file mode 100644
-index a5d9d8a5b..000000000
+index a5d9d8a5bce2..000000000000
 --- a/drivers/net/ethernet/mediatek/mtk_wed_ops.c
 +++ /dev/null
 @@ -1,8 +0,0 @@
@@ -2285,7 +2285,7 @@ index a5d9d8a5b..000000000
 -EXPORT_SYMBOL_GPL(mtk_soc_wed_ops);
 diff --git a/drivers/net/ethernet/mtk_wed_ops.c b/drivers/net/ethernet/mtk_wed_ops.c
 new file mode 100644
-index 000000000..11677183e
+index 000000000000..11677183ef97
 --- /dev/null
 +++ b/drivers/net/ethernet/mtk_wed_ops.c
 @@ -0,0 +1,49 @@
@@ -2340,7 +2340,7 @@ index 000000000..11677183e
 +EXPORT_SYMBOL_GPL(mtk_wed_ops_unregister);
 diff --git a/drivers/net/ethernet/mtk_wed_private.h b/drivers/net/ethernet/mtk_wed_private.h
 new file mode 100644
-index 000000000..9fa075bd6
+index 000000000000..9fa075bd6f95
 --- /dev/null
 +++ b/drivers/net/ethernet/mtk_wed_private.h
 @@ -0,0 +1,159 @@
@@ -2504,7 +2504,7 @@ index 000000000..9fa075bd6
 +
 +#endif
 diff --git a/include/linux/soc/mediatek/mtk_wed.h b/include/linux/soc/mediatek/mtk_wed.h
-index 3fa93bd65..d7eb3dc51 100644
+index 3fa93bd65004..d7eb3dc51032 100644
 --- a/include/linux/soc/mediatek/mtk_wed.h
 +++ b/include/linux/soc/mediatek/mtk_wed.h
 @@ -83,7 +83,7 @@ struct mtk_wed_buf {

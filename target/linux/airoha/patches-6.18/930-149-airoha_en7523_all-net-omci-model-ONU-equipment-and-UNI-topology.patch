@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 192 insertions(+), 4 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index a33dcebe8..82d518a8a 100644
+index a33dcebe85f1..82d518a8a42c 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -147,6 +147,14 @@ static bool omci_agent_result_can_be_faked(u8 result)
@@ -235,7 +235,7 @@ index a33dcebe8..82d518a8a 100644
  	for (i = 0; i < topology.tcont_count; i++) {
  		u16 scheduler_id = topology.scheduler_base + i;
 diff --git a/net/omci/me.c b/net/omci/me.c
-index d1025d493..f89715957 100644
+index d1025d4939ee..f89715957c99 100644
 --- a/net/omci/me.c
 +++ b/net/omci/me.c
 @@ -345,6 +345,32 @@ static const struct omci_class_name omci_classes[] = {
@@ -312,7 +312,7 @@ index d1025d493..f89715957 100644
  		      "GEM interworking termination point", OLT_CREATED_ACTIONS,
  		      OMCI_ME_F_DATAPATH, GENMASK(15, 8), GENMASK(15, 8), 12,
 diff --git a/net/omci/me.h b/net/omci/me.h
-index bf5dd593d..06f7b249c 100644
+index bf5dd593d164..06f7b249c863 100644
 --- a/net/omci/me.h
 +++ b/net/omci/me.h
 @@ -11,6 +11,8 @@ struct omci_me_class;

@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 147 insertions(+), 5 deletions(-)
 
 diff --git a/drivers/net/pcs/airoha/pcs-en7523.c b/drivers/net/pcs/airoha/pcs-en7523.c
-index cb8d5c40c..720065072 100644
+index cb8d5c40c117..720065072d14 100644
 --- a/drivers/net/pcs/airoha/pcs-en7523.c
 +++ b/drivers/net/pcs/airoha/pcs-en7523.c
 @@ -37,6 +37,31 @@

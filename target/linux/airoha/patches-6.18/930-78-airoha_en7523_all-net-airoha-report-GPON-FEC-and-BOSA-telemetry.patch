@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 100 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 119554c14..00f426756 100644
+index 119554c14788..00f42675619f 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -51,11 +51,20 @@ static int airoha_gpon_omci_set_uni(struct omci_device *odev,
@@ -53,7 +53,7 @@ index 119554c14..00f426756 100644
  	if (IS_ERR(omci->odev))
  		return PTR_ERR(omci->odev);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 47c3b45f8..165642f1c 100644
+index 47c3b45f8aa0..165642f1c352 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -7,6 +7,7 @@
@@ -73,7 +73,7 @@ index 47c3b45f8..165642f1c 100644
  
  #endif /* _AIROHA_GPON_OMCI_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 79db107c8..0bf5ddc34 100644
+index 79db107c8dae..0bf5ddc34c16 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -28,6 +28,7 @@
@@ -151,7 +151,7 @@ index 79db107c8..0bf5ddc34 100644
  static void gpon_disable(struct gpon_priv *priv);
  
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index d5083bb07..fab207355 100644
+index d5083bb073a1..fab207355974 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -34,9 +34,11 @@
@@ -204,7 +204,7 @@ index d5083bb07..fab207355 100644
  				      u8 t1_pbits, u8 t2_pbits,
  				      u8 t3_pattern,
 diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
-index 4625c7f16..3621dea50 100644
+index 4625c7f16720..3621dea5051d 100644
 --- a/include/linux/phy/phy-airoha-xpon.h
 +++ b/include/linux/phy/phy-airoha-xpon.h
 @@ -27,6 +27,8 @@ enum airoha_xpon_phy_gpon_oper_state {

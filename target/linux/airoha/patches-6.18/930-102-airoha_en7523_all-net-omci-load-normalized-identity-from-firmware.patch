@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 net/omci/identity.c
 
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 94058dd05..098bf2850 100644
+index 94058dd05cb3..098bf28505e7 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -18806,6 +18806,7 @@ F:	Documentation/devicetree/bindings/net/omci.yaml
@@ -39,7 +39,7 @@ index 94058dd05..098bf2850 100644
  OMAP AUDIO SUPPORT
  M:	Peter Ujfalusi <peter.ujfalusi@gmail.com>
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index be6b35c2f..51935246e 100644
+index be6b35c2f910..51935246ee07 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -72,8 +72,7 @@ int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
@@ -62,7 +62,7 @@ index be6b35c2f..51935246e 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 4ec5fa74e..ad50486e5 100644
+index 4ec5fa74efd8..ad50486e547d 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -7,6 +7,7 @@
@@ -84,7 +84,7 @@ index 4ec5fa74e..ad50486e5 100644
  void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id);
  void airoha_gpon_omci_set_channel(struct airoha_gpon_omci *omci,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 7e1ba1a5f..690b6a451 100644
+index 7e1ba1a5f775..690b6a451a99 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -619,6 +619,7 @@ struct gpon_priv {
@@ -205,7 +205,7 @@ index 7e1ba1a5f..690b6a451 100644
  				       &epon_link_ops, priv);
  	if (ret)
 diff --git a/include/net/omci.h b/include/net/omci.h
-index 4c8529482..cfc09029c 100644
+index 4c85294822e3..cfc09029c6a3 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -2,6 +2,7 @@
@@ -268,7 +268,7 @@ index 4c8529482..cfc09029c 100644
  			      const u8 serial_number[8],
  			      const u8 password[10]);
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index 116833965..4e69f0659 100644
+index 116833965c3d..4e69f0659ee5 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,7 +3,7 @@
@@ -308,7 +308,7 @@ index 116833965..4e69f0659 100644
  	OMCI_FEC_STATUS_UNKNOWN,
  	OMCI_FEC_STATUS_DOWN,
 diff --git a/net/omci/Makefile b/net/omci/Makefile
-index 3487828a6..29e8669e1 100644
+index 3487828a6e8f..29e8669e18e5 100644
 --- a/net/omci/Makefile
 +++ b/net/omci/Makefile
 @@ -1,3 +1,3 @@
@@ -317,7 +317,7 @@ index 3487828a6..29e8669e1 100644
 -omci-y := core.o agent.o
 +omci-y := core.o agent.o identity.o
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 98bde954b..0a4961cc4 100644
+index 98bde954bc81..0a4961cc4b91 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -1014,6 +1014,36 @@ static void omci_agent_refresh_identity_locked(struct omci_agent *agent)
@@ -510,7 +510,7 @@ index 98bde954b..0a4961cc4 100644
  		       struct omci_mib_object *object)
  {
 diff --git a/net/omci/core.c b/net/omci/core.c
-index d62c09e75..05de49db1 100644
+index d62c09e75413..05de49db1049 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -54,6 +54,7 @@ static const struct nla_policy omci_policy[OMCI_ATTR_MAX + 1] = {
@@ -642,7 +642,7 @@ index d62c09e75..05de49db1 100644
  
 diff --git a/net/omci/identity.c b/net/omci/identity.c
 new file mode 100644
-index 000000000..7c60ba821
+index 000000000000..7c60ba821e28
 --- /dev/null
 +++ b/net/omci/identity.c
 @@ -0,0 +1,431 @@
@@ -1078,7 +1078,7 @@ index 000000000..7c60ba821
 +}
 +EXPORT_SYMBOL_GPL(omci_identity_load);
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index 07e3b14fc..a6cafb71a 100644
+index 07e3b14fc43f..a6cafb71ad60 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -52,6 +52,11 @@ struct omci_agent_config {

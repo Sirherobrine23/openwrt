@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 9 insertions(+), 18 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 29ec52593..edf50349b 100644
+index 29ec525930e1..edf50349b50c 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1056,8 +1056,7 @@ static int gpon_set_gem_port_hw(struct gpon_priv *priv, u16 gem_port_id,

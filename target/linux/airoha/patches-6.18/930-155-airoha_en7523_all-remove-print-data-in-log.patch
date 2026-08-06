@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 74 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index c735a94ab..9ea74f8c7 100644
+index c735a94ab06e..9ea74f8c7cce 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1436,46 +1436,6 @@ static struct sk_buff *airoha_qdma_build_rx_skb(struct airoha_queue *q,

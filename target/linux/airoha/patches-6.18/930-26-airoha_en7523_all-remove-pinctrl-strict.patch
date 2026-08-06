@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 53 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/pinctrl/airoha/airoha-common.h b/drivers/pinctrl/airoha/airoha-common.h
-index c6144e249..750e351fe 100644
+index c6144e2494ae..750e351fe55e 100644
 --- a/drivers/pinctrl/airoha/airoha-common.h
 +++ b/drivers/pinctrl/airoha/airoha-common.h
 @@ -58,6 +58,8 @@
@@ -43,7 +43,7 @@ index c6144e249..750e351fe 100644
  };
  
 diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-index 6dcd939cb..a263cc8b2 100644
+index 6dcd939cbd95..a263cc8b2b29 100644
 --- a/drivers/pinctrl/airoha/pinctrl-airoha.c
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -364,13 +364,56 @@ static int airoha_pinmux_set_direction(struct pinctrl_dev *pctrl_dev,
@@ -113,7 +113,7 @@ index 6dcd939cb..a263cc8b2 100644
  	/* Restore SoC mux registers to their reset/default state. */
  	for (i = 0; i < data->num_hwinit_regs; i++) {
 diff --git a/drivers/pinctrl/airoha/pinctrl-an7581.c b/drivers/pinctrl/airoha/pinctrl-an7581.c
-index e9b1d03cf..d014a467b 100644
+index e9b1d03cf6a4..d014a467b89f 100644
 --- a/drivers/pinctrl/airoha/pinctrl-an7581.c
 +++ b/drivers/pinctrl/airoha/pinctrl-an7581.c
 @@ -64,7 +64,6 @@
@@ -133,7 +133,7 @@ index e9b1d03cf..d014a467b 100644
  		[AIROHA_PINCTRL_CONFS_PULLUP] = {
  			.confs = pinctrl_pullup_conf,
 diff --git a/drivers/pinctrl/airoha/pinctrl-an7583.c b/drivers/pinctrl/airoha/pinctrl-an7583.c
-index e106c1640..66cef355c 100644
+index e106c16407f9..66cef355cbcd 100644
 --- a/drivers/pinctrl/airoha/pinctrl-an7583.c
 +++ b/drivers/pinctrl/airoha/pinctrl-an7583.c
 @@ -74,7 +74,6 @@
@@ -153,7 +153,7 @@ index e106c1640..66cef355c 100644
  		[AIROHA_PINCTRL_CONFS_PULLUP] = {
  			.confs = pinctrl_pullup_conf,
 diff --git a/drivers/pinctrl/airoha/pinctrl-en7523.c b/drivers/pinctrl/airoha/pinctrl-en7523.c
-index a6202f631..967efe11d 100644
+index a6202f6313d5..967efe11d067 100644
 --- a/drivers/pinctrl/airoha/pinctrl-en7523.c
 +++ b/drivers/pinctrl/airoha/pinctrl-en7523.c
 @@ -53,7 +53,6 @@

@@ -31,7 +31,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 11 insertions(+)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 0c88617bb..cbc0556ee 100644
+index 0c88617bb52b..cbc0556eefc3 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -620,6 +620,17 @@ static int airoha_ppe_foe_entry_prepare(struct airoha_eth *eth,

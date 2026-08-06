@@ -26,7 +26,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 10 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 1d75817cf..9b1e6aa73 100644
+index 1d75817cf029..9b1e6aa73747 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2017,6 +2017,10 @@ static int airoha_qdma_tx_napi_poll(struct napi_struct *napi, int budget)
