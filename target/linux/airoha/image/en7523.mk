@@ -121,6 +121,15 @@ define Device/mitrastar_gpt-2742gx4x5v6
 endef
 TARGET_DEVICES += mitrastar_gpt-2742gx4x5v6
 
+define Device/raisecom_dr5374
+  $(Device/ubi_firmware_chainload)
+  DEVICE_VENDOR := Raisecom
+  DEVICE_MODEL := dr5374
+  DEVICE_PACKAGES += hostapd-mbedtls wpad-mbedtls wpa-supplicant-mbedtls \
+                     kmod-mt7915e kmod-mt7916-firmware
+endef
+TARGET_DEVICES += raisecom_dr5374
+
 define Device/tplink_ex530v-v1
   $(Device/Uboot-FitImage)
   DEVICE_VENDOR := TP-Link
