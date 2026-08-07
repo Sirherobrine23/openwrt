@@ -4,8 +4,8 @@
 #include "en751221.dtsi"
 
 / {
-	model = "Generic EN751221";
-	compatible = "econet,en751221";
+	model = "Mitrastar GPT-2741GNAC-N1";
+	compatible = "mitrastar,gpt-2741gnac-n1", "econet,en751221";
 
 	memory@0 {
 		device_type = "memory";
@@ -27,6 +27,31 @@
 		stdout-path = "/serial@1fbf0000:115200";
 		linux,usable-memory-range = <0x00020000 0x0ffe0000>;
 	};
+
+	keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
+			debounce-interval = <60>;
+		};
+
+		// wps5 {
+		// 	label = "wps5";
+		// 	linux,code = <KEY_WPS_BUTTON>;
+		// 	gpios = <&pinctrl 21 GPIO_ACTIVE_LOW>;
+		// 	debounce-interval = <60>;
+		// };
+
+		// wps2 {
+		// 	label = "wps2";
+		// 	linux,code = <KEY_WPS_BUTTON>;
+		// 	gpios = <&pinctrl 26 GPIO_ACTIVE_LOW>;
+		// 	debounce-interval = <60>;
+		// };
+	};
 };
 
 &nand {
@@ -45,7 +70,7 @@
 
 		partition@400000 {
 			label = "rest_of_flash";
-			reg = <0x00400000 0x07c00000>;
+			reg = <0x00400000 0x00000000>;
 		};
 	};
 };
@@ -88,6 +113,11 @@
 	status = "okay";
 };
 
+&gsw_port5 {
+	label = "lan5";
+	status = "okay";
+};
+
 &gsw_phy1 {
 	status = "okay";
 };
@@ -101,5 +131,9 @@
 };
 
 &gsw_phy4 {
+	status = "okay";
+};
+
+&gsw_phy5 {
 	status = "okay";
 };
