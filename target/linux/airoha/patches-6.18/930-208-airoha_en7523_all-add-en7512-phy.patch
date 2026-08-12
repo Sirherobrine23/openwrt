@@ -1,6 +1,6 @@
-From 8179586cc103be0d39ba12f94edd1375f90f7225 Mon Sep 17 00:00:00 2001
+From d15840b42b4ff12a64f8bb25082678bcfb6597b1 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
-Date: Thu, 6 Aug 2026 22:50:20 -0300
+Date: Tue, 11 Aug 2026 14:03:49 -0300
 Subject: [PATCH] add en7512 phy
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>

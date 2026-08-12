@@ -1,6 +1,6 @@
-From 69d15101f39b5431ab72e3c9a5451007e7c226f8 Mon Sep 17 00:00:00 2001
+From 788b72339e1a7f88e7ef1e3bf845ace0a425fd51 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
-Date: Thu, 6 Aug 2026 23:08:49 -0300
+Date: Tue, 11 Aug 2026 14:03:55 -0300
 Subject: [PATCH] net: phy: airoha: add EN7512 GPHY analog calibration
 
 Port the standalone EN7512/EN7521 GPHY initialization and analog

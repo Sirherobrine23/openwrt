@@ -1,6 +1,6 @@
-From 867058aa06fd8f74c159aabdd17a0a4deaf55193 Mon Sep 17 00:00:00 2001
+From e69c1e1a13c0d289faca48c5e97e3dcb46e58fc0 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
-Date: Thu, 6 Aug 2026 22:50:22 -0300
+Date: Tue, 11 Aug 2026 14:03:51 -0300
 Subject: [PATCH] clk: airoha: guard SMCCC CPU clock calls on ARM
 
 The EN7523 clock driver is now shared with MIPS-based EcoNet SoCs.
