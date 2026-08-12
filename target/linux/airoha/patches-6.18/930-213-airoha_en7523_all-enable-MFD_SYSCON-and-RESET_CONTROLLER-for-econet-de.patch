@@ -1,6 +1,6 @@
-From d75af0f4b59ca1d60ec7092eb72f5ed97a8b64fa Mon Sep 17 00:00:00 2001
+From 24a240f83350afe22df8894895ab96509553a7d5 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
-Date: Thu, 6 Aug 2026 22:50:25 -0300
+Date: Tue, 11 Aug 2026 14:03:54 -0300
 Subject: [PATCH] enable MFD_SYSCON and RESET_CONTROLLER for econet devices
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>

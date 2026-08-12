@@ -1,6 +1,6 @@
-From 91f19351f266aa5356ebbcf7f06f3e059cbf09ee Mon Sep 17 00:00:00 2001
+From abc5100766c29b25476c980da658bcd1203c60cb Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
-Date: Thu, 6 Aug 2026 22:50:14 -0300
+Date: Tue, 11 Aug 2026 14:03:43 -0300
 Subject: [PATCH] dt-bindings: net: describe split EcoNet GDM and QDMA
  resources
 
