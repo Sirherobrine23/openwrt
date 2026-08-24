@@ -218,7 +218,7 @@
 			compatible = "arm,gic-v3-its";
 			msi-controller;
 			#msi-cell = <1>;
-			reg = <0x090200000 0x20000>;
+			reg = <0x09020000 0x20000>;
 		};
 	};
 
