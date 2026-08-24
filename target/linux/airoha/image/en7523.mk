@@ -156,3 +156,14 @@ define Device/tplink_xx230v-v1
                      kmod-mt7915e kmod-mt7915-firmware kmod-mt7916-firmware
 endef
 TARGET_DEVICES += tplink_xx230v-v1
+
+define Device/zyxel_px3321-t1
+  DEVICE_VENDOR := Zyxel
+  DEVICE_MODEL := PX3321-T1
+  DEVICE_DTS := zyxel_px3321-t1
+  DEVICE_PACKAGES := fitblk kmod-mt7915e kmod-mt7916-firmware wpad-basic-mbedtls
+  IMAGE_SIZE := 49152k
+  KERNEL = kernel-bin | lzma | fit lzma $$(KDIR)/image-$$(DEVICE_DTS).dtb
+  KERNEL_INITRAMFS = kernel-bin | lzma | fit lzma $$(KDIR)/image-$$(DEVICE_DTS).dtb
+endef
+TARGET_DEVICES += zyxel_px3321-t1

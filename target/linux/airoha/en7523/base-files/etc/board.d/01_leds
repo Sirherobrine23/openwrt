@@ -81,6 +81,11 @@ case "$board" in
     ucidef_set_led_netdev "phy0-ap0" "phy0-ap0" "green:wlan-4" "phy0-ap0" "link tx rx"
     ucidef_set_led_netdev "phy1-ap0" "phy1-ap0" "green:wlan-4" "phy1-ap0" "link tx rx"
     ;;
+  zyxel,px3321-t1)
+    ucidef_set_led_netdev "wlan" "wlan-2g" ":wlan" "phy0-ap0" "link tx rx"
+    ucidef_set_led_netdev "wlan-5" "wlan-5g" ":wlan-5" "phy1-ap0" "link tx rx"
+    ;;
+
 esac
 
 board_config_flush
