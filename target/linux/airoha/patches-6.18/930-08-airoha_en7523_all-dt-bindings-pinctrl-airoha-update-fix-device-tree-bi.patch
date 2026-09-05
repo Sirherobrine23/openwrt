@@ -1,4 +1,4 @@
-From 063e4ca80814cf3c01c0aae5b0b0c84383681847 Mon Sep 17 00:00:00 2001
+From 4d21963059a22a23e6b146ad3d050e71254efbb4 Mon Sep 17 00:00:00 2001
 From: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
 Date: Sun, 28 Jun 2026 17:37:17 +0300
 Subject: [PATCH] dt-bindings: pinctrl: airoha: update/fix device tree binding
@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 16 insertions(+), 25 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
-index 79910214d9b5..f52802a3ad79 100644
+index 79910214d..f52802a3a 100644
 --- a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 +++ b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 @@ -61,7 +61,7 @@ patternProperties:
@@ -85,7 +85,7 @@ index 79910214d9b5..f52802a3ad79 100644
            bias-disable: true
  
 diff --git a/Documentation/devicetree/bindings/pinctrl/airoha,en7581-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/airoha,en7581-pinctrl.yaml
-index 21fd4f1ba78b..12dd85b5b410 100644
+index 21fd4f1ba..12dd85b5b 100644
 --- a/Documentation/devicetree/bindings/pinctrl/airoha,en7581-pinctrl.yaml
 +++ b/Documentation/devicetree/bindings/pinctrl/airoha,en7581-pinctrl.yaml
 @@ -166,7 +166,7 @@ patternProperties:

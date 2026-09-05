@@ -1,4 +1,4 @@
-From 3fd7bc0257e2903039923c3c88158c02326a399d Mon Sep 17 00:00:00 2001
+From a8020c56c7c86e6c1934a76b3b2bef3ede9892cc Mon Sep 17 00:00:00 2001
 From: Christian Marangi <ansuelsmth@gmail.com>
 Date: Fri, 7 Nov 2025 00:57:07 +0100
 Subject: [PATCH] dt-bindings: pinctrl: airoha: Document AN7583 Pin Controller
@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 new file mode 100644
-index 000000000000..79910214d9b5
+index 000000000..79910214d
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/pinctrl/airoha,an7583-pinctrl.yaml
 @@ -0,0 +1,402 @@
