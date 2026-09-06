@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 4 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 3ae87c3f8..8ac1cd6d3 100644
+index 3ae87c3f89d6..8ac1cd6d3297 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1027,6 +1027,9 @@ static int airoha_fe_init(struct airoha_eth *eth)
@@ -31,7 +31,7 @@ index 3ae87c3f8..8ac1cd6d3 100644
  		      airoha_is(eth, en7523) ? EN7523_CDM_OAM_QSEL_MASK : CDM_OAM_QSEL_MASK,
  		      airoha_is(eth, en7523) ? FIELD_PREP(EN7523_CDM_OAM_QSEL_MASK, 15) :
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index d6af4db84..b0aacfa63 100644
+index d6af4db847bb..b0aacfa63cd3 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -131,7 +131,7 @@

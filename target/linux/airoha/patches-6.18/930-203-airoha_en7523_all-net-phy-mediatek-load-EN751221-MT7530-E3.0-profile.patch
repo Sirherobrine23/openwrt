@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 67 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/phy/mediatek/mtk-ge.c b/drivers/net/phy/mediatek/mtk-ge.c
-index 97d845c90..7672d8048 100644
+index 97d845c906dd..7672d8048a24 100644
 --- a/drivers/net/phy/mediatek/mtk-ge.c
 +++ b/drivers/net/phy/mediatek/mtk-ge.c
 @@ -63,13 +63,78 @@ static void mtk_gephy_config_init(struct phy_device *phydev)

@@ -77,7 +77,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/net/optical-frontend.yaml b/Documentation/devicetree/bindings/net/optical-frontend.yaml
 new file mode 100644
-index 000000000..21f563c13
+index 000000000000..21f563c13c8a
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/optical-frontend.yaml
 @@ -0,0 +1,40 @@
@@ -122,7 +122,7 @@ index 000000000..21f563c13
 +additionalProperties: true
 +...
 diff --git a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
-index 9a6374a5e..279091011 100644
+index 9a6374a5e4ae..279091011ca3 100644
 --- a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 +++ b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 @@ -29,6 +29,12 @@ properties:
@@ -177,7 +177,7 @@ index 9a6374a5e..279091011 100644
          };
      };
 diff --git a/Documentation/driver-api/optical-frontend.rst b/Documentation/driver-api/optical-frontend.rst
-index e92020eb1..3d240a98b 100644
+index e92020eb1be4..3d240a98b134 100644
 --- a/Documentation/driver-api/optical-frontend.rst
 +++ b/Documentation/driver-api/optical-frontend.rst
 @@ -73,14 +73,19 @@ Operating mode
@@ -212,7 +212,7 @@ index e92020eb1..3d240a98b 100644
 +callback succeeds.  A provider which needs no additional register sequence
 +may omit the callback and rely entirely on the GPIO.
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 854c83a6b..5a916ccef 100644
+index 854c83a6bace..5a916ccef4a8 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -19455,6 +19455,7 @@ OPTICAL FRONTEND SUBSYSTEM
@@ -224,7 +224,7 @@ index 854c83a6b..5a916ccef 100644
  F:	Documentation/driver-api/optical-frontend.rst
  F:	drivers/net/optical/
 diff --git a/drivers/gpio/gpiolib-of.c b/drivers/gpio/gpiolib-of.c
-index 8f7a97131..a009801b3 100644
+index 8f7a97131eda..a009801b3688 100644
 --- a/drivers/gpio/gpiolib-of.c
 +++ b/drivers/gpio/gpiolib-of.c
 @@ -694,7 +694,6 @@ static struct gpio_desc *of_find_trigger_gpio(struct device_node *np,
@@ -236,7 +236,7 @@ index 8f7a97131..a009801b3 100644
  						const char *con_id,
  						unsigned int idx,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index e4cfcaf9d..4663d8a2c 100644
+index e4cfcaf9d324..4663d8a2c66d 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -83,58 +83,6 @@ struct airoha_xpon_match_data {
@@ -493,7 +493,7 @@ index e4cfcaf9d..4663d8a2c 100644
  		cancel_delayed_work_sync(&priv->to1_work);
  		cancel_delayed_work_sync(&priv->to2_work);
 diff --git a/drivers/net/optical/Kconfig b/drivers/net/optical/Kconfig
-index 3a460ea5a..4c7703f2e 100644
+index 3a460ea5aa66..4c7703f2e3b6 100644
 --- a/drivers/net/optical/Kconfig
 +++ b/drivers/net/optical/Kconfig
 @@ -25,19 +25,9 @@ config OPTICAL_FRONTEND_HWMON
@@ -518,7 +518,7 @@ index 3a460ea5a..4c7703f2e 100644
  
  endmenu
 diff --git a/drivers/net/optical/Makefile b/drivers/net/optical/Makefile
-index 2c02020b4..abffc2d60 100644
+index 2c02020b41b9..abffc2d60030 100644
 --- a/drivers/net/optical/Makefile
 +++ b/drivers/net/optical/Makefile
 @@ -2,6 +2,6 @@
@@ -533,7 +533,7 @@ diff --git a/drivers/net/phy/airoha/Kconfig b/drivers/net/optical/airoha/Kconfig
 similarity index 95%
 rename from drivers/net/phy/airoha/Kconfig
 rename to drivers/net/optical/airoha/Kconfig
-index a0b166212..e48278c47 100644
+index a0b1662128d4..e48278c4765b 100644
 --- a/drivers/net/phy/airoha/Kconfig
 +++ b/drivers/net/optical/airoha/Kconfig
 @@ -4,7 +4,6 @@ config AIROHA_LDDLA_PHY
@@ -552,7 +552,7 @@ diff --git a/drivers/net/phy/airoha/airoha_lddla.h b/drivers/net/optical/airoha/
 similarity index 81%
 rename from drivers/net/phy/airoha/airoha_lddla.h
 rename to drivers/net/optical/airoha/airoha_lddla.h
-index d4f7eae34..53ac24536 100644
+index d4f7eae34605..53ac24536aba 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.h
 +++ b/drivers/net/optical/airoha/airoha_lddla.h
 @@ -40,6 +40,28 @@ struct airoha_lddla;
@@ -649,7 +649,7 @@ diff --git a/drivers/net/phy/airoha/airoha_lddla_core.c b/drivers/net/optical/ai
 similarity index 71%
 rename from drivers/net/phy/airoha/airoha_lddla_core.c
 rename to drivers/net/optical/airoha/airoha_lddla_core.c
-index dfa883cff..5a6b8eece 100644
+index dfa883cff080..5a6b8eece22a 100644
 --- a/drivers/net/phy/airoha/airoha_lddla_core.c
 +++ b/drivers/net/optical/airoha/airoha_lddla_core.c
 @@ -4,26 +4,17 @@
@@ -1028,7 +1028,7 @@ diff --git a/drivers/net/phy/airoha/en7570.h b/drivers/net/optical/airoha/en7570
 similarity index 99%
 rename from drivers/net/phy/airoha/en7570.h
 rename to drivers/net/optical/airoha/en7570.h
-index 11241d716..a94dc7309 100644
+index 11241d716c1e..a94dc7309c81 100644
 --- a/drivers/net/phy/airoha/en7570.h
 +++ b/drivers/net/optical/airoha/en7570.h
 @@ -35,6 +35,8 @@
@@ -1052,7 +1052,7 @@ diff --git a/drivers/net/phy/airoha/en7570_main.c b/drivers/net/optical/airoha/e
 similarity index 88%
 rename from drivers/net/phy/airoha/en7570_main.c
 rename to drivers/net/optical/airoha/en7570_main.c
-index 725bce68f..0d6468c64 100644
+index 725bce68f320..0d6468c649c4 100644
 --- a/drivers/net/phy/airoha/en7570_main.c
 +++ b/drivers/net/optical/airoha/en7570_main.c
 @@ -15,21 +15,15 @@
@@ -1195,7 +1195,7 @@ diff --git a/drivers/net/phy/airoha/en7571.h b/drivers/net/optical/airoha/en7571
 similarity index 99%
 rename from drivers/net/phy/airoha/en7571.h
 rename to drivers/net/optical/airoha/en7571.h
-index 439becd65..ca37aaf58 100644
+index 439becd6577f..ca37aaf58088 100644
 --- a/drivers/net/phy/airoha/en7571.h
 +++ b/drivers/net/optical/airoha/en7571.h
 @@ -26,6 +26,7 @@
@@ -1218,7 +1218,7 @@ diff --git a/drivers/net/phy/airoha/en7571_main.c b/drivers/net/optical/airoha/e
 similarity index 88%
 rename from drivers/net/phy/airoha/en7571_main.c
 rename to drivers/net/optical/airoha/en7571_main.c
-index 1595631bc..aa6dc814a 100644
+index 1595631bc48a..aa6dc814afa8 100644
 --- a/drivers/net/phy/airoha/en7571_main.c
 +++ b/drivers/net/optical/airoha/en7571_main.c
 @@ -16,21 +16,15 @@
@@ -1365,7 +1365,7 @@ diff --git a/drivers/net/phy/airoha/en7572.h b/drivers/net/optical/airoha/en7572
 similarity index 93%
 rename from drivers/net/phy/airoha/en7572.h
 rename to drivers/net/optical/airoha/en7572.h
-index fd235f286..38d22847a 100644
+index fd235f2868c7..38d22847af80 100644
 --- a/drivers/net/phy/airoha/en7572.h
 +++ b/drivers/net/optical/airoha/en7572.h
 @@ -3,7 +3,7 @@
@@ -1393,7 +1393,7 @@ diff --git a/drivers/net/phy/airoha/en7572_ddmi.c b/drivers/net/optical/airoha/e
 similarity index 99%
 rename from drivers/net/phy/airoha/en7572_ddmi.c
 rename to drivers/net/optical/airoha/en7572_ddmi.c
-index def1bce22..9633ad854 100644
+index def1bce229da..9633ad854f87 100644
 --- a/drivers/net/phy/airoha/en7572_ddmi.c
 +++ b/drivers/net/optical/airoha/en7572_ddmi.c
 @@ -108,7 +108,7 @@ s32 en7572_power_dbm_x100(u16 word_0p1uw)
@@ -1409,7 +1409,7 @@ diff --git a/drivers/net/phy/airoha/en7572_loop.c b/drivers/net/optical/airoha/e
 similarity index 98%
 rename from drivers/net/phy/airoha/en7572_loop.c
 rename to drivers/net/optical/airoha/en7572_loop.c
-index 2b746d1b6..f4044e8c9 100644
+index 2b746d1b672e..f4044e8c95cc 100644
 --- a/drivers/net/phy/airoha/en7572_loop.c
 +++ b/drivers/net/optical/airoha/en7572_loop.c
 @@ -24,12 +24,12 @@
@@ -1440,7 +1440,7 @@ diff --git a/drivers/net/phy/airoha/en7572_main.c b/drivers/net/optical/airoha/e
 similarity index 97%
 rename from drivers/net/phy/airoha/en7572_main.c
 rename to drivers/net/optical/airoha/en7572_main.c
-index 964199e68..3c0fd75d4 100644
+index 964199e68324..3c0fd75d4f6b 100644
 --- a/drivers/net/phy/airoha/en7572_main.c
 +++ b/drivers/net/optical/airoha/en7572_main.c
 @@ -259,15 +259,17 @@ static int en7572_load_firmware(struct en7572_priv *priv)
@@ -1510,7 +1510,7 @@ similarity index 100%
 rename from drivers/net/phy/airoha/en7572_regs.h
 rename to drivers/net/optical/airoha/en7572_regs.h
 diff --git a/drivers/net/optical/core.c b/drivers/net/optical/core.c
-index 040e937c1..177407d05 100644
+index 040e937c127c..177407d05650 100644
 --- a/drivers/net/optical/core.c
 +++ b/drivers/net/optical/core.c
 @@ -13,6 +13,7 @@
@@ -1608,7 +1608,7 @@ index 040e937c1..177407d05 100644
  {
  	int ret;
 diff --git a/drivers/net/optical/semtech/Kconfig b/drivers/net/optical/semtech/Kconfig
-index 9d58c1dcc..ba2c102e8 100644
+index 9d58c1dccd78..ba2c102e8e69 100644
 --- a/drivers/net/optical/semtech/Kconfig
 +++ b/drivers/net/optical/semtech/Kconfig
 @@ -6,7 +6,6 @@ config GN25L95_PHY
@@ -1620,7 +1620,7 @@ index 9d58c1dcc..ba2c102e8 100644
  	  Support the Semtech GN25L95 2.5 Gbit/s burst-mode laser driver
  	  and limiting post amplifier. The driver is an independent provider
 diff --git a/drivers/net/optical/semtech/gn25l95.c b/drivers/net/optical/semtech/gn25l95.c
-index 044cb32b9..f8ce5a609 100644
+index 044cb32b9612..f8ce5a6091fe 100644
 --- a/drivers/net/optical/semtech/gn25l95.c
 +++ b/drivers/net/optical/semtech/gn25l95.c
 @@ -926,10 +926,6 @@ static int gn25l95_probe(struct i2c_client *client)
@@ -1636,7 +1636,7 @@ index 044cb32b9..f8ce5a609 100644
  	schedule_delayed_work(&priv->tick_work, HZ);
 diff --git a/drivers/net/optical/sfp_compat.c b/drivers/net/optical/sfp_compat.c
 deleted file mode 100644
-index 9bd3d1a74..000000000
+index 9bd3d1a748df..000000000000
 --- a/drivers/net/optical/sfp_compat.c
 +++ /dev/null
 @@ -1,313 +0,0 @@
@@ -1954,7 +1954,7 @@ index 9bd3d1a74..000000000
 -MODULE_DESCRIPTION("Optical frontend virtual SFF-8472 compatibility bus");
 -MODULE_LICENSE("GPL");
 diff --git a/drivers/net/phy/Kconfig b/drivers/net/phy/Kconfig
-index 84139a66d..44be15e96 100644
+index 84139a66ddd1..44be15e96b42 100644
 --- a/drivers/net/phy/Kconfig
 +++ b/drivers/net/phy/Kconfig
 @@ -170,8 +170,6 @@ config AS21XXX_PHY
@@ -1967,7 +1967,7 @@ index 84139a66d..44be15e96 100644
  	tristate "Drivers for Airoha EN8801S Gigabit PHYs"
  	help
 diff --git a/drivers/net/phy/Makefile b/drivers/net/phy/Makefile
-index ad6dc6b38..7ce6ac5b3 100644
+index ad6dc6b3836a..7ce6ac5b354b 100644
 --- a/drivers/net/phy/Makefile
 +++ b/drivers/net/phy/Makefile
 @@ -46,7 +46,6 @@ obj-$(CONFIG_ADIN_PHY)		+= adin.o
@@ -1979,7 +1979,7 @@ index ad6dc6b38..7ce6ac5b3 100644
  obj-$(CONFIG_AMCC_QT2025_PHY)	+= qt2025.o
  obj-$(CONFIG_AQUANTIA_PHY)	+= aquantia/
 diff --git a/include/linux/optical_frontend.h b/include/linux/optical_frontend.h
-index aee25e92c..202f59180 100644
+index aee25e92cd3d..202f59180e33 100644
 --- a/include/linux/optical_frontend.h
 +++ b/include/linux/optical_frontend.h
 @@ -178,6 +178,7 @@ struct optical_frontend_desc {

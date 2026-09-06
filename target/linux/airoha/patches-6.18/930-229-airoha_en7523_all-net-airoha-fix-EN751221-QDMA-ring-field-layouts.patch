@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 18 insertions(+), 18 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index e31d0daa3..0f50af660 100644
+index e31d0daa36f0..0f50af66032f 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -450,8 +450,8 @@ static irqreturn_t econet_irq_handler(int irq_num, void *dev_instance)
@@ -25,7 +25,7 @@ index e31d0daa3..0f50af660 100644
  static int econet_poll_tx_complete(struct napi_struct *napi, int budget)
  {
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index fe00dcdf3..f76f51ff4 100644
+index fe00dcdf32b7..f76f51ff478f 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -1716,11 +1716,11 @@ static inline void set_qregs_debug_mem_ctl_elem(struct mem_ctl *x, u16 v)

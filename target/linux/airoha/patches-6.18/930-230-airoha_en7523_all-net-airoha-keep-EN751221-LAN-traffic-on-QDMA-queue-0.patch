@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 15 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 0f50af660..0d3d632b5 100644
+index 0f50af66032f..0d3d632b54b4 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -1677,8 +1677,21 @@ static netdev_tx_t econet_dev_xmit(struct sk_buff *skb, struct net_device *dev)

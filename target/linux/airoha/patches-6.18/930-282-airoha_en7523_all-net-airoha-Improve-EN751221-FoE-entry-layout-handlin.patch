@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 398 insertions(+), 174 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml b/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
-index 76478f931..ff1bd5b47 100644
+index 76478f93198f..ff1bd5b47d51 100644
 --- a/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
 +++ b/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
 @@ -106,8 +106,8 @@ examples:
@@ -35,7 +35,7 @@ index 76478f931..ff1bd5b47 100644
  
          interrupt-parent = <&intc>;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 6d301a4a8..d3ce50017 100644
+index 6d301a4a81b6..d3ce500177c3 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -790,20 +790,23 @@ struct airoha_ppe {
@@ -129,7 +129,7 @@ index 6d301a4a8..d3ce50017 100644
  #if IS_ENABLED(CONFIG_NET_AIROHA_PPE_DEBUGFS)
  int airoha_ppe_debugfs_init(struct airoha_ppe_common *ppe);
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index b67a305bb..b3dbb1221 100644
+index b67a305bbc17..b3dbb122194c 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -2528,6 +2528,36 @@ void econet_ppe_read_entry(struct econet_ppe *ppe, u16 hash,
@@ -750,7 +750,7 @@ index b67a305bb..b3dbb1221 100644
  	airoha_fe_wr(eth, REG_PPE_HASH_SEED(0), PPE_HASH_SEED);
  	airoha_fe_wr(eth, REG_PPE_DFT_CPORT_BASE(0), 0);
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index 8f54255d7..bff84b020 100644
+index 8f54255d723f..bff84b02058b 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -359,31 +359,6 @@ static int airoha_ppe_debugfs_foe_bind_show(struct seq_file *m, void *private)
@@ -842,7 +842,7 @@ index 8f54255d7..bff84b020 100644
  		if (state == AIROHA_FOE_STATE_INVALID)
  			continue;
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index e990d196b..eaf281be8 100644
+index e990d196b111..eaf281be8c7b 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -1267,13 +1267,28 @@ static int econet_init_final(struct econet_qdma *qdma)
@@ -878,7 +878,7 @@ index e990d196b..eaf281be8 100644
  	econet_wreg(qcfg, &qdma->regs->qdma_cfg);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 8bdf6dd4d..f745d30bd 100644
+index 8bdf6dd4d2da..f745d30bd4e9 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -87,13 +87,23 @@

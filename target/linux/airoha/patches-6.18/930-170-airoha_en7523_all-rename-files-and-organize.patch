@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 373 insertions(+), 407 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index c3259ca07..4cb504376 100644
+index c3259ca07cc0..4cb5043766a7 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -1,9 +1,9 @@
@@ -106,7 +106,7 @@ index c3259ca07..4cb504376 100644
  	depends on OF
  	depends on SFP
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 5b014c6e4..333871aa9 100644
+index 5b014c6e4ace..333871aa95d6 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -3,19 +3,12 @@
@@ -137,7 +137,7 @@ index 5b014c6e4..333871aa9 100644
 -obj-$(CONFIG_AIROHA_XPON) += airoha-xpon.o
 -airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_gpon_omci.o
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index bb09108d8..243354ff5 100644
+index bb09108d85de..243354ff5cd3 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -5470,7 +5470,7 @@ static int airoha_register_gdm_devices(struct airoha_eth *eth)
@@ -170,7 +170,7 @@ index bb09108d8..243354ff5 100644
  		.name = KBUILD_MODNAME,
  		.of_match_table = of_airoha_match,
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index e1a3837bb..0804d5d96 100644
+index e1a3837bb0ce..0804d5d96553 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -1,37 +1,10 @@
@@ -1776,7 +1776,7 @@ index e1a3837bb..0804d5d96 100644
 +MODULE_AUTHOR("Matheus Sampaio Queiroga <srherobrine20@gmail.com>");
  MODULE_DESCRIPTION("Ethernet driver for EcoNet SoC");
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index fe333746f..ebbaef15d 100644
+index fe333746fd5d..ebbaef15d01d 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -3210,30 +3210,30 @@ static inline void set_gdm_len_th_runt_len(struct gdm_len_th *x, u16 v)

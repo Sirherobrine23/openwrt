@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 66 insertions(+), 23 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 02d77c9af..9494ac3ff 100644
+index 02d77c9af240..9494ac3ff8a2 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -137,15 +137,15 @@ static void econet_fill_rx_queue(struct econet_q_rx *q, u32 end_i)

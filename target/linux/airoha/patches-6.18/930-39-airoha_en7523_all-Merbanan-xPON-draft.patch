@@ -64,7 +64,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/phy/airoha/en7572_regs.h
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 40aebb5fc..a19da5e12 100644
+index 40aebb5fc5fe..a19da5e123dd 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -44,4 +44,26 @@ config NET_AIROHA_SOC_WED
@@ -95,7 +95,7 @@ index 40aebb5fc..a19da5e12 100644
 +
  endif #NET_VENDOR_AIROHA
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 21eeb688d..27c9ad636 100644
+index 21eeb688d8dc..27c9ad63698b 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -9,3 +9,8 @@ airoha-eth-$(CONFIG_DEBUG_FS) += airoha_ppe_debugfs.o
@@ -110,7 +110,7 @@ index 21eeb688d..27c9ad636 100644
 \ No newline at end of file
 diff --git a/drivers/net/ethernet/airoha/airoha_epon.c b/drivers/net/ethernet/airoha/airoha_epon.c
 new file mode 100644
-index 000000000..a85d0e3c3
+index 000000000000..a85d0e3c3804
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_epon.c
 @@ -0,0 +1,798 @@
@@ -914,7 +914,7 @@ index 000000000..a85d0e3c3
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon.c b/drivers/net/ethernet/airoha/airoha_gpon.c
 new file mode 100644
-index 000000000..21059af81
+index 000000000000..21059af81d18
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_gpon.c
 @@ -0,0 +1,1295 @@
@@ -2215,7 +2215,7 @@ index 000000000..21059af81
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon.h b/drivers/net/ethernet/airoha/airoha_gpon.h
 new file mode 100644
-index 000000000..540302bc2
+index 000000000000..540302bc2d2d
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_gpon.h
 @@ -0,0 +1,23 @@
@@ -2244,7 +2244,7 @@ index 000000000..540302bc2
 +#endif /* _ECONET_GPON_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
 new file mode 100644
-index 000000000..5a760dfd4
+index 000000000000..5a760dfd4b24
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -0,0 +1,741 @@
@@ -2991,7 +2991,7 @@ index 000000000..5a760dfd4
 +}
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.h b/drivers/net/ethernet/airoha/airoha_ploam.h
 new file mode 100644
-index 000000000..e8a0b8ce1
+index 000000000000..e8a0b8ce16a0
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.h
 @@ -0,0 +1,161 @@
@@ -3157,7 +3157,7 @@ index 000000000..e8a0b8ce1
 +
 +#endif /* _ECONET_PLOAM_H */
 diff --git a/drivers/net/phy/Kconfig b/drivers/net/phy/Kconfig
-index 44be15e96..84139a66d 100644
+index 44be15e96b42..84139a66ddd1 100644
 --- a/drivers/net/phy/Kconfig
 +++ b/drivers/net/phy/Kconfig
 @@ -170,6 +170,8 @@ config AS21XXX_PHY
@@ -3170,7 +3170,7 @@ index 44be15e96..84139a66d 100644
  	tristate "Drivers for Airoha EN8801S Gigabit PHYs"
  	help
 diff --git a/drivers/net/phy/Makefile b/drivers/net/phy/Makefile
-index 7ce6ac5b3..ad6dc6b38 100644
+index 7ce6ac5b354b..ad6dc6b3836a 100644
 --- a/drivers/net/phy/Makefile
 +++ b/drivers/net/phy/Makefile
 @@ -46,6 +46,7 @@ obj-$(CONFIG_ADIN_PHY)		+= adin.o
@@ -3183,7 +3183,7 @@ index 7ce6ac5b3..ad6dc6b38 100644
  obj-$(CONFIG_AQUANTIA_PHY)	+= aquantia/
 diff --git a/drivers/net/phy/airoha/Kconfig b/drivers/net/phy/airoha/Kconfig
 new file mode 100644
-index 000000000..f4a2e0b9c
+index 000000000000..f4a2e0b9c6cd
 --- /dev/null
 +++ b/drivers/net/phy/airoha/Kconfig
 @@ -0,0 +1,28 @@
@@ -3217,7 +3217,7 @@ index 000000000..f4a2e0b9c
 +endif
 diff --git a/drivers/net/phy/airoha/Makefile b/drivers/net/phy/airoha/Makefile
 new file mode 100644
-index 000000000..b29a659cb
+index 000000000000..b29a659cbd78
 --- /dev/null
 +++ b/drivers/net/phy/airoha/Makefile
 @@ -0,0 +1,19 @@
@@ -3242,7 +3242,7 @@ index 000000000..b29a659cb
 +airoha_en7572-$(CONFIG_EN7572_PHY)	+= en7572_main.o
 diff --git a/drivers/net/phy/airoha/airoha_lddla.c b/drivers/net/phy/airoha/airoha_lddla.c
 new file mode 100644
-index 000000000..ba5364c37
+index 000000000000..ba5364c379c0
 --- /dev/null
 +++ b/drivers/net/phy/airoha/airoha_lddla.c
 @@ -0,0 +1,826 @@
@@ -4074,7 +4074,7 @@ index 000000000..ba5364c37
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/net/phy/airoha/airoha_lddla.h b/drivers/net/phy/airoha/airoha_lddla.h
 new file mode 100644
-index 000000000..eb77cf7cd
+index 000000000000..eb77cf7cdeb1
 --- /dev/null
 +++ b/drivers/net/phy/airoha/airoha_lddla.h
 @@ -0,0 +1,164 @@
@@ -4244,7 +4244,7 @@ index 000000000..eb77cf7cd
 +#endif /* _AIROHA_LDDLA_H */
 diff --git a/drivers/net/phy/airoha/en7570.h b/drivers/net/phy/airoha/en7570.h
 new file mode 100644
-index 000000000..11241d716
+index 000000000000..11241d716c1e
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7570.h
 @@ -0,0 +1,182 @@
@@ -4432,7 +4432,7 @@ index 000000000..11241d716
 +#endif /* _EN7570_H */
 diff --git a/drivers/net/phy/airoha/en7570_adcloop.c b/drivers/net/phy/airoha/en7570_adcloop.c
 new file mode 100644
-index 000000000..4c18bbb47
+index 000000000000..4c18bbb47e6f
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7570_adcloop.c
 @@ -0,0 +1,492 @@
@@ -4930,7 +4930,7 @@ index 000000000..4c18bbb47
 +}
 diff --git a/drivers/net/phy/airoha/en7570_ddmi.c b/drivers/net/phy/airoha/en7570_ddmi.c
 new file mode 100644
-index 000000000..71cb0fa52
+index 000000000000..71cb0fa528fb
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7570_ddmi.c
 @@ -0,0 +1,146 @@
@@ -5082,7 +5082,7 @@ index 000000000..71cb0fa52
 +}
 diff --git a/drivers/net/phy/airoha/en7570_main.c b/drivers/net/phy/airoha/en7570_main.c
 new file mode 100644
-index 000000000..19e9576f9
+index 000000000000..19e9576f9bce
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7570_main.c
 @@ -0,0 +1,481 @@
@@ -5569,7 +5569,7 @@ index 000000000..19e9576f9
 +MODULE_FIRMWARE(EN7570_DEFAULT_FW);
 diff --git a/drivers/net/phy/airoha/en7570_regs.h b/drivers/net/phy/airoha/en7570_regs.h
 new file mode 100644
-index 000000000..46f9539bc
+index 000000000000..46f9539bce84
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7570_regs.h
 @@ -0,0 +1,284 @@
@@ -5859,7 +5859,7 @@ index 000000000..46f9539bc
 +#endif /* _EN7570_REGS_H */
 diff --git a/drivers/net/phy/airoha/en7570_txrx.c b/drivers/net/phy/airoha/en7570_txrx.c
 new file mode 100644
-index 000000000..21b2a5343
+index 000000000000..21b2a5343613
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7570_txrx.c
 @@ -0,0 +1,633 @@
@@ -6498,7 +6498,7 @@ index 000000000..21b2a5343
 +}
 diff --git a/drivers/net/phy/airoha/en7571.h b/drivers/net/phy/airoha/en7571.h
 new file mode 100644
-index 000000000..439becd65
+index 000000000000..439becd6577f
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7571.h
 @@ -0,0 +1,167 @@
@@ -6671,7 +6671,7 @@ index 000000000..439becd65
 +#endif /* _EN7571_H */
 diff --git a/drivers/net/phy/airoha/en7571_adcloop.c b/drivers/net/phy/airoha/en7571_adcloop.c
 new file mode 100644
-index 000000000..3183f588b
+index 000000000000..3183f588be89
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7571_adcloop.c
 @@ -0,0 +1,526 @@
@@ -7203,7 +7203,7 @@ index 000000000..3183f588b
 +}
 diff --git a/drivers/net/phy/airoha/en7571_ddmi.c b/drivers/net/phy/airoha/en7571_ddmi.c
 new file mode 100644
-index 000000000..5688f8ba8
+index 000000000000..5688f8ba861c
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7571_ddmi.c
 @@ -0,0 +1,140 @@
@@ -7349,7 +7349,7 @@ index 000000000..5688f8ba8
 +}
 diff --git a/drivers/net/phy/airoha/en7571_main.c b/drivers/net/phy/airoha/en7571_main.c
 new file mode 100644
-index 000000000..3ecfc1000
+index 000000000000..3ecfc10003be
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7571_main.c
 @@ -0,0 +1,542 @@
@@ -7897,7 +7897,7 @@ index 000000000..3ecfc1000
 +MODULE_FIRMWARE(EN7571_DEFAULT_FW);
 diff --git a/drivers/net/phy/airoha/en7571_regs.h b/drivers/net/phy/airoha/en7571_regs.h
 new file mode 100644
-index 000000000..62b552e84
+index 000000000000..62b552e8464e
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7571_regs.h
 @@ -0,0 +1,388 @@
@@ -8291,7 +8291,7 @@ index 000000000..62b552e84
 +#endif /* _EN7571_REGS_H */
 diff --git a/drivers/net/phy/airoha/en7571_txrx.c b/drivers/net/phy/airoha/en7571_txrx.c
 new file mode 100644
-index 000000000..a7df9d7ae
+index 000000000000..a7df9d7ae921
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7571_txrx.c
 @@ -0,0 +1,739 @@
@@ -9036,7 +9036,7 @@ index 000000000..a7df9d7ae
 +}
 diff --git a/drivers/net/phy/airoha/en7572.h b/drivers/net/phy/airoha/en7572.h
 new file mode 100644
-index 000000000..fd235f286
+index 000000000000..fd235f2868c7
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7572.h
 @@ -0,0 +1,107 @@
@@ -9149,7 +9149,7 @@ index 000000000..fd235f286
 +#endif /* _EN7572_H */
 diff --git a/drivers/net/phy/airoha/en7572_ddmi.c b/drivers/net/phy/airoha/en7572_ddmi.c
 new file mode 100644
-index 000000000..def1bce22
+index 000000000000..def1bce229da
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7572_ddmi.c
 @@ -0,0 +1,208 @@
@@ -9363,7 +9363,7 @@ index 000000000..def1bce22
 +}
 diff --git a/drivers/net/phy/airoha/en7572_loop.c b/drivers/net/phy/airoha/en7572_loop.c
 new file mode 100644
-index 000000000..2b746d1b6
+index 000000000000..2b746d1b672e
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7572_loop.c
 @@ -0,0 +1,270 @@
@@ -9639,7 +9639,7 @@ index 000000000..2b746d1b6
 +}
 diff --git a/drivers/net/phy/airoha/en7572_main.c b/drivers/net/phy/airoha/en7572_main.c
 new file mode 100644
-index 000000000..7989ebf1a
+index 000000000000..7989ebf1ae9a
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7572_main.c
 @@ -0,0 +1,498 @@
@@ -10143,7 +10143,7 @@ index 000000000..7989ebf1a
 +};
 diff --git a/drivers/net/phy/airoha/en7572_regs.h b/drivers/net/phy/airoha/en7572_regs.h
 new file mode 100644
-index 000000000..ced4a89e1
+index 000000000000..ced4a89e1e13
 --- /dev/null
 +++ b/drivers/net/phy/airoha/en7572_regs.h
 @@ -0,0 +1,119 @@

@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 77 insertions(+), 11 deletions(-)
 
 diff --git a/include/net/omci.h b/include/net/omci.h
-index 58e415a1c..64f39ac1d 100644
+index 58e415a1cee6..64f39ac1d793 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -227,6 +227,7 @@ struct omci_telemetry {
@@ -37,7 +37,7 @@ index 58e415a1c..64f39ac1d 100644
  
  struct omci_device *
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 4018429f9..00ee55a61 100644
+index 4018429f9b63..00ee55a61527 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -1176,6 +1176,33 @@ static void omci_agent_apply_identity(struct omci_agent *agent,

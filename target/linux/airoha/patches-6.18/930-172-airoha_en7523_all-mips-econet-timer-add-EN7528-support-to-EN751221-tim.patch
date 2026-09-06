@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 121 insertions(+), 26 deletions(-)
 
 diff --git a/drivers/clocksource/Kconfig b/drivers/clocksource/Kconfig
-index 1119fbd52..4db85b587 100644
+index 1119fbd52e1c..4db85b587d3c 100644
 --- a/drivers/clocksource/Kconfig
 +++ b/drivers/clocksource/Kconfig
 @@ -79,7 +79,10 @@ config ECONET_EN751221_TIMER
@@ -27,7 +27,7 @@ index 1119fbd52..4db85b587 100644
  config FTTMR010_TIMER
  	bool "Faraday Technology timer driver" if COMPILE_TEST
 diff --git a/drivers/clocksource/timer-econet-en751221.c b/drivers/clocksource/timer-econet-en751221.c
-index 4008076b1..5c5980962 100644
+index 4008076b1a21..5c5980962685 100644
 --- a/drivers/clocksource/timer-econet-en751221.c
 +++ b/drivers/clocksource/timer-econet-en751221.c
 @@ -2,12 +2,20 @@

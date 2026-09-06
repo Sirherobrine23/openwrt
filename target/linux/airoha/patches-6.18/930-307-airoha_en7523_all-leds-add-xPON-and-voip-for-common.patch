@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 3 insertions(+)
 
 diff --git a/include/dt-bindings/leds/common.h b/include/dt-bindings/leds/common.h
-index 4f017bea0..da6143c70 100644
+index 4f017bea0123..da6143c706c7 100644
 --- a/include/dt-bindings/leds/common.h
 +++ b/include/dt-bindings/leds/common.h
 @@ -103,6 +103,7 @@

@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 385 insertions(+), 2 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
-index 3c5c22b6a..7611f3619 100644
+index 3c5c22b6a730..7611f3619c97 100644
 --- a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 +++ b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 @@ -24,6 +24,14 @@ properties:
@@ -43,7 +43,7 @@ index 3c5c22b6a..7611f3619 100644
              sfp_i2c: i2c-sfp {
                  #address-cells = <1>;
 diff --git a/drivers/net/phy/airoha/Kconfig b/drivers/net/phy/airoha/Kconfig
-index c8a1992e5..4f57c2d51 100644
+index c8a1992e5e5d..4f57c2d51886 100644
 --- a/drivers/net/phy/airoha/Kconfig
 +++ b/drivers/net/phy/airoha/Kconfig
 @@ -28,6 +28,7 @@ config EN7572_PHY
@@ -55,7 +55,7 @@ index c8a1992e5..4f57c2d51 100644
  	help
  	  Support the Semtech GN25L95 2.5 Gbit/s burst-mode laser driver
 diff --git a/drivers/net/phy/airoha/gn25l95.c b/drivers/net/phy/airoha/gn25l95.c
-index 7ac5d5402..440f852f0 100644
+index 7ac5d5402e0c..440f852f035a 100644
 --- a/drivers/net/phy/airoha/gn25l95.c
 +++ b/drivers/net/phy/airoha/gn25l95.c
 @@ -15,10 +15,12 @@

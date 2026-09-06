@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 78 insertions(+), 78 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 31f8746f0..46750477e 100644
+index 31f8746f08cd..46750477e4ed 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -55,19 +55,6 @@ config NET_ECONET
@@ -40,7 +40,7 @@ index 31f8746f0..46750477e 100644
  	bool
  	default y
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 4ae2fd282..9ef6c8470 100644
+index 4ae2fd2829f8..9ef6c84707e5 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -815,6 +815,7 @@ struct airoha_eth {
@@ -69,7 +69,7 @@ index 4ae2fd282..9ef6c8470 100644
  {
  	struct airoha_qdma *qdma = q->qdma;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 2e11de9fd..b5b80d679 100644
+index 2e11de9fd639..b5b80d679373 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -2301,8 +2301,7 @@ void airoha_eth_gen1_remove(struct platform_device *pdev,
@@ -124,7 +124,7 @@ index 2e11de9fd..b5b80d679 100644
  	.qdma_dscp_byte_swap = false,
  };
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index f690d790b..fa90aaf67 100644
+index f690d790be8f..fa90aaf67c4d 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -5497,6 +5497,7 @@ int airoha_eth_gen2_probe(struct platform_device *pdev, struct airoha_eth *eth)
@@ -136,7 +136,7 @@ index f690d790b..fa90aaf67 100644
  	eth->gdmp_regs = devm_platform_ioremap_resource_byname(pdev, "gdmp");
  	if (IS_ERR(eth->gdmp_regs))
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 39f733317..9efd20993 100644
+index 39f733317f5b..9efd20993fcc 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -136,6 +136,9 @@ u32 airoha_ppe_get_total_num_entries(struct airoha_ppe *ppe)
@@ -336,7 +336,7 @@ index 39f733317..9efd20993 100644
  MODULE_LICENSE("GPL");
  MODULE_DESCRIPTION("Airoha and EcoNet PPE flow offload");
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index d421606f8..5c07e137b 100644
+index d421606f8bec..5c07e137b4ec 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -36,6 +36,7 @@ struct airoha_ppe_dev {

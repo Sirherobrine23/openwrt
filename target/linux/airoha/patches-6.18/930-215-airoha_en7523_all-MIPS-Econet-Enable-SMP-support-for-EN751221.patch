@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 77 insertions(+), 3 deletions(-)
 
 diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
-index be98c9985..a651e9e9c 100644
+index be98c9985967..a651e9e9c0d2 100644
 --- a/arch/mips/Kconfig
 +++ b/arch/mips/Kconfig
 @@ -2212,8 +2212,6 @@ config MIPS_MT_SMP
@@ -30,7 +30,7 @@ index be98c9985..a651e9e9c 100644
  	select MIPS_MT
  	select SMP
 diff --git a/arch/mips/econet/Kconfig b/arch/mips/econet/Kconfig
-index 6ca988d7d..d99174fa8 100644
+index 6ca988d7d561..d99174fa8e22 100644
 --- a/arch/mips/econet/Kconfig
 +++ b/arch/mips/econet/Kconfig
 @@ -20,6 +20,7 @@ choice
@@ -42,7 +42,7 @@ index 6ca988d7d..d99174fa8 100644
  		  The EN751221 family includes EN7512, RN7513, EN7521, EN7526.
  		  They are based on single core MIPS 34Kc processors. To boot
 diff --git a/arch/mips/econet/init.c b/arch/mips/econet/init.c
-index f055924e3..2ff154774 100644
+index f055924e3756..2ff154774d86 100644
 --- a/arch/mips/econet/init.c
 +++ b/arch/mips/econet/init.c
 @@ -68,6 +68,10 @@ void __init device_tree_init(void)
@@ -57,7 +57,7 @@ index f055924e3..2ff154774 100644
  }
  
 diff --git a/arch/mips/kernel/smp-mt.c b/arch/mips/kernel/smp-mt.c
-index 7729cc733..274f21a6b 100644
+index 7729cc733421..274f21a6b67f 100644
 --- a/arch/mips/kernel/smp-mt.c
 +++ b/arch/mips/kernel/smp-mt.c
 @@ -115,7 +115,7 @@ static void vsmp_init_secondary(void)
@@ -70,7 +70,7 @@ index 7729cc733..274f21a6b 100644
  
  static void vsmp_smp_finish(void)
 diff --git a/drivers/irqchip/irq-econet-en751221.c b/drivers/irqchip/irq-econet-en751221.c
-index d83d5eb12..12a64c178 100644
+index d83d5eb12795..12a64c178eba 100644
 --- a/drivers/irqchip/irq-econet-en751221.c
 +++ b/drivers/irqchip/irq-econet-en751221.c
 @@ -40,6 +40,10 @@

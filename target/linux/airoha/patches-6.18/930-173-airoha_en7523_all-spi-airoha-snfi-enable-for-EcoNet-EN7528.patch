@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
-index 7d2a633a2..e62c1be2c 100644
+index 7d2a633a2850..e62c1be2cd36 100644
 --- a/drivers/spi/Kconfig
 +++ b/drivers/spi/Kconfig
 @@ -62,7 +62,7 @@ comment "SPI Master Controller Drivers"

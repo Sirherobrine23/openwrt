@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 include/linux/phy/phy-airoha-xpon.h
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
-index eed80ee4a..5c9f6ebfd 100644
+index eed80ee4a2b3..5c9f6ebfd004 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 @@ -37,7 +37,6 @@ properties:
@@ -86,7 +86,7 @@ index eed80ee4a..5c9f6ebfd 100644
  ...
 diff --git a/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml b/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
 new file mode 100644
-index 000000000..064228d51
+index 000000000000..064228d51fa4
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
 @@ -0,0 +1,60 @@
@@ -151,7 +151,7 @@ index 000000000..064228d51
 +    };
 +...
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 14e6fb896..2676a121b 100644
+index 14e6fb896f4e..2676a121bfbb 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -50,6 +50,8 @@ config AIROHA_XPON
@@ -164,7 +164,7 @@ index 14e6fb896..2676a121b 100644
  	  Driver for the shared xPON MAC complex found in Airoha/EcoNet SoCs.
  	  GPON and EPON are implemented by one platform driver and selected by
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
-index 5a760dfd4..43a90f7f4 100644
+index 5a760dfd4b24..43a90f7f4787 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.c
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -147,14 +147,6 @@ static void ploam_send(struct ploam_priv *pp, u8 type,
@@ -204,7 +204,7 @@ index 5a760dfd4..43a90f7f4 100644
  
  /* -----------------------------------------------------------------------
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index b64e0b0f7..263abd120 100644
+index b64e0b0f73bc..263abd120235 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -15,7 +15,6 @@
@@ -1415,7 +1415,7 @@ index b64e0b0f7..263abd120 100644
  	if (!res)
  		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 diff --git a/drivers/net/phy/airoha/en7571_main.c b/drivers/net/phy/airoha/en7571_main.c
-index 3ecfc1000..efc777b4b 100644
+index 3ecfc10003be..efc777b4b6a2 100644
 --- a/drivers/net/phy/airoha/en7571_main.c
 +++ b/drivers/net/phy/airoha/en7571_main.c
 @@ -392,6 +392,23 @@ static u16 en7571_op_rx_power(struct airoha_lddla *lddla)
@@ -1460,7 +1460,7 @@ index 3ecfc1000..efc777b4b 100644
  
  static const struct airoha_lddla_ops en7571_ops = {
 diff --git a/drivers/net/phy/airoha/en7571_txrx.c b/drivers/net/phy/airoha/en7571_txrx.c
-index a7df9d7ae..45761032c 100644
+index a7df9d7ae921..45761032c6d0 100644
 --- a/drivers/net/phy/airoha/en7571_txrx.c
 +++ b/drivers/net/phy/airoha/en7571_txrx.c
 @@ -110,13 +110,18 @@ void en7571_burst_ctrl(struct en7571_priv *priv)
@@ -1523,7 +1523,7 @@ index a7df9d7ae..45761032c 100644
  	/* Imax = 0x0fff0000 in both PWR_CTRL_6 and PWR_CTRL_7. */
  	b[0] = 0; b[1] = 0; b[2] = EN7571_IMAX & 0xff; b[3] = (EN7571_IMAX >> 8) & 0x0f;
 diff --git a/drivers/phy/airoha/Kconfig b/drivers/phy/airoha/Kconfig
-index a88eb7ded..86053e4e0 100644
+index a88eb7ded9cd..86053e4e0cfd 100644
 --- a/drivers/phy/airoha/Kconfig
 +++ b/drivers/phy/airoha/Kconfig
 @@ -22,6 +22,18 @@ config PHY_AIROHA_USB
@@ -1546,7 +1546,7 @@ index a88eb7ded..86053e4e0 100644
  	tristate "Airoha AN7583 USB PHY Driver"
  	depends on ARCH_AIROHA || COMPILE_TEST
 diff --git a/drivers/phy/airoha/Makefile b/drivers/phy/airoha/Makefile
-index 127a72b7a..a746e06db 100644
+index 127a72b7aa03..a746e06db012 100644
 --- a/drivers/phy/airoha/Makefile
 +++ b/drivers/phy/airoha/Makefile
 @@ -3,3 +3,4 @@
@@ -1556,7 +1556,7 @@ index 127a72b7a..a746e06db 100644
 +obj-$(CONFIG_PHY_AIROHA_XPON)		+= phy-airoha-xpon.o
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
 new file mode 100644
-index 000000000..7e7fa0acb
+index 000000000000..7e7fa0acbc82
 --- /dev/null
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -0,0 +1,701 @@
@@ -2263,7 +2263,7 @@ index 000000000..7e7fa0acb
 +MODULE_LICENSE("GPL");
 diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
 new file mode 100644
-index 000000000..6995dc5ce
+index 000000000000..6995dc5cef5b
 --- /dev/null
 +++ b/include/linux/phy/phy-airoha-xpon.h
 @@ -0,0 +1,38 @@

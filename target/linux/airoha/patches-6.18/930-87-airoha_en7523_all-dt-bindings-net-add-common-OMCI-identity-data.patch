@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 Documentation/devicetree/bindings/net/omci.yaml
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
-index 5c9f6ebfd..0a82e9419 100644
+index 5c9f6ebfd004..0a82e94193d2 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 @@ -68,6 +68,7 @@ properties:
@@ -45,7 +45,7 @@ index 5c9f6ebfd..0a82e9419 100644
          compatible:
 diff --git a/Documentation/devicetree/bindings/net/omci.yaml b/Documentation/devicetree/bindings/net/omci.yaml
 new file mode 100644
-index 000000000..569b0ed12
+index 000000000000..569b0ed12645
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/omci.yaml
 @@ -0,0 +1,88 @@
@@ -138,7 +138,7 @@ index 000000000..569b0ed12
 +additionalProperties: true
 +...
 diff --git a/MAINTAINERS b/MAINTAINERS
-index d821f790b..6e830a2e0 100644
+index d821f790bb0c..6e830a2e0a7b 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -18814,6 +18814,14 @@ F:	drivers/misc/ocxl/

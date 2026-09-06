@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 149 insertions(+), 144 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 8b3c8738f..796e3126f 100644
+index 8b3c8738f295..796e3126f6a1 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -691,10 +691,6 @@ static inline struct airoha_eth_gen1 *airoha_eth_gen1_priv(struct airoha_eth *et
@@ -49,7 +49,7 @@ index 8b3c8738f..796e3126f 100644
  	eth->gdmp_regs = devm_platform_ioremap_resource_byname(pdev, "gdmp");
  	if (IS_ERR(eth->gdmp_regs))
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 9efd20993..0538e6e1b 100644
+index 9efd20993fcc..0538e6e1be0b 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -2464,65 +2464,6 @@ static void airoha_ppe_gen2_deinit(struct airoha_eth *eth)
@@ -457,7 +457,7 @@ index 9efd20993..0538e6e1b 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 3d9d1889a..3d1c5f290 100644
+index 3d9d1889ac68..3d1c5f29060c 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -39,6 +39,74 @@

@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  7 files changed, 469 insertions(+), 7 deletions(-)
 
 diff --git a/Documentation/driver-api/optical-frontend.rst b/Documentation/driver-api/optical-frontend.rst
-index 3d240a98b..290dbc1db 100644
+index 3d240a98b134..290dbc1db876 100644
 --- a/Documentation/driver-api/optical-frontend.rst
 +++ b/Documentation/driver-api/optical-frontend.rst
 @@ -89,3 +89,22 @@ before invoking the optional provider ``->tx_enable(false)`` callback.  Enable
@@ -42,7 +42,7 @@ index 3d240a98b..290dbc1db 100644
 +``bob/`` metadata describing the normalized factory BOB image; Semtech and
 +other providers are not required to implement this group.
 diff --git a/drivers/net/optical/airoha/airoha_lddla.h b/drivers/net/optical/airoha/airoha_lddla.h
-index 53ac24536..d33d1b78d 100644
+index 53ac24536aba..d33d1b78d20b 100644
 --- a/drivers/net/optical/airoha/airoha_lddla.h
 +++ b/drivers/net/optical/airoha/airoha_lddla.h
 @@ -63,6 +63,12 @@ enum airoha_lddla_bob_endian {
@@ -75,7 +75,7 @@ index 53ac24536..d33d1b78d 100644
  	u32 bob_magic;
  	u8 bob_chip_id;
 diff --git a/drivers/net/optical/airoha/airoha_lddla_core.c b/drivers/net/optical/airoha/airoha_lddla_core.c
-index 5a6b8eece..234e8f106 100644
+index 5a6b8eece22a..234e8f106da8 100644
 --- a/drivers/net/optical/airoha/airoha_lddla_core.c
 +++ b/drivers/net/optical/airoha/airoha_lddla_core.c
 @@ -33,6 +33,7 @@
@@ -273,7 +273,7 @@ index 5a6b8eece..234e8f106 100644
  	if (ops->temp_refresh || ops->bosa_temp_refresh)
  		desc->capabilities |= OPTICAL_FRONTEND_CAP_TEMPERATURE;
 diff --git a/drivers/net/optical/core.c b/drivers/net/optical/core.c
-index 177407d05..f9c7d1dcd 100644
+index 177407d05650..f9c7d1dcd0c8 100644
 --- a/drivers/net/optical/core.c
 +++ b/drivers/net/optical/core.c
 @@ -23,6 +23,7 @@
@@ -584,7 +584,7 @@ index 177407d05..f9c7d1dcd 100644
  }
  EXPORT_SYMBOL_GPL(optical_frontend_get_state);
 diff --git a/drivers/net/optical/hwmon.c b/drivers/net/optical/hwmon.c
-index 25645f59e..54b251d9b 100644
+index 25645f59e315..54b251d9b287 100644
 --- a/drivers/net/optical/hwmon.c
 +++ b/drivers/net/optical/hwmon.c
 @@ -6,6 +6,7 @@
@@ -645,7 +645,7 @@ index 25645f59e..54b251d9b 100644
  EXPORT_SYMBOL_GPL(devm_optical_frontend_hwmon_register);
  
 diff --git a/drivers/net/optical/semtech/gn25l95.c b/drivers/net/optical/semtech/gn25l95.c
-index f8ce5a609..002f20236 100644
+index f8ce5a6091fe..002f20236a64 100644
 --- a/drivers/net/optical/semtech/gn25l95.c
 +++ b/drivers/net/optical/semtech/gn25l95.c
 @@ -151,6 +151,7 @@ static const struct optical_frontend_thresholds gn25l95_thresholds = {
@@ -657,7 +657,7 @@ index f8ce5a609..002f20236 100644
  		.vendor_oui = { 0x00, 0x00, 0x00 },
  		.part_number = "GN25L95",
 diff --git a/include/linux/optical_frontend.h b/include/linux/optical_frontend.h
-index 202f59180..426140e30 100644
+index 202f59180e33..426140e30545 100644
 --- a/include/linux/optical_frontend.h
 +++ b/include/linux/optical_frontend.h
 @@ -8,6 +8,7 @@

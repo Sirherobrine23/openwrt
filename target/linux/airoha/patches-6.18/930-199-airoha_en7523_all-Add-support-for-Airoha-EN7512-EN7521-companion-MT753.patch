@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  7 files changed, 776 insertions(+), 38 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/dsa/mediatek,mt7530.yaml b/Documentation/devicetree/bindings/net/dsa/mediatek,mt7530.yaml
-index 815a90808..97290f995 100644
+index 815a90808901..97290f995b50 100644
 --- a/Documentation/devicetree/bindings/net/dsa/mediatek,mt7530.yaml
 +++ b/Documentation/devicetree/bindings/net/dsa/mediatek,mt7530.yaml
 @@ -88,6 +88,10 @@ properties:
@@ -52,7 +52,7 @@ index 815a90808..97290f995 100644
          - resets
          - reset-names
 diff --git a/drivers/net/dsa/mt7530-mdio.c b/drivers/net/dsa/mt7530-mdio.c
-index 784dd58a7..78551cefe 100644
+index 784dd58a7158..78551cefea0b 100644
 --- a/drivers/net/dsa/mt7530-mdio.c
 +++ b/drivers/net/dsa/mt7530-mdio.c
 @@ -136,6 +136,8 @@ mt7531_create_sgmii(struct mt7530_priv *priv)
@@ -93,7 +93,7 @@ index 784dd58a7..78551cefe 100644
  			dev_err(&mdiodev->dev, "Couldn't get our reset line\n");
  			return PTR_ERR(priv->rstc);
 diff --git a/drivers/net/dsa/mt7530-mmio.c b/drivers/net/dsa/mt7530-mmio.c
-index 8dd737904..182973da4 100644
+index 8dd737904050..182973da4138 100644
 --- a/drivers/net/dsa/mt7530-mmio.c
 +++ b/drivers/net/dsa/mt7530-mmio.c
 @@ -1,5 +1,6 @@
@@ -138,7 +138,7 @@ index 8dd737904..182973da4 100644
  }
  
 diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
-index 678680de1..0db335f9c 100644
+index 678680de19d0..0db335f9c328 100644
 --- a/drivers/net/dsa/mt7530.c
 +++ b/drivers/net/dsa/mt7530.c
 @@ -2287,8 +2287,7 @@ mt7530_free_mdio_irq(struct mt7530_priv *priv)
@@ -274,7 +274,7 @@ index 678680de1..0db335f9c 100644
  EXPORT_SYMBOL_GPL(mt753x_table);
  
 diff --git a/drivers/net/dsa/mt7530.h b/drivers/net/dsa/mt7530.h
-index de3e430c9..c9748db3a 100644
+index de3e430c99ae..c9748db3a709 100644
 --- a/drivers/net/dsa/mt7530.h
 +++ b/drivers/net/dsa/mt7530.h
 @@ -23,6 +23,7 @@ enum mt753x_id {
@@ -302,7 +302,7 @@ index de3e430c9..c9748db3a 100644
  
  extern const struct dsa_switch_ops mt7530_switch_ops;
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index 3bdcadc19..c56703d6c 100644
+index 3bdcadc19292..c56703d6c1a8 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -1722,6 +1722,587 @@ static void airoha_phy_write_tr_regs(struct phy_device *phydev,
@@ -1101,7 +1101,7 @@ index 3bdcadc19..c56703d6c 100644
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_EN7523) },
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7581) },
 diff --git a/drivers/net/phy/mediatek/mtk-ge.c b/drivers/net/phy/mediatek/mtk-ge.c
-index 97d845c90..3336d1f45 100644
+index 97d845c906dd..3336d1f45317 100644
 --- a/drivers/net/phy/mediatek/mtk-ge.c
 +++ b/drivers/net/phy/mediatek/mtk-ge.c
 @@ -63,6 +63,26 @@ static void mtk_gephy_config_init(struct phy_device *phydev)

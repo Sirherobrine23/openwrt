@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 14 insertions(+)
 
 diff --git a/drivers/net/phy/airoha/Kconfig b/drivers/net/phy/airoha/Kconfig
-index f4a2e0b9c..008b17556 100644
+index f4a2e0b9c6cd..008b175562a7 100644
 --- a/drivers/net/phy/airoha/Kconfig
 +++ b/drivers/net/phy/airoha/Kconfig
 @@ -1,5 +1,6 @@
@@ -21,7 +21,7 @@ index f4a2e0b9c..008b17556 100644
  	default n
  	help
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index 7332674dd..d421606f8 100644
+index 7332674ddc25..d421606f8bec 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -75,11 +75,24 @@ static inline int airoha_ppe_dev_setup_tc(struct airoha_ppe_dev *dev,

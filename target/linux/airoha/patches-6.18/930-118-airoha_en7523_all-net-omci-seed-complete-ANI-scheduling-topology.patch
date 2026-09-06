@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 325 insertions(+), 22 deletions(-)
 
 diff --git a/include/net/omci.h b/include/net/omci.h
-index 64f39ac1d..ad6960e84 100644
+index 64f39ac1d793..ad6960e84bb7 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -218,9 +218,38 @@ struct omci_telemetry {
@@ -71,7 +71,7 @@ index 64f39ac1d..ad6960e84 100644
  			 u16 alloc_id, bool valid);
  	int (*set_gem_port)(struct omci_device *odev, u16 entity_id,
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 00ee55a61..f71b61973 100644
+index 00ee55a61527..f71b61973deb 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -85,6 +85,32 @@ static bool omci_agent_result_can_be_faked(u8 result)

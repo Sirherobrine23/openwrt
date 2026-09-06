@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 525 insertions(+), 670 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 0c8b7f156..baab9eca2 100644
+index 0c8b7f156256..baab9eca2496 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1387,7 +1387,7 @@ static int econet_en751221_slm_init(struct airoha_qdma_mips *qdma,
@@ -1665,7 +1665,7 @@ index 0c8b7f156..baab9eca2 100644
  	.num_ppe = 1,
  	.irq_banks = 1,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index c8b6105aa..dae7f4972 100644
+index c8b6105aaed4..dae7f4972228 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -247,10 +247,12 @@ airoha_gdm_common_from_netdev(struct net_device *netdev)

@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 9 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 6049b693b..1012b0d29 100644
+index 6049b693b310..1012b0d29916 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -427,8 +427,16 @@ static int econet_xpon_classify(struct econet_gdm_port *port,

@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 107 insertions(+), 71 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index b10e94e4b..a529d1040 100644
+index b10e94e4b214..a529d10403ad 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -16,6 +16,7 @@
@@ -245,7 +245,7 @@ index b10e94e4b..a529d1040 100644
  	airoha_fe_maccr_init(eth);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index f745d30bd..e42202d0e 100644
+index f745d30bd4e9..e42202d0eea6 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -206,15 +206,6 @@

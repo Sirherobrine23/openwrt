@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 587 insertions(+), 7 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 239cec259..a33dcebe8 100644
+index 239cec259c18..a33dcebe85f1 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -111,6 +111,37 @@ static bool omci_agent_result_can_be_faked(u8 result)
@@ -527,7 +527,7 @@ index 239cec259..a33dcebe8 100644
  	if (omci_agent_get_uses_ani_g_telemetry(class_id, entity_id, mask) &&
  	    odev->ops && odev->ops->get_telemetry)
 diff --git a/net/omci/me.c b/net/omci/me.c
-index 13ac8cd06..d1025d493 100644
+index 13ac8cd06138..d1025d4939ee 100644
 --- a/net/omci/me.c
 +++ b/net/omci/me.c
 @@ -539,6 +539,29 @@ static const struct omci_attr_desc omci_omci_attrs[] = {
@@ -670,7 +670,7 @@ index 13ac8cd06..d1025d493 100644
  {
  	unsigned int i;
 diff --git a/net/omci/me.h b/net/omci/me.h
-index f97bd86f2..bf5dd593d 100644
+index f97bd86f2027..bf5dd593d164 100644
 --- a/net/omci/me.h
 +++ b/net/omci/me.h
 @@ -32,6 +32,8 @@ struct omci_mib_object;

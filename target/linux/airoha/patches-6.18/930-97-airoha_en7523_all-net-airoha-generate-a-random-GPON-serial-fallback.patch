@@ -25,7 +25,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 38 insertions(+), 21 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index b66374ddd..70dc3907f 100644
+index b66374ddd4a1..70dc3907f017 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -64,6 +64,8 @@
@@ -68,7 +68,7 @@ index b66374ddd..70dc3907f 100644
  	if (!(identity->valid & OMCI_IDENTITY_F_PASSWORD)) {
  		memset(identity->password, 0, sizeof(identity->password));
 diff --git a/include/net/omci.h b/include/net/omci.h
-index cfc09029c..2046d81de 100644
+index cfc09029c6a3..2046d81de18f 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -232,6 +232,7 @@ void *omci_device_priv(const struct omci_device *odev);
@@ -80,7 +80,7 @@ index cfc09029c..2046d81de 100644
  				   const struct omci_identity *identity);
  void omci_device_set_identity(struct omci_device *odev,
 diff --git a/net/omci/identity.c b/net/omci/identity.c
-index 84ae69a62..f72a512c0 100644
+index 84ae69a62c03..f72a512c05a5 100644
 --- a/net/omci/identity.c
 +++ b/net/omci/identity.c
 @@ -17,6 +17,8 @@

@@ -30,7 +30,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  delete mode 100644 drivers/net/ethernet/airoha/econet_qdma_regs.h
 
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index eb80d0e50..5b014c6e4 100644
+index eb80d0e50d1c..5b014c6e4ace 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -12,7 +12,7 @@ airoha-eth-$(CONFIG_DEBUG_FS) += airoha_ppe_debugfs.o
@@ -44,7 +44,7 @@ index eb80d0e50..5b014c6e4 100644
  
 diff --git a/drivers/net/ethernet/airoha/econet_debugfs.c b/drivers/net/ethernet/airoha/econet_debugfs.c
 deleted file mode 100644
-index dba0136c5..000000000
+index dba0136c5efc..000000000000
 --- a/drivers/net/ethernet/airoha/econet_debugfs.c
 +++ /dev/null
 @@ -1,629 +0,0 @@
@@ -678,7 +678,7 @@ index dba0136c5..000000000
 -	kfree(debug);
 -}
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index f5df09421..e1a3837bb 100644
+index f5df09421a9b..e1a3837bb0ce 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -20,33 +20,1663 @@
@@ -2402,7 +2402,7 @@ index f5df09421..e1a3837bb 100644
  	/* Configure the MT7530 as a dumb switch, unless it is managed by DSA */
  	if (eth->has_switch_regs) {
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index 1e86e6fbe..fe333746f 100644
+index 1e86e6fbe133..fe333746fd5d 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -2,20 +2,3214 @@
@@ -5687,7 +5687,7 @@ index 1e86e6fbe..fe333746f 100644
 +#endif /* ECONET_ETH_H */
 diff --git a/drivers/net/ethernet/airoha/econet_gdm_regs.h b/drivers/net/ethernet/airoha/econet_gdm_regs.h
 deleted file mode 100644
-index 510de8ef7..000000000
+index 510de8ef79f9..000000000000
 --- a/drivers/net/ethernet/airoha/econet_gdm_regs.h
 +++ /dev/null
 @@ -1,1409 +0,0 @@
@@ -7102,7 +7102,7 @@ index 510de8ef7..000000000
 -#endif
 diff --git a/drivers/net/ethernet/airoha/econet_port.c b/drivers/net/ethernet/airoha/econet_port.c
 deleted file mode 100644
-index 6603fcc36..000000000
+index 6603fcc36e61..000000000000
 --- a/drivers/net/ethernet/airoha/econet_port.c
 +++ /dev/null
 @@ -1,489 +0,0 @@
@@ -7597,7 +7597,7 @@ index 6603fcc36..000000000
 -}
 diff --git a/drivers/net/ethernet/airoha/econet_qdma.c b/drivers/net/ethernet/airoha/econet_qdma.c
 deleted file mode 100644
-index 33f8cdbc4..000000000
+index 33f8cdbc4c5d..000000000000
 --- a/drivers/net/ethernet/airoha/econet_qdma.c
 +++ /dev/null
 @@ -1,1224 +0,0 @@
@@ -8827,7 +8827,7 @@ index 33f8cdbc4..000000000
 -}
 diff --git a/drivers/net/ethernet/airoha/econet_qdma_desc.h b/drivers/net/ethernet/airoha/econet_qdma_desc.h
 deleted file mode 100644
-index 80a8aeb80..000000000
+index 80a8aeb8076d..000000000000
 --- a/drivers/net/ethernet/airoha/econet_qdma_desc.h
 +++ /dev/null
 @@ -1,632 +0,0 @@
@@ -9465,7 +9465,7 @@ index 80a8aeb80..000000000
 -#endif /* QDMA_DESC_H */
 diff --git a/drivers/net/ethernet/airoha/econet_qdma_regs.h b/drivers/net/ethernet/airoha/econet_qdma_regs.h
 deleted file mode 100644
-index 734445ef7..000000000
+index 734445ef7445..000000000000
 --- a/drivers/net/ethernet/airoha/econet_qdma_regs.h
 +++ /dev/null
 @@ -1,1181 +0,0 @@

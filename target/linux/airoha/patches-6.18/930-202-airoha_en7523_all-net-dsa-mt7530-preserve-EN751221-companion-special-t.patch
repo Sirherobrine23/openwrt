@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 32 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
-index 7669869a1..13446d20a 100644
+index 7669869a1fe8..13446d20a0cb 100644
 --- a/drivers/net/dsa/mt7530.c
 +++ b/drivers/net/dsa/mt7530.c
 @@ -457,6 +457,21 @@ mt7530_setup_port6(struct dsa_switch *ds, phy_interface_t interface)

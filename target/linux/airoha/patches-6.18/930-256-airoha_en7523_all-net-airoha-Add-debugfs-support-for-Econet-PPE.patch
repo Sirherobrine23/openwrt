@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 386 insertions(+), 18 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 1297370bd..3b12ef1c9 100644
+index 1297370bd587..3b12ef1c94c1 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -844,6 +844,8 @@ struct econet_ppe {
@@ -53,7 +53,7 @@ index 1297370bd..3b12ef1c9 100644
  
  #endif /* AIROHA_ETH_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index da3560dac..93fca4380 100644
+index da3560dac995..93fca4380327 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -2475,21 +2475,21 @@ static size_t econet_ppe_foe_size(struct airoha_eth *eth)
@@ -213,7 +213,7 @@ index da3560dac..93fca4380 100644
  	eth->ppe_dev = NULL;
  }
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index 916b65edf..da14cc697 100644
+index 916b65edf6c3..da14cc697ac3 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -5,6 +5,7 @@
@@ -571,7 +571,7 @@ index 916b65edf..da14cc697 100644
  {
  	ppe->debugfs_dir = debugfs_create_dir("ppe", NULL);
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 87192b9fb..f9039e0ee 100644
+index 87192b9fbd1b..f9039e0ee398 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -70,7 +70,6 @@

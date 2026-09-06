@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 124 insertions(+), 1 deletion(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index f71b61973..e9f208dd0 100644
+index f71b61973deb..e9f208dd099c 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -151,6 +151,50 @@ static bool omci_agent_result_can_be_faked(u8 result)

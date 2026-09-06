@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 124 insertions(+), 35 deletions(-)
 
 diff --git a/drivers/net/dsa/mt7530-mmio.c b/drivers/net/dsa/mt7530-mmio.c
-index 182973da4..c9c60cae9 100644
+index 182973da4138..c9c60cae95f2 100644
 --- a/drivers/net/dsa/mt7530-mmio.c
 +++ b/drivers/net/dsa/mt7530-mmio.c
 @@ -17,6 +17,7 @@ static const struct of_device_id mt7988_of_match[] = {
@@ -34,7 +34,7 @@ index 182973da4..c9c60cae9 100644
  	{ /* sentinel */ },
  };
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index baab9eca2..688beff74 100644
+index baab9eca2496..688beff747cd 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2036,7 +2036,7 @@ static int airoha_qdma_fill_rx_queue(struct airoha_queue *q)
@@ -396,7 +396,7 @@ index baab9eca2..688beff74 100644
  	{ .compatible = "airoha,en7581-eth", .data = &airoha_en7581_soc_data },
  	{ .compatible = "airoha,an7583-eth", .data = &airoha_an7583_soc_data },
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index dae7f4972..b96b59393 100644
+index dae7f4972228..b96b59393cbb 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -1136,6 +1136,7 @@ struct airoha_ppe {
@@ -431,7 +431,7 @@ index dae7f4972..b96b59393 100644
  
  static inline bool airoha_qdma_is_lro_queue(struct airoha_queue *q)
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 750a51cc2..5980b853a 100644
+index 750a51cc2668..5980b853afdb 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -1021,7 +1021,9 @@

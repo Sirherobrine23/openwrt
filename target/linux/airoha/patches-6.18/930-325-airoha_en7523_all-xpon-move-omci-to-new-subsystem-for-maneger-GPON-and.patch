@@ -77,7 +77,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 net/xpon/sysfs.c
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 4ef427b7a..16b783cdd 100644
+index 4ef427b7a39e..16b783cdd231 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -68,7 +68,9 @@ config AIROHA_XPON_V1
@@ -92,7 +92,7 @@ index 4ef427b7a..16b783cdd 100644
  	  Driver for the shared xPON MAC complex found in Airoha/EcoNet SoCs.
  	  GPON and EPON are implemented by one platform driver and selected by
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index dcde96cb7..5fb3471d2 100644
+index dcde96cb7396..5fb3471d27e5 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2463,9 +2463,8 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
@@ -189,7 +189,7 @@ index dcde96cb7..5fb3471d2 100644
  EXPORT_SYMBOL_GPL(airoha_eth_xmit_xpon_oam);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index d94376fb1..c8b6105aa 100644
+index d94376fb18d0..c8b6105aaed4 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -923,8 +923,8 @@ enum airoha_priv_flags {
@@ -222,7 +222,7 @@ index d94376fb1..c8b6105aa 100644
  				const struct airoha_xpon_service_cfg *cfg);
  int airoha_eth_xpon_get_tx_info(struct net_device *netdev, bool vlan_valid,
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 94b439cfc..d47ca3796 100644
+index 94b439cfcd82..d47ca3796d0e 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -6,7 +6,8 @@
@@ -279,7 +279,7 @@ index 94b439cfc..d47ca3796 100644
  		omci_flags |= OMCI_F_MIC_PRESENT;
  	if (flags & AIROHA_XPON_OAM_RX_F_MIC_VALID)
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 8941f3a65..a1c76db16 100644
+index 8941f3a65ceb..a1c76db16519 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -13,6 +13,7 @@ struct omci_telemetry;
@@ -309,7 +309,7 @@ index 8941f3a65..a1c76db16 100644
  
  int airoha_gpon_omci_hw_get_ani_topology(void *hw_priv,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index d4f22b6cf..5d909fd29 100644
+index d4f22b6cfceb..5d909fd29824 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -43,9 +43,10 @@
@@ -1532,7 +1532,7 @@ index d4f22b6cf..5d909fd29 100644
  }
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
 new file mode 100644
-index 000000000..74b3889ef
+index 000000000000..74b3889ef37e
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.h
 @@ -0,0 +1,583 @@
@@ -2121,7 +2121,7 @@ index 000000000..74b3889ef
 +#endif /* _AIROHA_XPON_H */
 diff --git a/include/net/xpon.h b/include/net/xpon.h
 new file mode 100644
-index 000000000..7c70a42e9
+index 000000000000..7c70a42e94fb
 --- /dev/null
 +++ b/include/net/xpon.h
 @@ -0,0 +1,89 @@
@@ -2216,7 +2216,7 @@ index 000000000..7c70a42e9
 +#endif /* _NET_XPON_H */
 diff --git a/include/net/xpon/oam.h b/include/net/xpon/oam.h
 new file mode 100644
-index 000000000..559a83722
+index 000000000000..559a837222ff
 --- /dev/null
 +++ b/include/net/xpon/oam.h
 @@ -0,0 +1,28 @@
@@ -2252,7 +2252,7 @@ diff --git a/include/net/omci.h b/include/net/xpon/omci.h
 similarity index 99%
 rename from include/net/omci.h
 rename to include/net/xpon/omci.h
-index d1455e499..7f38d9bef 100644
+index d1455e499d07..7f38d9bef161 100644
 --- a/include/net/omci.h
 +++ b/include/net/xpon/omci.h
 @@ -8,6 +8,7 @@
@@ -2274,7 +2274,7 @@ index d1455e499..7f38d9bef 100644
  int omci_device_start(struct omci_device *odev);
 diff --git a/include/uapi/linux/xpon.h b/include/uapi/linux/xpon.h
 new file mode 100644
-index 000000000..ce043b755
+index 000000000000..ce043b75552f
 --- /dev/null
 +++ b/include/uapi/linux/xpon.h
 @@ -0,0 +1,51 @@
@@ -2330,7 +2330,7 @@ index 000000000..ce043b755
 +
 +#endif /* _UAPI_LINUX_XPON_H */
 diff --git a/net/Kconfig b/net/Kconfig
-index 97a870e0c..64751c4b9 100644
+index 97a870e0c058..64751c4b9aa7 100644
 --- a/net/Kconfig
 +++ b/net/Kconfig
 @@ -87,7 +87,7 @@ config NET_CRC32C
@@ -2343,7 +2343,7 @@ index 97a870e0c..64751c4b9 100644
  source "net/psp/Kconfig"
  source "net/unix/Kconfig"
 diff --git a/net/Makefile b/net/Makefile
-index cbafce2eb..aedc6f62f 100644
+index cbafce2eb242..aedc6f62fea2 100644
 --- a/net/Makefile
 +++ b/net/Makefile
 @@ -20,7 +20,7 @@ obj-$(CONFIG_XFRM)		+= xfrm/
@@ -2357,7 +2357,7 @@ index cbafce2eb..aedc6f62f 100644
  obj-$(CONFIG_BRIDGE)		+= bridge/
 diff --git a/net/omci/Kconfig b/net/omci/Kconfig
 deleted file mode 100644
-index 9acc98c99..000000000
+index 9acc98c99bcc..000000000000
 --- a/net/omci/Kconfig
 +++ /dev/null
 @@ -1,14 +0,0 @@
@@ -2377,7 +2377,7 @@ index 9acc98c99..000000000
 -	  optional capabilities supplied by the GPON hardware driver.
 diff --git a/net/xpon/Kconfig b/net/xpon/Kconfig
 new file mode 100644
-index 000000000..f72e6b460
+index 000000000000..f72e6b460066
 --- /dev/null
 +++ b/net/xpon/Kconfig
 @@ -0,0 +1,30 @@
@@ -2413,7 +2413,7 @@ index 000000000..f72e6b460
 +endif # XPON
 diff --git a/net/xpon/Makefile b/net/xpon/Makefile
 new file mode 100644
-index 000000000..654060432
+index 000000000000..654060432a68
 --- /dev/null
 +++ b/net/xpon/Makefile
 @@ -0,0 +1,6 @@
@@ -2425,7 +2425,7 @@ index 000000000..654060432
 +obj-$(CONFIG_XPON_OAM) += oam/
 diff --git a/net/xpon/core.c b/net/xpon/core.c
 new file mode 100644
-index 000000000..c3d3ad0cb
+index 000000000000..c3d3ad0cb378
 --- /dev/null
 +++ b/net/xpon/core.c
 @@ -0,0 +1,340 @@
@@ -2771,7 +2771,7 @@ index 000000000..c3d3ad0cb
 +MODULE_LICENSE("GPL");
 diff --git a/net/xpon/genl.c b/net/xpon/genl.c
 new file mode 100644
-index 000000000..c6c8c0fd7
+index 000000000000..c6c8c0fd7ae6
 --- /dev/null
 +++ b/net/xpon/genl.c
 @@ -0,0 +1,153 @@
@@ -2930,7 +2930,7 @@ index 000000000..c6c8c0fd7
 +}
 diff --git a/net/xpon/internal.h b/net/xpon/internal.h
 new file mode 100644
-index 000000000..8ca207f48
+index 000000000000..8ca207f48d16
 --- /dev/null
 +++ b/net/xpon/internal.h
 @@ -0,0 +1,59 @@
@@ -2995,7 +2995,7 @@ index 000000000..8ca207f48
 +#endif /* _NET_XPON_INTERNAL_H */
 diff --git a/net/xpon/leds.c b/net/xpon/leds.c
 new file mode 100644
-index 000000000..57059e108
+index 000000000000..57059e108690
 --- /dev/null
 +++ b/net/xpon/leds.c
 @@ -0,0 +1,44 @@
@@ -3045,7 +3045,7 @@ index 000000000..57059e108
 +}
 diff --git a/net/xpon/oam/Makefile b/net/xpon/oam/Makefile
 new file mode 100644
-index 000000000..09d83f948
+index 000000000000..09d83f948771
 --- /dev/null
 +++ b/net/xpon/oam/Makefile
 @@ -0,0 +1,3 @@
@@ -3054,7 +3054,7 @@ index 000000000..09d83f948
 +xpon-oam-y := core.o wire.o sysfs.o
 diff --git a/net/xpon/oam/core.c b/net/xpon/oam/core.c
 new file mode 100644
-index 000000000..9d8d4c5fe
+index 000000000000..9d8d4c5fe473
 --- /dev/null
 +++ b/net/xpon/oam/core.c
 @@ -0,0 +1,107 @@
@@ -3167,7 +3167,7 @@ index 000000000..9d8d4c5fe
 +EXPORT_SYMBOL_GPL(xpon_oam_receive);
 diff --git a/net/xpon/oam/internal.h b/net/xpon/oam/internal.h
 new file mode 100644
-index 000000000..5b3d21ce2
+index 000000000000..5b3d21ce25c2
 --- /dev/null
 +++ b/net/xpon/oam/internal.h
 @@ -0,0 +1,58 @@
@@ -3231,7 +3231,7 @@ index 000000000..5b3d21ce2
 +#endif /* _NET_XPON_OAM_INTERNAL_H */
 diff --git a/net/xpon/oam/sysfs.c b/net/xpon/oam/sysfs.c
 new file mode 100644
-index 000000000..05cef1c3d
+index 000000000000..05cef1c3d4ee
 --- /dev/null
 +++ b/net/xpon/oam/sysfs.c
 @@ -0,0 +1,38 @@
@@ -3275,7 +3275,7 @@ index 000000000..05cef1c3d
 +}
 diff --git a/net/xpon/oam/wire.c b/net/xpon/oam/wire.c
 new file mode 100644
-index 000000000..ddfb66d44
+index 000000000000..ddfb66d44928
 --- /dev/null
 +++ b/net/xpon/oam/wire.c
 @@ -0,0 +1,76 @@
@@ -3357,7 +3357,7 @@ index 000000000..ddfb66d44
 +}
 diff --git a/net/xpon/omci/Kconfig b/net/xpon/omci/Kconfig
 new file mode 100644
-index 000000000..4a3a9609a
+index 000000000000..4a3a9609aedf
 --- /dev/null
 +++ b/net/xpon/omci/Kconfig
 @@ -0,0 +1,2 @@
@@ -3367,7 +3367,7 @@ diff --git a/net/omci/Makefile b/net/xpon/omci/Makefile
 similarity index 75%
 rename from net/omci/Makefile
 rename to net/xpon/omci/Makefile
-index 2015767b7..5fe45f7ad 100644
+index 2015767b7cac..5fe45f7ad04a 100644
 --- a/net/omci/Makefile
 +++ b/net/xpon/omci/Makefile
 @@ -1,3 +1,3 @@
@@ -3383,7 +3383,7 @@ diff --git a/net/omci/core.c b/net/xpon/omci/core.c
 similarity index 98%
 rename from net/omci/core.c
 rename to net/xpon/omci/core.c
-index c295059a5..f97d43a9f 100644
+index c295059a50c7..f97d43a9f0eb 100644
 --- a/net/omci/core.c
 +++ b/net/xpon/omci/core.c
 @@ -19,6 +19,7 @@
@@ -3461,7 +3461,7 @@ diff --git a/net/omci/internal.h b/net/xpon/omci/internal.h
 similarity index 99%
 rename from net/omci/internal.h
 rename to net/xpon/omci/internal.h
-index 850580f02..9370fe365 100644
+index 850580f02569..9370fe365850 100644
 --- a/net/omci/internal.h
 +++ b/net/xpon/omci/internal.h
 @@ -12,7 +12,7 @@
@@ -3487,7 +3487,7 @@ diff --git a/net/omci/me.c b/net/xpon/omci/me.c
 similarity index 99%
 rename from net/omci/me.c
 rename to net/xpon/omci/me.c
-index 90bdbd174..35c307e52 100644
+index 90bdbd174da2..35c307e52daf 100644
 --- a/net/omci/me.c
 +++ b/net/xpon/omci/me.c
 @@ -6,7 +6,7 @@
@@ -3511,7 +3511,7 @@ diff --git a/net/omci/sysfs.c b/net/xpon/omci/sysfs.c
 similarity index 86%
 rename from net/omci/sysfs.c
 rename to net/xpon/omci/sysfs.c
-index c0358f5b8..577e0b53a 100644
+index c0358f5b8909..577e0b53af28 100644
 --- a/net/omci/sysfs.c
 +++ b/net/xpon/omci/sysfs.c
 @@ -1,10 +1,9 @@
@@ -3902,7 +3902,7 @@ rename from net/omci/wire.h
 rename to net/xpon/omci/wire.h
 diff --git a/net/xpon/sysfs.c b/net/xpon/sysfs.c
 new file mode 100644
-index 000000000..32bebc663
+index 000000000000..32bebc663536
 --- /dev/null
 +++ b/net/xpon/sysfs.c
 @@ -0,0 +1,236 @@

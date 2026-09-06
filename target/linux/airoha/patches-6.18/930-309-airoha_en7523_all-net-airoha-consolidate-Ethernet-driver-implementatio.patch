@@ -25,7 +25,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  delete mode 100644 drivers/net/ethernet/airoha/airoha_qdma.c
 
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 7ef6848ac..0d4ad98d9 100644
+index 7ef6848ac3b3..0d4ad98d9133 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -4,8 +4,7 @@
@@ -40,7 +40,7 @@ index 7ef6848ac..0d4ad98d9 100644
  
 diff --git a/drivers/net/ethernet/airoha/airoha_common.c b/drivers/net/ethernet/airoha/airoha_common.c
 deleted file mode 100644
-index f422ff954..000000000
+index f422ff95416e..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_common.c
 +++ /dev/null
 @@ -1,244 +0,0 @@
@@ -290,7 +290,7 @@ index f422ff954..000000000
 -MODULE_DESCRIPTION("Shared helpers for Airoha and EcoNet Ethernet drivers");
 diff --git a/drivers/net/ethernet/airoha/airoha_common.h b/drivers/net/ethernet/airoha/airoha_common.h
 deleted file mode 100644
-index 3988c5d84..000000000
+index 3988c5d846d6..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_common.h
 +++ /dev/null
 @@ -1,139 +0,0 @@
@@ -434,7 +434,7 @@ index 3988c5d84..000000000
 -
 -#endif /* AIROHA_COMMON_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index f831320f8..b10e94e4b 100644
+index f831320f8386..b10e94e4b214 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1,13 +1,10051 @@
@@ -10532,7 +10532,7 @@ index f831320f8..b10e94e4b 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 0a4c2e7b2..f6e3640b1 100644
+index 0a4c2e7b2ba2..f6e3640b1ae0 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -7,19 +7,153 @@
@@ -14181,7 +14181,7 @@ index 0a4c2e7b2..f6e3640b1 100644
  #endif /* AIROHA_ETH_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 deleted file mode 100644
-index e48c4cb28..000000000
+index e48c4cb28b6a..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ /dev/null
 @@ -1,1929 +0,0 @@
@@ -16116,7 +16116,7 @@ index e48c4cb28..000000000
 -};
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.h b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 deleted file mode 100644
-index a19c21aee..000000000
+index a19c21aee717..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 +++ /dev/null
 @@ -1,3423 +0,0 @@
@@ -19545,7 +19545,7 @@ index a19c21aee..000000000
 -#endif /* ECONET_ETH_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 deleted file mode 100644
-index a6e134fb0..000000000
+index a6e134fb0a94..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ /dev/null
 @@ -1,4482 +0,0 @@
@@ -24032,7 +24032,7 @@ index a6e134fb0..000000000
 -	},
 -};
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 9bbfadd07..066f7c1e4 100644
+index 9bbfadd07bba..066f7c1e4e54 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -135,7 +135,7 @@ u32 airoha_ppe_get_total_num_entries(struct airoha_ppe *ppe)
@@ -24107,7 +24107,7 @@ index 9bbfadd07..066f7c1e4 100644
  EXPORT_SYMBOL_GPL(airoha_ppe_deinit);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index 045431366..96d4d3e0c 100644
+index 0454313666f6..96d4d3e0c6a1 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -690,7 +690,7 @@ int airoha_ppe_debugfs_init(struct airoha_ppe_common *common)
@@ -24121,7 +24121,7 @@ index 045431366..96d4d3e0c 100644
  			&airoha_ppe_debugfs_foe_json_fops,
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
 deleted file mode 100644
-index 29141c732..000000000
+index 29141c73236c..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ /dev/null
 @@ -1,3316 +0,0 @@

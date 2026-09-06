@@ -30,7 +30,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/phy/mediatek/airoha-ge-soc.c
 
 diff --git a/MAINTAINERS b/MAINTAINERS
-index be760aa17..7127086e3 100644
+index be760aa17007..7127086e3a89 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -746,6 +746,14 @@ S:	Maintained
@@ -49,7 +49,7 @@ index be760aa17..7127086e3 100644
  M:	Lorenzo Bianconi <lorenzo@kernel.org>
  L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
 diff --git a/drivers/net/phy/mediatek/Kconfig b/drivers/net/phy/mediatek/Kconfig
-index bb7dc8762..fe51f4616 100644
+index bb7dc876271e..fe51f4616c54 100644
 --- a/drivers/net/phy/mediatek/Kconfig
 +++ b/drivers/net/phy/mediatek/Kconfig
 @@ -1,4 +1,17 @@
@@ -81,7 +81,7 @@ index bb7dc8762..fe51f4616 100644
  	select PHY_PACKAGE
  	help
 diff --git a/drivers/net/phy/mediatek/Makefile b/drivers/net/phy/mediatek/Makefile
-index ac57ecc79..eb430f008 100644
+index ac57ecc799fc..eb430f008169 100644
 --- a/drivers/net/phy/mediatek/Makefile
 +++ b/drivers/net/phy/mediatek/Makefile
 @@ -1,4 +1,5 @@
@@ -92,7 +92,7 @@ index ac57ecc79..eb430f008 100644
  obj-$(CONFIG_MEDIATEK_GE_SOC_PHY)	+= mtk-ge-soc.o
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
 new file mode 100644
-index 000000000..429594f27
+index 000000000000..429594f27792
 --- /dev/null
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -0,0 +1,102 @@
@@ -199,7 +199,7 @@ index 000000000..429594f27
 +
 +MODULE_DEVICE_TABLE(mdio, airoha_socphy_tbl);
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.c b/drivers/net/phy/mediatek/mtk-ge-soc.c
-index 46bae11ad..614901a8b 100644
+index 46bae11ad740..614901a8b7f7 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.c
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.c
 @@ -39,33 +39,6 @@ struct mtk_socphy_shared {
@@ -411,7 +411,7 @@ index 46bae11ad..614901a8b 100644
  };
  
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
-index 9aaa7e3ca..40552d42a 100644
+index 9aaa7e3caa41..40552d42af6b 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.h
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
 @@ -7,8 +7,8 @@
@@ -434,7 +434,7 @@ index 9aaa7e3ca..40552d42a 100644
 -
  #endif /* _MTK_GE_SOC_H_ */
 diff --git a/drivers/net/phy/mediatek/mtk-phy-lib.c b/drivers/net/phy/mediatek/mtk-phy-lib.c
-index 78b998af5..40a9226e1 100644
+index 78b998af5238..40a9226e1740 100644
 --- a/drivers/net/phy/mediatek/mtk-phy-lib.c
 +++ b/drivers/net/phy/mediatek/mtk-phy-lib.c
 @@ -1,10 +1,10 @@
@@ -565,7 +565,7 @@ index 78b998af5..40a9226e1 100644
  MODULE_AUTHOR("Sky Huang <SkyLake.Huang@mediatek.com>");
  MODULE_AUTHOR("Daniel Golle <daniel@makrotopia.org>");
 diff --git a/drivers/net/phy/mediatek/mtk.h b/drivers/net/phy/mediatek/mtk.h
-index f172f7d67..cf3def990 100644
+index f172f7d671c9..cf3def99097a 100644
 --- a/drivers/net/phy/mediatek/mtk.h
 +++ b/drivers/net/phy/mediatek/mtk.h
 @@ -85,6 +85,7 @@ void __mtk_tr_clr_bits(struct phy_device *phydev, u8 ch_addr, u8 node_addr,

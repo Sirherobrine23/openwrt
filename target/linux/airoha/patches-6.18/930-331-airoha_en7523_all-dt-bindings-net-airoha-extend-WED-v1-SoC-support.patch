@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 22 insertions(+), 4 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml
-index 35ba702c3..157655bf0 100644
+index 35ba702c3d49..157655bf0aa6 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml
 @@ -4,7 +4,7 @@

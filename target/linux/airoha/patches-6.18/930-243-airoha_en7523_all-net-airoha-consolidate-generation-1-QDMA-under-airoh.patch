@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/ethernet/airoha/airoha_qdma.c
 
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 209d6bdd3..f4165eae9 100644
+index 209d6bdd38de..f4165eae9a35 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -10,7 +10,7 @@ airoha-common-$(CONFIG_NET_AIROHA_PPE_DEBUGFS) += airoha_ppe_debugfs.o
@@ -30,7 +30,7 @@ index 209d6bdd3..f4165eae9 100644
  
  obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
 diff --git a/drivers/net/ethernet/airoha/airoha_common.c b/drivers/net/ethernet/airoha/airoha_common.c
-index 1d711a73d..74c61ed59 100644
+index 1d711a73d18f..74c61ed598d7 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.c
 +++ b/drivers/net/ethernet/airoha/airoha_common.c
 @@ -18,79 +18,6 @@
@@ -114,7 +114,7 @@ index 1d711a73d..74c61ed59 100644
  {
  	return readl(base + offset);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 9ef6c8470..f7985dfac 100644
+index 9ef6c84707e5..f7985dfacd67 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -789,8 +789,6 @@ struct airoha_eth_ops {
@@ -127,7 +127,7 @@ index 9ef6c8470..f7985dfac 100644
  	int num_xsi_rsts;
  	int num_ppe;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index b5b80d679..8b3c8738f 100644
+index b5b80d679373..8b3c8738f295 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -25,1439 +25,7 @@
@@ -1722,7 +1722,7 @@ index b5b80d679..8b3c8738f 100644
 -	.qdma_dscp_byte_swap = false,
  };
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.h b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
-index 43698f2c8..b89203ede 100644
+index 43698f2c8247..b89203ede5e2 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 @@ -3346,17 +3346,17 @@ struct econet_qdma_cfg {
@@ -1750,7 +1750,7 @@ index 43698f2c8..b89203ede 100644
  
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
 new file mode 100644
-index 000000000..ebf4f2d1a
+index 000000000000..ebf4f2d1aea9
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -0,0 +1,1524 @@

@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 arch/mips/boot/dts/econet/en7528.dtsi
 
 diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
-index 2b42091f7..c64f3014d 100644
+index 2b42091f7112..c64f3014dc7f 100644
 --- a/arch/mips/boot/dts/econet/en751221.dtsi
 +++ b/arch/mips/boot/dts/econet/en751221.dtsi
 @@ -1,7 +1,16 @@
@@ -624,7 +624,7 @@ index 2b42091f7..c64f3014d 100644
  };
 diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
 new file mode 100644
-index 000000000..56d32c78f
+index 000000000000..56d32c78f2a7
 --- /dev/null
 +++ b/arch/mips/boot/dts/econet/en7528.dtsi
 @@ -0,0 +1,703 @@

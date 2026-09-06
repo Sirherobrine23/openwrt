@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 383 insertions(+), 75 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_npu.c b/drivers/net/ethernet/airoha/airoha_npu.c
-index 51eebdf85..e0ef0522b 100644
+index 51eebdf85bec..e0ef0522be8c 100644
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
 @@ -6,6 +6,7 @@
@@ -656,7 +656,7 @@ index 51eebdf85..e0ef0522b 100644
  MODULE_FIRMWARE(NPU_EN7581_FIRMWARE_RV32);
  MODULE_FIRMWARE(NPU_EN7581_7996_FIRMWARE_DATA);
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index 16a988ad7..1c1e7643f 100644
+index 16a988ad7467..1c1e7643f63a 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -65,7 +65,6 @@ static inline void airoha_ppe_dev_check_skb(struct airoha_ppe_dev *dev,

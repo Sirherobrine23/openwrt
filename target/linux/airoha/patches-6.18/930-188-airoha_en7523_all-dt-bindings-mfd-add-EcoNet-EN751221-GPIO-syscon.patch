@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml b/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml
 new file mode 100644
-index 000000000..e0a873e18
+index 000000000000..e0a873e18d79
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml
 @@ -0,0 +1,57 @@
@@ -78,7 +78,7 @@ index 000000000..e0a873e18
 +      };
 +    };
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 851df88bf..b5d67b6c1 100644
+index 851df88bf9bc..b5d67b6c1d10 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -20332,6 +20332,7 @@ PIN CONTROLLER - AIROHA

@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 17 insertions(+), 17 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 135ef8ba6..a16e7c682 100644
+index 135ef8ba6d39..a16e7c6822e7 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -90,10 +90,6 @@ static int econet_dev_set_macaddr(struct net_device *dev, void *p)
@@ -27,7 +27,7 @@ index 135ef8ba6..a16e7c682 100644
  static u16 econet_gdm_oversize_len(struct econet_gdm_port *port, int mtu)
  {
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index ab96aec17..4948b64e3 100644
+index ab96aec17634..4948b64e38e5 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -1011,19 +1011,6 @@ static int econet_init_hw_fwd(struct econet_qdma *qdma)
@@ -51,7 +51,7 @@ index ab96aec17..4948b64e3 100644
  {
  	struct qregs_tx_congest_cfg cngst_cfg;
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 3d1c5f290..4da88c027 100644
+index 3d1c5f29060c..4da88c0272d5 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -46,7 +46,24 @@

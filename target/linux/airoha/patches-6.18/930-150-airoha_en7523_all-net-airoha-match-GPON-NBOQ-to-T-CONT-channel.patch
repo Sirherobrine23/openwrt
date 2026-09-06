@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index c8b1a67c2..487233bb1 100644
+index c8b1a67c2066..487233bb1e4b 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3758,7 +3758,8 @@ static netdev_tx_t __airoha_dev_xmit(struct sk_buff *skb,

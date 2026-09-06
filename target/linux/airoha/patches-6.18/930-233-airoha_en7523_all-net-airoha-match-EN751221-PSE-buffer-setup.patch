@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 6 insertions(+), 10 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 11269ccda..ce1bbdca9 100644
+index 11269ccda3ba..ce1bbdca9046 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -935,10 +935,7 @@ static int econet_init_hw_fwd(struct econet_qdma *qdma)

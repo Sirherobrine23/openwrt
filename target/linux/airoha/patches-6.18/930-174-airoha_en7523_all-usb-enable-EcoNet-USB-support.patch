@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
-index fd341c057..be98c9985 100644
+index fd341c057f72..be98c9985967 100644
 --- a/arch/mips/Kconfig
 +++ b/arch/mips/Kconfig
 @@ -392,6 +392,7 @@ config MACH_DECSTATION
@@ -22,7 +22,7 @@ index fd341c057..be98c9985 100644
  	select EARLY_PRINTK_8250
  	select ECONET_EN751221_TIMER
 diff --git a/drivers/usb/host/Kconfig b/drivers/usb/host/Kconfig
-index 87103b868..66cf7f4da 100644
+index 87103b868032..66cf7f4da304 100644
 --- a/drivers/usb/host/Kconfig
 +++ b/drivers/usb/host/Kconfig
 @@ -71,7 +71,7 @@ config USB_XHCI_HISTB

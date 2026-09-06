@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 868 insertions(+), 1159 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index a529d1040..70d833a01 100644
+index a529d10403ad..70d833a01c36 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -289,18 +289,15 @@ EXPORT_SYMBOL_GPL(airoha_gdm_phylink_destroy);
@@ -3504,7 +3504,7 @@ index a529d1040..70d833a01 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index f6e3640b1..4b8a5c58f 100644
+index f6e3640b1ae0..4b8a5c58f0d8 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -33,6 +33,36 @@ struct airoha_ppe_dev;
@@ -3828,7 +3828,7 @@ index f6e3640b1..4b8a5c58f 100644
  #define econet_rreg(reg) __extension__({ \
  		BUILD_BUG_ON(sizeof(*(reg)) != sizeof(u32)); \
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index e42202d0e..6520e025c 100644
+index e42202d0eea6..6520e025c891 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -40,11 +40,7 @@

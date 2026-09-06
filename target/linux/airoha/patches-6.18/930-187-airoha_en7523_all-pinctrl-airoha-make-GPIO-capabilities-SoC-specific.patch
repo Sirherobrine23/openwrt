@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 63 insertions(+), 13 deletions(-)
 
 diff --git a/drivers/pinctrl/airoha/airoha-common.h b/drivers/pinctrl/airoha/airoha-common.h
-index 87f24d4f0..99468dba1 100644
+index 87f24d4f0756..99468dba1e71 100644
 --- a/drivers/pinctrl/airoha/airoha-common.h
 +++ b/drivers/pinctrl/airoha/airoha-common.h
 @@ -10,6 +10,7 @@
@@ -59,7 +59,7 @@ index 87f24d4f0..99468dba1 100644
  };
  
 diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-index e744c0ff2..256a7db7e 100644
+index e744c0ff2bc5..256a7db7e6b2 100644
 --- a/drivers/pinctrl/airoha/pinctrl-airoha.c
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -214,7 +214,7 @@ static void airoha_irq_unmask(struct irq_data *data)

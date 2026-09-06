@@ -24,7 +24,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/ethernet/airoha/airoha_common.h
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index d7c4ce3fb..e90ba3e68 100644
+index d7c4ce3fb3e1..e90ba3e68b84 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -7,6 +7,12 @@ config NET_VENDOR_AIROHA
@@ -49,7 +49,7 @@ index d7c4ce3fb..e90ba3e68 100644
  	select PAGE_POOL
  	select PHYLINK
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 2bf64c08f..5f49421e5 100644
+index 2bf64c08fbd1..5f49421e5841 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -3,6 +3,9 @@
@@ -64,7 +64,7 @@ index 2bf64c08f..5f49421e5 100644
  airoha-eth-$(CONFIG_DEBUG_FS) += airoha_ppe_debugfs.o
 diff --git a/drivers/net/ethernet/airoha/airoha_common.c b/drivers/net/ethernet/airoha/airoha_common.c
 new file mode 100644
-index 000000000..10e1b821a
+index 000000000000..10e1b821a141
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_common.c
 @@ -0,0 +1,115 @@
@@ -185,7 +185,7 @@ index 000000000..10e1b821a
 +MODULE_DESCRIPTION("Shared helpers for Airoha and EcoNet Ethernet drivers");
 diff --git a/drivers/net/ethernet/airoha/airoha_common.h b/drivers/net/ethernet/airoha/airoha_common.h
 new file mode 100644
-index 000000000..2ae602176
+index 000000000000..2ae602176fd1
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_common.h
 @@ -0,0 +1,26 @@
@@ -216,7 +216,7 @@ index 000000000..2ae602176
 +
 +#endif /* AIROHA_COMMON_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 27226c351..bb09108d8 100644
+index 27226c3513d1..bb09108d85de 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -49,24 +49,6 @@ static int airoha_qdma_set_gpon_dba_report(struct net_device *netdev,
@@ -350,7 +350,7 @@ index 27226c351..bb09108d8 100644
  
  	/* Allocate the GDM ports before bringing up the QDMA hardware. This
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 46a33421e..95a56390d 100644
+index 46a33421ebac..95a56390dc3f 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -7,6 +7,8 @@

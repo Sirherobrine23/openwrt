@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 303 insertions(+), 71 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index b30f5347d..f831320f8 100644
+index b30f5347d7aa..f831320f8386 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1,8 +1,11 @@
@@ -245,7 +245,7 @@ index b30f5347d..f831320f8 100644
  	{ .compatible = "econet,en751221-eth", .data = &econet_en751221_soc_data },
  	{ .compatible = "econet,en7528-eth", .data = &econet_en7528_soc_data },
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 28c9e0e62..bd04b838d 100644
+index 28c9e0e622be..bd04b838da6a 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -791,9 +791,41 @@ struct airoha_eth_ops {
@@ -291,7 +291,7 @@ index 28c9e0e62..bd04b838d 100644
  	int num_xsi_rsts;
  	int num_ppe;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 08bff76c8..0cc22c84b 100644
+index 08bff76c8ac3..0cc22c84b041 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -157,7 +157,7 @@ static int airoha_set_macaddr(struct airoha_gdm_dev *dev, const u8 *addr)

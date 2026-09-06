@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 11 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/phy/airoha/Kconfig b/drivers/net/phy/airoha/Kconfig
-index 008b17556..f4a2e0b9c 100644
+index 008b175562a7..f4a2e0b9c6cd 100644
 --- a/drivers/net/phy/airoha/Kconfig
 +++ b/drivers/net/phy/airoha/Kconfig
 @@ -1,6 +1,5 @@
@@ -21,7 +21,7 @@ index 008b17556..f4a2e0b9c 100644
  	default n
  	help
 diff --git a/drivers/net/phy/airoha/airoha_lddla.c b/drivers/net/phy/airoha/airoha_lddla.c
-index f8b70ceb4..0277ed49e 100644
+index f8b70ceb42eb..0277ed49e760 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.c
 +++ b/drivers/net/phy/airoha/airoha_lddla.c
 @@ -276,6 +276,8 @@ int lddla_flash_load(struct airoha_lddla *lddla)

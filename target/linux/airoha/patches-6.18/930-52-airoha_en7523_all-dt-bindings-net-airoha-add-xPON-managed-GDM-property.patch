@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 7 insertions(+)
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml b/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
-index cabf0d81a..fa6cc3771 100644
+index cabf0d81a45c..fa6cc3771499 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
 @@ -105,6 +105,13 @@ patternProperties:

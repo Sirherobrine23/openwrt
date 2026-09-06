@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 60 insertions(+), 12 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index d7c4ce3fb..2c2740007 100644
+index d7c4ce3fb3e1..2c274000785c 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -54,6 +54,7 @@ config AIROHA_XPON
@@ -35,7 +35,7 @@ index d7c4ce3fb..2c2740007 100644
  	  Driver for the shared xPON MAC complex found in Airoha/EcoNet SoCs.
  	  GPON and EPON are implemented by one platform driver and selected by
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index e19c545c3..93ce1e78c 100644
+index e19c545c39bc..93ce1e78c7e5 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -37,6 +37,7 @@

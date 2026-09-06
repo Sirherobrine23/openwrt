@@ -26,7 +26,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 new file mode 100644
-index 000000000..eed80ee4a
+index 000000000000..eed80ee4a2b3
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 @@ -0,0 +1,117 @@
@@ -148,7 +148,7 @@ index 000000000..eed80ee4a
 +    };
 +...
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index a19da5e12..14e6fb896 100644
+index a19da5e123dd..14e6fb896f4e 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -44,26 +44,17 @@ config NET_AIROHA_SOC_WED
@@ -187,7 +187,7 @@ index a19da5e12..14e6fb896 100644
  
  endif #NET_VENDOR_AIROHA
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 27c9ad636..e7df3150f 100644
+index 27c9ad63698b..e7df3150f23a 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -10,7 +10,6 @@ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
@@ -204,7 +204,7 @@ index 27c9ad636..e7df3150f 100644
 +airoha-xpon-y := airoha_xpon.o airoha_ploam.o
 diff --git a/drivers/net/ethernet/airoha/airoha_epon.c b/drivers/net/ethernet/airoha/airoha_epon.c
 deleted file mode 100644
-index a85d0e3c3..000000000
+index a85d0e3c3804..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_epon.c
 +++ /dev/null
 @@ -1,798 +0,0 @@
@@ -1007,7 +1007,7 @@ index a85d0e3c3..000000000
 -MODULE_AUTHOR("Benjamin Larsson <benjamin.larsson@genexis.eu>");
 -MODULE_LICENSE("GPL");
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 58ebcf550..1c278efee 100644
+index 58ebcf5509ce..1c278efee933 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3,6 +3,7 @@
@@ -1160,7 +1160,7 @@ index 58ebcf550..1c278efee 100644
  		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
  			  config->supported_interfaces);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 6b8691886..30b26f138 100644
+index 6b86918861b1..30b26f1386c2 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -151,6 +151,11 @@ enum airoha_gdm_index {
@@ -1188,7 +1188,7 @@ index 6b8691886..30b26f138 100644
  			     struct airoha_gdm_dev *dev);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon.c b/drivers/net/ethernet/airoha/airoha_gpon.c
 deleted file mode 100644
-index 21059af81..000000000
+index 21059af81d18..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_gpon.c
 +++ /dev/null
 @@ -1,1295 +0,0 @@
@@ -2489,7 +2489,7 @@ index 21059af81..000000000
 -MODULE_LICENSE("GPL");
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon.h b/drivers/net/ethernet/airoha/airoha_gpon.h
 deleted file mode 100644
-index 540302bc2..000000000
+index 540302bc2d2d..000000000000
 --- a/drivers/net/ethernet/airoha/airoha_gpon.h
 +++ /dev/null
 @@ -1,23 +0,0 @@
@@ -2517,7 +2517,7 @@ index 540302bc2..000000000
 -
 -#endif /* _ECONET_GPON_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index db41e2ed2..6c8dd6e87 100644
+index db41e2ed2b59..6c8dd6e87b1f 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -95,6 +95,7 @@
@@ -2548,7 +2548,7 @@ index db41e2ed2..6c8dd6e87 100644
  #define FE_CPORT_DIS_FE2GSW_CRC		BIT(31)
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
 new file mode 100644
-index 000000000..b64e0b0f7
+index 000000000000..b64e0b0f73bc
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -0,0 +1,2734 @@
@@ -5288,7 +5288,7 @@ index 000000000..b64e0b0f7
 +MODULE_LICENSE("GPL");
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
 new file mode 100644
-index 000000000..25b6a0232
+index 000000000000..25b6a0232c85
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.h
 @@ -0,0 +1,10 @@

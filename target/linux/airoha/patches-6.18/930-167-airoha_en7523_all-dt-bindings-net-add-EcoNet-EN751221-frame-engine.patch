@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml b/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
 new file mode 100644
-index 000000000..40716b504
+index 000000000000..40716b50448f
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
 @@ -0,0 +1,108 @@
@@ -129,7 +129,7 @@ index 000000000..40716b504
 +        };
 +    };
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 38cbbb925..892dc00cf 100644
+index 38cbbb92527d..892dc00cf447 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -745,6 +745,7 @@ L:	netdev@vger.kernel.org

@@ -40,7 +40,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  7 files changed, 163 insertions(+), 68 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index ec4015c6e..d4815dc2d 100644
+index ec4015c6ed46..d4815dc2d0d8 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -158,6 +158,11 @@ void airoha_gpon_omci_set_state(struct airoha_gpon_omci *omci, u8 state)
@@ -56,7 +56,7 @@ index ec4015c6e..d4815dc2d 100644
  {
  	return omci_device_send_dying_gasp(omci->odev);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index f790aba4c..5ed04e534 100644
+index f790aba4c700..5ed04e534fba 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -29,6 +29,7 @@ void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id);
@@ -68,7 +68,7 @@ index f790aba4c..5ed04e534 100644
  bool airoha_gpon_omci_receive(void *data, struct sk_buff *skb,
  			      u16 gem_port_id, u32 flags);
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 75f1578e7..18aaf8523 100644
+index 75f1578e7a4d..18aaf8523128 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -446,8 +446,8 @@ static void airoha_xpon_phy_stop(struct device *dev, struct phy *phy,
@@ -416,7 +416,7 @@ index 75f1578e7..18aaf8523 100644
  		cancel_work_sync(&priv->irq_work);
  		cancel_delayed_work_sync(&priv->to1_work);
 diff --git a/include/net/omci.h b/include/net/omci.h
-index ad6960e84..bfd7e7e2c 100644
+index ad6960e84bb7..bfd7e7e2c42e 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -298,6 +298,7 @@ void omci_device_set_onu_id(struct omci_device *odev, u16 onu_id);
@@ -428,7 +428,7 @@ index ad6960e84..bfd7e7e2c 100644
  				       bool enabled, u8 source);
  int omci_device_send_dying_gasp(struct omci_device *odev);
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index ae43d6e61..66c2933f3 100644
+index ae43d6e61fab..66c2933f3ee4 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -2479,6 +2479,27 @@ void omci_agent_channel_changed(struct omci_device *odev, bool valid)
@@ -460,7 +460,7 @@ index ae43d6e61..66c2933f3 100644
  {
  	struct omci_agent *agent = &odev->agent;
 diff --git a/net/omci/core.c b/net/omci/core.c
-index 5669e29b5..36826c437 100644
+index 5669e29b5edb..36826c4370c9 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -1480,6 +1480,26 @@ void omci_device_set_state(struct omci_device *odev, u8 state)
@@ -491,7 +491,7 @@ index 5669e29b5..36826c437 100644
  			 u16 gem_port_id, u32 flags)
  {
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index eb064155f..f59ddfc1e 100644
+index eb064155f98b..f59ddfc1e489 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -138,6 +138,7 @@ int omci_agent_init(struct omci_device *odev);

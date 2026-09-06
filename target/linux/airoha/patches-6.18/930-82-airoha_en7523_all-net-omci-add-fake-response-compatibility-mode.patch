@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 95 insertions(+), 15 deletions(-)
 
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index 0cd9bc05d..99739f7b3 100644
+index 0cd9bc05d671..99739f7b3c7d 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,7 +3,7 @@
@@ -50,7 +50,7 @@ index 0cd9bc05d..99739f7b3 100644
  	__OMCI_CONFIG_MAX,
  };
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index b64dbd3bd..58febf617 100644
+index b64dbd3bdcb7..58febf61753e 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -48,6 +48,19 @@
@@ -307,7 +307,7 @@ index b64dbd3bd..58febf617 100644
  	default:
  		ret = -EINVAL;
 diff --git a/net/omci/core.c b/net/omci/core.c
-index d310c12e2..cefcdbf4d 100644
+index d310c12e2c5a..cefcdbf4d3dc 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -34,6 +34,7 @@ static const struct nla_policy omci_policy[OMCI_ATTR_MAX + 1] = {
@@ -333,7 +333,7 @@ index d310c12e2..cefcdbf4d 100644
  	if (!ret)
  		omci_device_notify(odev, OMCI_EVENT_CONFIG_CHANGE);
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index f17bfb376..9f67a3ada 100644
+index f17bfb3762f2..9f67a3ada5b2 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -64,15 +64,18 @@ struct omci_agent {

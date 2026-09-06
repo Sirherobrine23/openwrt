@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 149 insertions(+), 20 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 8db5c0bfe..351252504 100644
+index 8db5c0bfe577..35125250429f 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -298,6 +298,7 @@ int airoha_eth_register_xpon(struct net_device *netdev,
@@ -152,7 +152,7 @@ index 8db5c0bfe..351252504 100644
  	if (of_property_read_bool(np, "airoha,xpon-managed"))
  		dev->flags |= AIROHA_PRIV_F_XPON_MANAGED;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 7e102ffb1..3b83d6d3a 100644
+index 7e102ffb1cef..3b83d6d3aad2 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -608,6 +608,34 @@ struct airoha_xpon_link_ops {
@@ -211,7 +211,7 @@ index 7e102ffb1..3b83d6d3a 100644
  int airoha_eth_register_xpon_oam(struct net_device *netdev,
  				 struct airoha_xpon_oam_handler *handler);
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 70dc3907f..251bd9fef 100644
+index 70dc3907f017..251bd9fef544 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -17,6 +17,7 @@

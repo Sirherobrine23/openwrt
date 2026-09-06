@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/phy/phy-en7528-usb.c
 
 diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
-index c9972a378..729aeebc7 100644
+index c9972a378196..729aeebc76c7 100644
 --- a/drivers/phy/Kconfig
 +++ b/drivers/phy/Kconfig
 @@ -124,6 +124,17 @@ config PHY_EN7528_PCIE
@@ -34,7 +34,7 @@ index c9972a378..729aeebc7 100644
  source "drivers/phy/allwinner/Kconfig"
  source "drivers/phy/amlogic/Kconfig"
 diff --git a/drivers/phy/Makefile b/drivers/phy/Makefile
-index a21e8fc96..0fcfe104d 100644
+index a21e8fc96b1c..0fcfe104dcea 100644
 --- a/drivers/phy/Makefile
 +++ b/drivers/phy/Makefile
 @@ -14,6 +14,7 @@ obj-$(CONFIG_PHY_PISTACHIO_USB)		+= phy-pistachio-usb.o
@@ -47,7 +47,7 @@ index a21e8fc96..0fcfe104d 100644
  					   allwinner/	\
 diff --git a/drivers/phy/phy-en7528-usb.c b/drivers/phy/phy-en7528-usb.c
 new file mode 100644
-index 000000000..e14d16d95
+index 000000000000..e14d16d954b9
 --- /dev/null
 +++ b/drivers/phy/phy-en7528-usb.c
 @@ -0,0 +1,317 @@

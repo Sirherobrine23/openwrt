@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 339 insertions(+), 21 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index ef24763fe..f5fd63b7c 100644
+index ef24763fe4e9..f5fd63b7cc7f 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -431,29 +431,347 @@ struct omci_class_info {

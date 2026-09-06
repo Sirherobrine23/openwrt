@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 157 insertions(+), 48 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index f31496eb8..0ca3b08cb 100644
+index f31496eb8362..0ca3b08cb52c 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -5233,7 +5233,8 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
@@ -59,7 +59,7 @@ index f31496eb8..0ca3b08cb 100644
  
  error_napi_stop:
 diff --git a/drivers/net/ethernet/airoha/airoha_npu.c b/drivers/net/ethernet/airoha/airoha_npu.c
-index fbb36d1fd..fe6795471 100644
+index fbb36d1fd20e..fe6795471977 100644
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
 @@ -135,6 +135,20 @@ struct airoha_npu_soc_data {
@@ -333,7 +333,7 @@ index fbb36d1fd..fe6795471 100644
  	return 0;
  }
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index 1c1e7643f..216a963c2 100644
+index 1c1e7643f63a..216a963c2210 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -223,6 +223,7 @@ struct airoha_npu {

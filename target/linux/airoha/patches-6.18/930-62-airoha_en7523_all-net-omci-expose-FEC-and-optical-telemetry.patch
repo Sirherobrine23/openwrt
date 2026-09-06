@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 99 insertions(+), 1 deletion(-)
 
 diff --git a/include/net/omci.h b/include/net/omci.h
-index 7647c5127..e8e7cdc7a 100644
+index 7647c5127552..e8e7cdc7a914 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -9,12 +9,37 @@ struct device;
@@ -69,7 +69,7 @@ index 7647c5127..e8e7cdc7a 100644
  
  struct omci_device *
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index ae0dc17b2..0d89dc57c 100644
+index ae0dc17b23bd..0d89dc57c71c 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,7 +3,7 @@
@@ -127,7 +127,7 @@ index ae0dc17b2..0d89dc57c 100644
  
  #endif /* _UAPI_LINUX_OMCI_H */
 diff --git a/net/omci/core.c b/net/omci/core.c
-index acc8f208e..afb2490c4 100644
+index acc8f208ee56..afb2490c4ceb 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -71,6 +71,49 @@ static struct omci_device *omci_get_from_info(struct genl_info *info)

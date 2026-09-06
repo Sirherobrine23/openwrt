@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 42 insertions(+), 24 deletions(-)
 
 diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
-index 3dba44fab..987ccef92 100644
+index 3dba44fabcd8..987ccef9220d 100644
 --- a/drivers/net/dsa/mt7530.c
 +++ b/drivers/net/dsa/mt7530.c
 @@ -470,8 +470,17 @@ static bool mt7530_is_en751221_mcm(struct mt7530_priv *priv)
@@ -139,7 +139,7 @@ index 3dba44fab..987ccef92 100644
  		} else {
  			mt7530_port_disable(ds, i);
 diff --git a/drivers/net/dsa/mt7530.h b/drivers/net/dsa/mt7530.h
-index b066d53be..d11f4fd23 100644
+index b066d53be416..d11f4fd23e4a 100644
 --- a/drivers/net/dsa/mt7530.h
 +++ b/drivers/net/dsa/mt7530.h
 @@ -321,6 +321,7 @@ enum mt7530_port_mode {

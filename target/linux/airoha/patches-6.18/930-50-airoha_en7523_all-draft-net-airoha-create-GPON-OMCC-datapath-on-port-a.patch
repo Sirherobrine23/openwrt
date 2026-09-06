@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 81 insertions(+), 27 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 1e0d09e5f..e811669a2 100644
+index 1e0d09e5f8b5..e811669a2248 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -972,6 +972,28 @@ static int gpon_set_tcont_hw(struct gpon_priv *priv, unsigned int index,

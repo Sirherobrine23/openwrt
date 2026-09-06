@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 15 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index cf7781812..97654e39a 100644
+index cf77818125e9..97654e39ab5b 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -226,7 +226,6 @@ void airoha_gdm_common_init(struct airoha_gdm_common *gdm,
@@ -70,7 +70,7 @@ index cf7781812..97654e39a 100644
  bool airoha_eth_xpon_del_service(struct net_device *netdev, u32 cookie,
  				 u16 *gem_port_id)
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 066f7c1e4..c17b708ae 100644
+index 066f7c1e4e54..c17b708ae3ef 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -143,7 +143,6 @@ bool airoha_ppe_is_enabled(struct airoha_eth *eth, int index)

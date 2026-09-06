@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 184 insertions(+), 1 deletion(-)
 
 diff --git a/arch/mips/econet/init.c b/arch/mips/econet/init.c
-index 2ff154774..ef89d1f4c 100644
+index 2ff154774d86..ef89d1f4c390 100644
 --- a/arch/mips/econet/init.c
 +++ b/arch/mips/econet/init.c
 @@ -18,8 +18,11 @@
@@ -45,7 +45,7 @@ index 2ff154774..ef89d1f4c 100644
  
  /* 4. Initialize the IRQ subsystem */
 diff --git a/include/linux/soc/airoha/pkgids.h b/include/linux/soc/airoha/pkgids.h
-index 4cb64a974..0ea20abb8 100644
+index 4cb64a974aeb..0ea20abb811d 100644
 --- a/include/linux/soc/airoha/pkgids.h
 +++ b/include/linux/soc/airoha/pkgids.h
 @@ -302,6 +302,176 @@ static inline const char *airoha_pkg_id_name(enum airoha_pkg_ids id)

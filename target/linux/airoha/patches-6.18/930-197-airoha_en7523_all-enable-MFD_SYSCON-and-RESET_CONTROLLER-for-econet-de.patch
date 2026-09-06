@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 4 insertions(+)
 
 diff --git a/drivers/clk/Kconfig b/drivers/clk/Kconfig
-index 9ec83f4bd..126efef76 100644
+index 9ec83f4bdbdc..126efef761d8 100644
 --- a/drivers/clk/Kconfig
 +++ b/drivers/clk/Kconfig
 @@ -221,6 +221,8 @@ config COMMON_CLK_EN7523
@@ -24,7 +24,7 @@ index 9ec83f4bd..126efef76 100644
  	help
  	  This driver provides the fixed clocks and gates present on Airoha
 diff --git a/drivers/net/dsa/Kconfig b/drivers/net/dsa/Kconfig
-index e6f18edb8..a4b5ad161 100644
+index e6f18edb86b0..a4b5ad161dfc 100644
 --- a/drivers/net/dsa/Kconfig
 +++ b/drivers/net/dsa/Kconfig
 @@ -55,6 +55,7 @@ config NET_DSA_MT7530_MMIO
@@ -36,7 +36,7 @@ index e6f18edb8..a4b5ad161 100644
  	help
  	  This enables support for the built-in Ethernet switch found
 diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-index e9ef40b49..50cb05434 100644
+index e9ef40b49273..50cb05434a3e 100644
 --- a/drivers/pinctrl/airoha/Kconfig
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -6,6 +6,7 @@ config PINCTRL_AIROHA

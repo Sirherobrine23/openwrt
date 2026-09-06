@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 134 insertions(+), 48 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 07f9afd15..b0da8c290 100644
+index 07f9afd15685..b0da8c290ca2 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3443,7 +3443,7 @@ int airoha_eth_xpon_add_service(struct net_device *netdev,
@@ -97,7 +97,7 @@ index 07f9afd15..b0da8c290 100644
  void airoha_eth_xpon_flush_services(struct net_device *netdev)
  {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 04d58cfe0..6c03a418a 100644
+index 04d58cfe0edd..6c03a418a1bc 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -638,6 +638,7 @@ struct airoha_xpon_link_state {
@@ -121,7 +121,7 @@ index 04d58cfe0..6c03a418a 100644
  int airoha_eth_set_xpon_mode(struct net_device *netdev,
  			      enum airoha_xpon_mode mode);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index d4815dc2d..2d7f2e58f 100644
+index d4815dc2d0d8..2d7f2e58fbbb 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -61,6 +61,23 @@ static int airoha_gpon_omci_set_uni(struct omci_device *odev,
@@ -158,7 +158,7 @@ index d4815dc2d..2d7f2e58f 100644
  	.set_olt_profile = airoha_gpon_omci_set_olt_profile,
  	.set_operational = airoha_gpon_omci_set_operational,
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 5ed04e534..ef637092a 100644
+index 5ed04e534fba..ef637092a16e 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -11,6 +11,7 @@ struct omci_identity;
@@ -180,7 +180,7 @@ index 5ed04e534..ef637092a 100644
  				      struct omci_telemetry *telemetry);
  int airoha_gpon_omci_hw_set_olt_profile(void *hw_priv,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 2eaf74048..224fe7ad6 100644
+index 2eaf74048a5f..224fe7ad60fd 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1932,69 +1932,95 @@ int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,

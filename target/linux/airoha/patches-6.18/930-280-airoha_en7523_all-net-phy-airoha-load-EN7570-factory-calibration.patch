@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 76 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/phy/airoha/en7570_main.c b/drivers/net/phy/airoha/en7570_main.c
-index 929044700..19cb30bf9 100644
+index 9290447001af..19cb30bf9498 100644
 --- a/drivers/net/phy/airoha/en7570_main.c
 +++ b/drivers/net/phy/airoha/en7570_main.c
 @@ -15,15 +15,20 @@

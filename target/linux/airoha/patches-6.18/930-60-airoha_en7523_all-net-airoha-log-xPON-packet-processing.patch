@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 29 insertions(+)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 76fd0b94c..02bcc4d50 100644
+index 76fd0b94c6fd..02bcc4d50677 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1487,6 +1487,27 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)

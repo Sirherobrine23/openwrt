@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 21 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 6d0565041..a04e6e771 100644
+index 6d0565041f66..a04e6e771911 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -1446,6 +1446,25 @@ static int econet_dev_set_macaddr(struct net_device *dev, void *p)

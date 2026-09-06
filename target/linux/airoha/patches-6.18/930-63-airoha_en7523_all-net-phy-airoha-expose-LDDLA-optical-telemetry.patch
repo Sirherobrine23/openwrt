@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 include/linux/phy/airoha-lddla.h
 
 diff --git a/drivers/net/phy/airoha/airoha_lddla.c b/drivers/net/phy/airoha/airoha_lddla.c
-index 5d518290e..f8b70ceb4 100644
+index 5d518290efd8..f8b70ceb42eb 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.c
 +++ b/drivers/net/phy/airoha/airoha_lddla.c
 @@ -454,6 +454,62 @@ int lddla_hwmon_register(struct airoha_lddla *lddla)
@@ -89,7 +89,7 @@ index 5d518290e..f8b70ceb4 100644
   * airoha_lddla_tx_rearm() - rearm an LDDLA optical transmitter
   * @dev: LDDLA I2C device
 diff --git a/drivers/net/phy/airoha/airoha_lddla.h b/drivers/net/phy/airoha/airoha_lddla.h
-index feb624ea2..a0207c4cb 100644
+index feb624ea2a5b..a0207c4cb0e3 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.h
 +++ b/drivers/net/phy/airoha/airoha_lddla.h
 @@ -25,6 +25,7 @@
@@ -117,7 +117,7 @@ index feb624ea2..a0207c4cb 100644
  	u16 (*bias_refresh)(struct airoha_lddla *lddla);
  	u16 (*tx_power_refresh)(struct airoha_lddla *lddla);
 diff --git a/drivers/net/phy/airoha/en7570_main.c b/drivers/net/phy/airoha/en7570_main.c
-index 19e9576f9..4b337e1ee 100644
+index 19e9576f9bce..4b337e1ee24f 100644
 --- a/drivers/net/phy/airoha/en7570_main.c
 +++ b/drivers/net/phy/airoha/en7570_main.c
 @@ -294,6 +294,14 @@ static s32 en7570_op_temp(struct airoha_lddla *lddla)
@@ -144,7 +144,7 @@ index 19e9576f9..4b337e1ee 100644
  	.bias_refresh = en7570_op_bias,
  	.tx_power_refresh = en7570_op_tx_power,
 diff --git a/drivers/net/phy/airoha/en7571_main.c b/drivers/net/phy/airoha/en7571_main.c
-index e68b362bf..324077ca5 100644
+index e68b362bf57e..324077ca57fd 100644
 --- a/drivers/net/phy/airoha/en7571_main.c
 +++ b/drivers/net/phy/airoha/en7571_main.c
 @@ -368,6 +368,14 @@ static s32 en7571_op_temp(struct airoha_lddla *lddla)
@@ -172,7 +172,7 @@ index e68b362bf..324077ca5 100644
  	.tx_power_refresh = en7571_op_tx_power,
 diff --git a/include/linux/phy/airoha-lddla.h b/include/linux/phy/airoha-lddla.h
 new file mode 100644
-index 000000000..26ff55b9e
+index 000000000000..26ff55b9e89b
 --- /dev/null
 +++ b/include/linux/phy/airoha-lddla.h
 @@ -0,0 +1,57 @@
@@ -234,7 +234,7 @@ index 000000000..26ff55b9e
 +
 +#endif /* _LINUX_PHY_AIROHA_LDDLA_H */
 diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
-index d9fff1296..4625c7f16 100644
+index d9fff129678d..4625c7f16720 100644
 --- a/include/linux/phy/phy-airoha-xpon.h
 +++ b/include/linux/phy/phy-airoha-xpon.h
 @@ -6,7 +6,6 @@

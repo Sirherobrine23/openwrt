@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 356 insertions(+), 104 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index d3ce50017..0a4c2e7b2 100644
+index d3ce500177c3..0a4c2e7b2ba2 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -830,10 +830,30 @@ struct econet_foe_ipv4 {
@@ -74,7 +74,7 @@ index d3ce50017..0a4c2e7b2 100644
  
  struct econet_ppe {
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index b3dbb1221..9bbfadd07 100644
+index b3dbb122194c..9bbfadd07bba 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -2589,31 +2589,58 @@ static void econet_ppe_cache_clean(struct econet_ppe *ppe)
@@ -677,7 +677,7 @@ index b3dbb1221..9bbfadd07 100644
  	flow->dest_port = ntohs(dest_port);
  	flow->hash = EN751221_PPE_INVALID_HASH;
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index bff84b020..045431366 100644
+index bff84b02058b..0454313666f6 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -399,6 +399,30 @@ static void econet_ppe_debugfs_print_ipv4(struct seq_file *m,

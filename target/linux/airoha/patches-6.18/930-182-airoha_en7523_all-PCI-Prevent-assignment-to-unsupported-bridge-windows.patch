@@ -44,7 +44,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 6 insertions(+)
 
 diff --git a/drivers/pci/probe.c b/drivers/pci/probe.c
-index 362321e12..115e9381b 100644
+index 362321e121ea..115e9381b894 100644
 --- a/drivers/pci/probe.c
 +++ b/drivers/pci/probe.c
 @@ -398,6 +398,9 @@ static void pci_read_bridge_io(struct pci_dev *dev, struct resource *res,

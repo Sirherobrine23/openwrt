@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/pinctrl/airoha/pinctrl-en751221.c
 
 diff --git a/MAINTAINERS b/MAINTAINERS
-index b6bb34c07..833e6147d 100644
+index b6bb34c0784d..833e6147d231 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -20335,7 +20335,7 @@ S:	Maintained
@@ -30,7 +30,7 @@ index b6bb34c07..833e6147d 100644
  PIN CONTROLLER - AMD
  M:	Basavaraj Natikar <Basavaraj.Natikar@amd.com>
 diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-index f0b86b8aa..e9ef40b49 100644
+index f0b86b8aa547..e9ef40b49273 100644
 --- a/drivers/pinctrl/airoha/Kconfig
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -1,11 +1,11 @@
@@ -76,7 +76,7 @@ index f0b86b8aa..e9ef40b49 100644
 +
  endmenu
 diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
-index 30e4bee57..9def6cadc 100644
+index 30e4bee57a4a..9def6cadc2b5 100644
 --- a/drivers/pinctrl/airoha/Makefile
 +++ b/drivers/pinctrl/airoha/Makefile
 @@ -8,3 +8,4 @@ obj-$(CONFIG_PINCTRL_AIROHA_AN7563)	+= pinctrl-an7563.o
@@ -86,7 +86,7 @@ index 30e4bee57..9def6cadc 100644
 +obj-$(CONFIG_PINCTRL_AIROHA_EN751221)	+= pinctrl-en751221.o
 diff --git a/drivers/pinctrl/airoha/pinctrl-en751221.c b/drivers/pinctrl/airoha/pinctrl-en751221.c
 new file mode 100644
-index 000000000..baf3fccc9
+index 000000000000..baf3fccc9473
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/pinctrl-en751221.c
 @@ -0,0 +1,419 @@

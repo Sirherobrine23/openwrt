@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 142 insertions(+), 59 deletions(-)
 
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index 5461311e7..cad92d116 100644
+index 5461311e71ca..cad92d116810 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -21,15 +21,15 @@

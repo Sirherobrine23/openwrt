@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/ethernet/airoha/airoha_eth_gen2.c
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index fd2fed549..31f8746f0 100644
+index fd2fed549ad2..31f8746f08cd 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -8,6 +8,11 @@ config NET_VENDOR_AIROHA
@@ -52,7 +52,7 @@ index fd2fed549..31f8746f0 100644
  	select PAGE_POOL
  	help
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 66b591619..209d6bdd3 100644
+index 66b591619a63..209d6bdd38de 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -8,15 +8,11 @@ obj-$(CONFIG_NET_AIROHA_COMMON) += airoha-common.o
@@ -75,7 +75,7 @@ index 66b591619..209d6bdd3 100644
  
  # Airoha/EcoNet shared GPON + EPON MAC complex.
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index b3312c24a..f1e9ef733 100644
+index b3312c24a267..f1e9ef733933 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1,6007 +1,53 @@
@@ -6112,7 +6112,7 @@ index b3312c24a..f1e9ef733 100644
 +MODULE_AUTHOR("Matheus Sampaio Queiroga <srherobrine20@gmail.com>");
 +MODULE_DESCRIPTION("Airoha and EcoNet frame-engine Ethernet driver");
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 0f324a0bd..4be989f37 100644
+index 0f324a0bd654..4be989f37d56 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -777,8 +777,18 @@ enum airoha_ids {
@@ -6151,7 +6151,7 @@ diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/air
 similarity index 98%
 rename from drivers/net/ethernet/airoha/econet_eth.c
 rename to drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index b4e9b6813..80372b91b 100644
+index b4e9b6813b42..80372b91bab5 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -22,7 +22,8 @@
@@ -6273,7 +6273,7 @@ diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/air
 similarity index 99%
 rename from drivers/net/ethernet/airoha/econet_eth.h
 rename to drivers/net/ethernet/airoha/airoha_eth_gen1.h
-index f76f51ff4..00d4f1be2 100644
+index f76f51ff478f..00d4f1be2d8f 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 @@ -12,6 +12,8 @@
@@ -6308,7 +6308,7 @@ index f76f51ff4..00d4f1be2 100644
  struct econet_qdma;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 new file mode 100644
-index 000000000..7c4a4fedb
+index 000000000000..7c4a4fedb104
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -0,0 +1,5994 @@

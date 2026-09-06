@@ -28,7 +28,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 23 insertions(+), 13 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 08d2a1246..ec220bfa5 100644
+index 08d2a12461ae..ec220bfa5955 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3291,6 +3291,8 @@ airoha_eth_xpon_classify(struct airoha_gdm_dev *dev, struct sk_buff *skb,
@@ -41,7 +41,7 @@ index 08d2a1246..ec220bfa5 100644
  		    (!vlan_valid || service->vlan_id != vlan_id))
  			continue;
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 00f426756..be6b35c2f 100644
+index 00f42675619f..be6b35c2f910 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -31,16 +31,17 @@ static int airoha_gpon_omci_set_tcont(struct omci_device *odev,
@@ -68,7 +68,7 @@ index 00f426756..be6b35c2f 100644
  
  static int airoha_gpon_omci_set_uni(struct omci_device *odev,
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 165642f1c..4ec5fa74e 100644
+index 165642f1c352..4ec5fa74efd8 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -34,7 +34,7 @@ int airoha_gpon_omci_hw_set_tcont(void *hw_priv, u16 entity_id,
@@ -81,7 +81,7 @@ index 165642f1c..4ec5fa74e 100644
  int airoha_gpon_omci_hw_get_telemetry(void *hw_priv,
  				      struct omci_telemetry *telemetry);
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 9f9f756c9..6410c7e9d 100644
+index 9f9f756c9d82..6410c7e9dcc5 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1620,7 +1620,7 @@ int airoha_gpon_omci_hw_set_tcont(void *hw_priv, u16 entity_id,
@@ -120,7 +120,7 @@ index 9f9f756c9..6410c7e9d 100644
  }
  
 diff --git a/include/net/omci.h b/include/net/omci.h
-index e8e7cdc7a..b714d35b8 100644
+index e8e7cdc7a914..b714d35b88bc 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -9,6 +9,12 @@ struct device;
@@ -146,7 +146,7 @@ index e8e7cdc7a..b714d35b8 100644
  	int (*get_telemetry)(struct omci_device *odev,
  			     struct omci_telemetry *telemetry);
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 7688f23c7..4e5528f84 100644
+index 7688f23c78ce..4e5528f84cfd 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -345,6 +345,7 @@ static int omci_agent_hw_update(struct omci_device *odev,

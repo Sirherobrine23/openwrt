@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  7 files changed, 350 insertions(+), 628 deletions(-)
 
 diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
-index 0db335f9c..7669869a1 100644
+index 0db335f9c328..7669869a1fe8 100644
 --- a/drivers/net/dsa/mt7530.c
 +++ b/drivers/net/dsa/mt7530.c
 @@ -63,6 +63,38 @@ core_write(struct mt7530_priv *priv, u32 reg, u32 val)
@@ -336,7 +336,7 @@ index 0db335f9c..7669869a1 100644
  
  static void mt753x_phylink_mac_disable_tx_lpi(struct phylink_config *config)
 diff --git a/drivers/net/dsa/mt7530.h b/drivers/net/dsa/mt7530.h
-index c9748db3a..b066d53be 100644
+index c9748db3a709..b066d53be416 100644
 --- a/drivers/net/dsa/mt7530.h
 +++ b/drivers/net/dsa/mt7530.h
 @@ -927,6 +927,7 @@ struct mt7530_priv {
@@ -348,7 +348,7 @@ index c9748db3a..b066d53be 100644
  
  struct mt7530_hw_vlan_entry {
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index ec3bdc50b..064494131 100644
+index ec3bdc50bce2..064494131d31 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -1285,6 +1285,9 @@ static int econet_dev_set_macaddr(struct net_device *dev, void *p)
@@ -435,7 +435,7 @@ index ec3bdc50b..064494131 100644
  
  static const struct econet_soc_data en7528_soc_data = {
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index 6579eb2fc..65cbaea40 100644
+index 6579eb2fca87..65cbaea40428 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -3213,6 +3213,7 @@ static inline void set_gdm_len_th_runt_len(struct gdm_len_th *x, u16 v)
@@ -447,7 +447,7 @@ index 6579eb2fc..65cbaea40 100644
  
  /* Number of QDMA engines in this ethernet device. */
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index c56703d6c..80d571646 100644
+index c56703d6c1a8..80d57164659d 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -1722,587 +1722,6 @@ static void airoha_phy_write_tr_regs(struct phy_device *phydev,
@@ -1066,7 +1066,7 @@ index c56703d6c..80d571646 100644
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_EN7523) },
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7581) },
 diff --git a/drivers/net/phy/mediatek/mtk-ge.c b/drivers/net/phy/mediatek/mtk-ge.c
-index 3336d1f45..97d845c90 100644
+index 3336d1f45317..97d845c906dd 100644
 --- a/drivers/net/phy/mediatek/mtk-ge.c
 +++ b/drivers/net/phy/mediatek/mtk-ge.c
 @@ -63,26 +63,6 @@ static void mtk_gephy_config_init(struct phy_device *phydev)
@@ -1105,7 +1105,7 @@ index 3336d1f45..97d845c90 100644
  		/* Interrupts are handled by the switch, not the PHY
  		 * itself.
 diff --git a/net/dsa/tag_mtk.c b/net/dsa/tag_mtk.c
-index 791f87349..bf5a99d80 100644
+index 791f87349ba6..bf5a99d8037c 100644
 --- a/net/dsa/tag_mtk.c
 +++ b/net/dsa/tag_mtk.c
 @@ -72,6 +72,38 @@ static struct sk_buff *mtk_tag_xmit(struct sk_buff *skb,

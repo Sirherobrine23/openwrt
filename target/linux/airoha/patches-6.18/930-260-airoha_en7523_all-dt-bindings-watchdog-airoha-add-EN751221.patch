@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 4 insertions(+), 2 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/watchdog/airoha,en7581-wdt.yaml b/Documentation/devicetree/bindings/watchdog/airoha,en7581-wdt.yaml
-index 6bbab3cb2..65214d203 100644
+index 6bbab3cb28e5..65214d203916 100644
 --- a/Documentation/devicetree/bindings/watchdog/airoha,en7581-wdt.yaml
 +++ b/Documentation/devicetree/bindings/watchdog/airoha,en7581-wdt.yaml
 @@ -4,7 +4,7 @@

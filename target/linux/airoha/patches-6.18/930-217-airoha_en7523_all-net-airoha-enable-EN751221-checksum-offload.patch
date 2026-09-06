@@ -26,7 +26,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 32 insertions(+), 18 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 7292415f8..03e1b9272 100644
+index 7292415f8e75..03e1b92722be 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -192,7 +192,7 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
@@ -107,7 +107,7 @@ index 7292415f8..03e1b9272 100644
  		ndev->hw_features |= NETIF_F_HW_TC;
  
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index 87aee88fd..3ebfc97e3 100644
+index 87aee88fd725..3ebfc97e3b4a 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -270,10 +270,10 @@ static inline void set_etx_vlan_tag(struct etx *x, u16 v)

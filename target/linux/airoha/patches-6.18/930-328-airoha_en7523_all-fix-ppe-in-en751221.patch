@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 43 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index cf46d979e..0c8b7f156 100644
+index cf46d979e085..0c8b7f156256 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -9212,8 +9212,22 @@ airoha_en751221_get_dev_from_sport(struct airoha_eth *eth, u32 sport,
@@ -39,7 +39,7 @@ index cf46d979e..0c8b7f156 100644
  
  static int airoha_en7528_get_sport(struct airoha_gdm_port *port, int nbq)
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 9856eb44d..17d98bb7f 100644
+index 9856eb44d314..17d98bb7ff1a 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -450,17 +450,38 @@ static void airoha_ppe_hw_init(struct airoha_ppe *ppe)

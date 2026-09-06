@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 13 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/phy/airoha/airoha_lddla.c b/drivers/net/phy/airoha/airoha_lddla.c
-index 0127ead00..d9d2cc091 100644
+index 0127ead00097..d9d2cc091747 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.c
 +++ b/drivers/net/phy/airoha/airoha_lddla.c
 @@ -253,7 +253,7 @@ int lddla_flash_load(struct airoha_lddla *lddla)
@@ -32,7 +32,7 @@ index 0127ead00..d9d2cc091 100644
  		dev_warn(lddla->dev,
  			 "calibration NVM '%s' not found (%d); using defaults\n",
 diff --git a/drivers/net/phy/airoha/en7570_main.c b/drivers/net/phy/airoha/en7570_main.c
-index 4b337e1ee..929044700 100644
+index 4b337e1ee24f..9290447001af 100644
 --- a/drivers/net/phy/airoha/en7570_main.c
 +++ b/drivers/net/phy/airoha/en7570_main.c
 @@ -322,6 +322,17 @@ static u16 en7570_op_rx_power(struct airoha_lddla *lddla)

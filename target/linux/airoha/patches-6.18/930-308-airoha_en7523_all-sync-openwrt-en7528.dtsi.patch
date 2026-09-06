@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 34 insertions(+), 21 deletions(-)
 
 diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
-index 3eff3712a..499e4e619 100644
+index 3eff3712ac4e..499e4e619a43 100644
 --- a/arch/mips/boot/dts/econet/en7528.dtsi
 +++ b/arch/mips/boot/dts/econet/en7528.dtsi
 @@ -225,7 +225,6 @@ timer_hpt: timer@1fbf0400 {

@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 1109 insertions(+), 94 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
-index 0a66a44ed..43a149b94 100644
+index 0a66a44ed97a..43a149b94434 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 @@ -4,21 +4,29 @@
@@ -150,7 +150,7 @@ index 0a66a44ed..43a149b94 100644
  additionalProperties: true
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 1c017bd0a..ab63920af 100644
+index 1c017bd0a76a..ab63920af2ef 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -619,6 +619,11 @@ struct airoha_xpon_oam_handler {
@@ -166,7 +166,7 @@ index 1c017bd0a..ab63920af 100644
  
  /**
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 28fbfec5a..e4017c023 100644
+index 28fbfec5a91b..e4017c023059 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -8,13 +8,17 @@
@@ -1075,7 +1075,7 @@ index 28fbfec5a..e4017c023 100644
  	.ppe_dram_entries = 16 * 1024,
  };
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.h b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
-index e8703a953..a19c21aee 100644
+index e8703a953032..a19c21aee717 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 @@ -67,6 +67,11 @@ struct etx {
@@ -1138,7 +1138,7 @@ index e8703a953..a19c21aee 100644
  				void __iomem *qdma_regs,
  				int id,
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index a426ad97c..e990d196b 100644
+index a426ad97c56c..e990d196b111 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -285,6 +285,15 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
@@ -1308,7 +1308,7 @@ index a426ad97c..e990d196b 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 373fa4c95..8c0e407d3 100644
+index 373fa4c9521d..8c0e407d3049 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1,8 +1,8 @@

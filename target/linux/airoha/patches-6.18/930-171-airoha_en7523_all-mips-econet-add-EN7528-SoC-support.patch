@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 39 insertions(+), 3 deletions(-)
 
 diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
-index 3fdd50963..fd341c057 100644
+index 3fdd509633af..fd341c057f72 100644
 --- a/arch/mips/Kconfig
 +++ b/arch/mips/Kconfig
 @@ -392,13 +392,13 @@ config MACH_DECSTATION
@@ -31,7 +31,7 @@ index 3fdd50963..fd341c057 100644
  	select SYS_HAS_CPU_MIPS32_R2
  	select SYS_HAS_EARLY_PRINTK
 diff --git a/arch/mips/boot/compressed/uart-16550.c b/arch/mips/boot/compressed/uart-16550.c
-index 529e77a64..e82da42dd 100644
+index 529e77a6487c..e82da42dd852 100644
 --- a/arch/mips/boot/compressed/uart-16550.c
 +++ b/arch/mips/boot/compressed/uart-16550.c
 @@ -21,7 +21,11 @@
@@ -47,7 +47,7 @@ index 529e77a64..e82da42dd 100644
  #endif
  
 diff --git a/arch/mips/econet/Kconfig b/arch/mips/econet/Kconfig
-index fd69884cc..a9dc57327 100644
+index fd69884cc9a8..a9dc573274e0 100644
 --- a/arch/mips/econet/Kconfig
 +++ b/arch/mips/econet/Kconfig
 @@ -12,6 +12,7 @@ choice
@@ -85,7 +85,7 @@ index fd69884cc..a9dc57327 100644
  
  choice
 diff --git a/arch/mips/econet/init.c b/arch/mips/econet/init.c
-index 6f43ffb20..f055924e3 100644
+index 6f43ffb209cb..f055924e3756 100644
 --- a/arch/mips/econet/init.c
 +++ b/arch/mips/econet/init.c
 @@ -16,11 +16,16 @@

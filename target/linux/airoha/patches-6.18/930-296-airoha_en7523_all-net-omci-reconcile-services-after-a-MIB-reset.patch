@@ -29,7 +29,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 13 insertions(+)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 775d849f9..01e2691ba 100644
+index 775d849f94f4..01e2691ba622 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -2618,6 +2618,19 @@ static int omci_agent_mib_reset_locked(struct omci_device *odev, bool all,

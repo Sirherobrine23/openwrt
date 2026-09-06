@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 515 insertions(+), 495 deletions(-)
 
 diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
-index 56d32c78f..827ad4234 100644
+index 56d32c78f2a7..827ad42342ff 100644
 --- a/arch/mips/boot/dts/econet/en7528.dtsi
 +++ b/arch/mips/boot/dts/econet/en7528.dtsi
 @@ -12,7 +12,6 @@
@@ -1139,7 +1139,7 @@ index 56d32c78f..827ad4234 100644
  				};
  			};
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index 98340087f..c266e1276 100644
+index 98340087f7df..c266e1276b07 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -118,9 +118,9 @@
@@ -1164,7 +1164,7 @@ index 98340087f..c266e1276 100644
  	.spi_div_reg = EN7528_REG_SPI_DIV,
  	.spi_div_mask = EN7528_REG_SPI_DIV_MASK,
 diff --git a/drivers/spi/spi-airoha-snfi.c b/drivers/spi/spi-airoha-snfi.c
-index 08dcfea30..e5233c2b1 100644
+index 08dcfea30c4e..e5233c2b1435 100644
 --- a/drivers/spi/spi-airoha-snfi.c
 +++ b/drivers/spi/spi-airoha-snfi.c
 @@ -804,8 +804,28 @@ static int airoha_spi_probe(struct platform_device *pdev)

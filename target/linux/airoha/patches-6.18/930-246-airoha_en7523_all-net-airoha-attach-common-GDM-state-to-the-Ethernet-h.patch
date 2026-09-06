@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 8 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_common.c b/drivers/net/ethernet/airoha/airoha_common.c
-index 74c61ed59..f422ff954 100644
+index 74c61ed598d7..f422ff95416e 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.c
 +++ b/drivers/net/ethernet/airoha/airoha_common.c
 @@ -160,7 +160,7 @@ static const struct phylink_mac_ops airoha_gdm_phylink_ops = {
@@ -33,7 +33,7 @@ index 74c61ed59..f422ff954 100644
  	gdm->priv = priv;
  	gdm->mac_ops = mac_ops;
 diff --git a/drivers/net/ethernet/airoha/airoha_common.h b/drivers/net/ethernet/airoha/airoha_common.h
-index 3c32bf6fd..3988c5d84 100644
+index 3c32bf6fd204..3988c5d846d6 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.h
 +++ b/drivers/net/ethernet/airoha/airoha_common.h
 @@ -12,6 +12,7 @@ struct device_node;
@@ -70,7 +70,7 @@ index 3c32bf6fd..3988c5d84 100644
  			    u8 pse_port, void *priv,
  			    const struct airoha_gdm_mac_ops *mac_ops);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 931efa82b..135ef8ba6 100644
+index 931efa82b002..135ef8ba6d39 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -628,7 +628,7 @@ struct net_device *econet_alloc_gdm_port(struct airoha_eth *eth,
@@ -83,7 +83,7 @@ index 931efa82b..135ef8ba6 100644
  			       fport == ETX_FPORT_GDM2 ? DPORT_GDMA2 :
  						      DPORT_GDMA1,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 05dfb37d8..08bff76c8 100644
+index 05dfb37d8652..08bff76c8ac3 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -5287,7 +5287,7 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,

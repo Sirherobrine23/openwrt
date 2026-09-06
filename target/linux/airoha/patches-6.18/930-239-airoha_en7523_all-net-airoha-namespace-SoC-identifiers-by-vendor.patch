@@ -16,7 +16,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 105 insertions(+), 103 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 67cfd1031..b3312c24a 100644
+index 67cfd1031862..b3312c24a267 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -170,7 +170,7 @@ static int airoha_eth_validate_xpon_gdm2(struct net_device *netdev,
@@ -531,7 +531,7 @@ index 67cfd1031..b3312c24a 100644
  };
  MODULE_DEVICE_TABLE(of, of_airoha_match);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index a4293b3f0..0f324a0bd 100644
+index a4293b3f0ed4..0f324a0bd654 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -769,8 +769,16 @@ struct airoha_ppe {
@@ -585,7 +585,7 @@ index a4293b3f0..0f324a0bd 100644
  		BUILD_BUG_ON(hweight32(AIROHA_RXQ_LRO_EN_MASK) >
  			     AIROHA_MAX_NUM_LRO_QUEUES);
 diff --git a/drivers/net/ethernet/airoha/airoha_npu.c b/drivers/net/ethernet/airoha/airoha_npu.c
-index 119528566..9da3c1f72 100644
+index 1195285664d4..9da3c1f729b5 100644
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
 @@ -1709,9 +1709,9 @@ static const struct airoha_npu_soc_data an7583_npu_soc_data = {
@@ -602,7 +602,7 @@ index 119528566..9da3c1f72 100644
  };
  MODULE_DEVICE_TABLE(of, of_airoha_npu_match);
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 8b73da96b..39f733317 100644
+index 8b73da96bdcb..39f733317f5b 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -46,7 +46,7 @@ static int airoha_ppe_get_num_stats_entries(struct airoha_ppe *ppe)
@@ -750,7 +750,7 @@ index 8b73da96b..39f733317 100644
  	else
  		hlist_add_head(&e->list, &ppe->foe_flow[hash]);
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index da1ec0425..3d9d1889a 100644
+index da1ec0425a0a..3d9d1889ac68 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -143,9 +143,9 @@
@@ -766,7 +766,7 @@ index da1ec0425..3d9d1889a 100644
  	FIELD_PREP(CDM_CRSN_QSEL_REASON_MASK(_n1), _n2)
  	
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 0736d7640..373fa4c95 100644
+index 0736d7640551..373fa4c9521d 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -4312,7 +4312,7 @@ static void airoha_xpon_remove(struct platform_device *pdev)

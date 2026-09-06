@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 1737 insertions(+), 1711 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 13db0664e..6a1c02f8e 100644
+index 13db0664e501..6a1c02f8e521 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -903,6 +903,16 @@ struct airoha_eth {
@@ -32,7 +32,7 @@ index 13db0664e..6a1c02f8e 100644
  static inline u16 airoha_qdma_get_txq(struct airoha_qdma *qdma, u16 qid)
  {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 1f0c69a69..4d3bee67b 100644
+index 1f0c69a6962b..4d3bee67bb92 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -49,41 +49,8 @@ static int airoha_qdma_set_gpon_dba_report(struct net_device *netdev,
@@ -2016,7 +2016,7 @@ index 1f0c69a69..4d3bee67b 100644
  static int airoha_eth_gen2_xpon_control_start(struct net_device *netdev)
  {
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index 7b39319c5..a537aa379 100644
+index 7b39319c5ffa..a537aa379a7c 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -7,11 +7,17 @@

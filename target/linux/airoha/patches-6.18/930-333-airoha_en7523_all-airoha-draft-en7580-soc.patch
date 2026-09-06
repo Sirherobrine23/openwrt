@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/pinctrl/airoha/pinctrl-en7580.c
 
 diff --git a/arch/mips/econet/Kconfig b/arch/mips/econet/Kconfig
-index 964285d84..f29485e5e 100644
+index 964285d8417d..f29485e5e990 100644
 --- a/arch/mips/econet/Kconfig
 +++ b/arch/mips/econet/Kconfig
 @@ -46,6 +46,26 @@ choice
@@ -45,7 +45,7 @@ index 964285d84..f29485e5e 100644
  
  choice
 diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-index 141b96ea0..b089e0b99 100644
+index 141b96ea0630..b089e0b9947b 100644
 --- a/drivers/pinctrl/airoha/Kconfig
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -20,6 +20,7 @@ config PINCTRL_AIROHA
@@ -71,7 +71,7 @@ index 141b96ea0..b089e0b99 100644
 +
  endmenu
 diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
-index f9f223b6b..7361ec9de 100644
+index f9f223b6bcab..7361ec9ded3f 100644
 --- a/drivers/pinctrl/airoha/Makefile
 +++ b/drivers/pinctrl/airoha/Makefile
 @@ -10,3 +10,4 @@ obj-$(CONFIG_PINCTRL_AIROHA_AN7583)	+= pinctrl-an7583.o
@@ -81,7 +81,7 @@ index f9f223b6b..7361ec9de 100644
 +obj-$(CONFIG_PINCTRL_AIROHA_EN7580)	+= pinctrl-en7580.o
 diff --git a/drivers/pinctrl/airoha/pinctrl-en7580.c b/drivers/pinctrl/airoha/pinctrl-en7580.c
 new file mode 100644
-index 000000000..16e93fe08
+index 000000000000..16e93fe08021
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/pinctrl-en7580.c
 @@ -0,0 +1,1574 @@
@@ -1660,7 +1660,7 @@ index 000000000..16e93fe08
 +MODULE_AUTHOR("Matheus Sampaio Queiroga <srherobrine20@gmail.com>");
 +MODULE_DESCRIPTION("Pinctrl driver for EcoNet EN7580 SoCs");
 diff --git a/include/linux/soc/airoha/pkgids.h b/include/linux/soc/airoha/pkgids.h
-index 0ea20abb8..3d86fcb98 100644
+index 0ea20abb811d..3d86fcb989f7 100644
 --- a/include/linux/soc/airoha/pkgids.h
 +++ b/include/linux/soc/airoha/pkgids.h
 @@ -13,18 +13,72 @@

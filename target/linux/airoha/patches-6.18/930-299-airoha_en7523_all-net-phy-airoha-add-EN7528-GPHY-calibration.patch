@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 229 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index 80d571646..a109f28ff 100644
+index 80d57164659d..a109f28ffe1a 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -166,6 +166,68 @@ static const struct airoha_tr_reg en7523_ge_tr_regs[] = {
@@ -372,7 +372,7 @@ index 80d571646..a109f28ff 100644
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7581) },
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7583) },
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
-index f1f27489d..4b6ae5fbc 100644
+index f1f27489db9b..4b6ae5fbc49b 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.h
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
 @@ -8,6 +8,7 @@

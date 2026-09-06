@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 6 insertions(+), 3 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 8ac1cd6d3..f33061a15 100644
+index 8ac1cd6d3297..f33061a1548d 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1144,10 +1144,13 @@ static int airoha_qdma_fill_rx_queue(struct airoha_queue *q)
@@ -46,7 +46,7 @@ index 8ac1cd6d3..f33061a15 100644
  				  RX_RING_SG_EN_MASK);
  	else
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index b0aacfa63..2598b4866 100644
+index b0aacfa63cd3..2598b4866e55 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -947,7 +947,7 @@

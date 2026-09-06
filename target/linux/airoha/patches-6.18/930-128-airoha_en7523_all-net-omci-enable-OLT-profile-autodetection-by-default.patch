@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index ae43d6e61..92f8b6e11 100644
+index ae43d6e61fab..92f8b6e11eac 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -1605,7 +1605,7 @@ int omci_agent_init(struct omci_device *odev)
@@ -28,7 +28,7 @@ index ae43d6e61..92f8b6e11 100644
  	agent->config.olt_profile_source = OMCI_CONFIG_SOURCE_DEFAULT;
  	agent->config.olt_profile_force_source = OMCI_CONFIG_SOURCE_DEFAULT;
 diff --git a/net/omci/profiles.c b/net/omci/profiles.c
-index 264b2e462..ab5843811 100644
+index 264b2e4623fa..ab58438114a9 100644
 --- a/net/omci/profiles.c
 +++ b/net/omci/profiles.c
 @@ -3,8 +3,8 @@

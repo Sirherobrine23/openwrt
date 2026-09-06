@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 149 insertions(+), 162 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index f1e9ef733..b30f5347d 100644
+index f1e9ef733933..b30f5347d7aa 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2,28 +2,46 @@
@@ -71,7 +71,7 @@ index f1e9ef733..b30f5347d 100644
  
  static const struct of_device_id airoha_eth_of_match[] = {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 4be989f37..4ae2fd282 100644
+index 4be989f37d56..4ae2fd2829f8 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -779,9 +779,11 @@ enum airoha_ids {
@@ -107,7 +107,7 @@ index 4be989f37..4ae2fd282 100644
  
  #define airoha_fe_rr(eth, offset)				\
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 80372b91b..2e11de9fd 100644
+index 80372b91bab5..2e11de9fd639 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -112,7 +112,7 @@ struct econet_qdma {
@@ -560,7 +560,7 @@ index 80372b91b..2e11de9fd 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.h b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
-index 00d4f1be2..43698f2c8 100644
+index 00d4f1be2d8f..43698f2c8247 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.h
 @@ -12,6 +12,7 @@
@@ -605,7 +605,7 @@ index 00d4f1be2..43698f2c8 100644
  				       struct gdm __iomem *regs,
  				       struct econet_qdma *qdma,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 7c4a4fedb..f690d790b 100644
+index 7c4a4fedb104..f690d790be8f 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -5481,24 +5481,14 @@ static const struct airoha_ppe_host_ops airoha_ppe_host_ops = {

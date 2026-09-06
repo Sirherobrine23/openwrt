@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/phy/phy-en7528-pcie.c
 
 diff --git a/arch/mips/econet/Kconfig b/arch/mips/econet/Kconfig
-index a9dc57327..6ca988d7d 100644
+index a9dc573274e0..6ca988d7d561 100644
 --- a/arch/mips/econet/Kconfig
 +++ b/arch/mips/econet/Kconfig
 @@ -14,7 +14,9 @@ choice
@@ -29,7 +29,7 @@ index a9dc57327..6ca988d7d 100644
  		select SMP_UP
  		select SYS_SUPPORTS_SMP
 diff --git a/drivers/pci/controller/Kconfig b/drivers/pci/controller/Kconfig
-index 0452151a7..5bd8dd2a3 100644
+index 0452151a7bcc..5bd8dd2a3fb2 100644
 --- a/drivers/pci/controller/Kconfig
 +++ b/drivers/pci/controller/Kconfig
 @@ -193,7 +193,7 @@ config PCI_MVEBU
@@ -42,7 +42,7 @@ index 0452151a7..5bd8dd2a3 100644
  	depends on PCI_MSI
  	select IRQ_MSI_LIB
 diff --git a/drivers/pci/controller/pcie-mediatek.c b/drivers/pci/controller/pcie-mediatek.c
-index 515217ded..538b3adf2 100644
+index 515217dedea8..538b3adf26ed 100644
 --- a/drivers/pci/controller/pcie-mediatek.c
 +++ b/drivers/pci/controller/pcie-mediatek.c
 @@ -78,6 +78,7 @@
@@ -195,7 +195,7 @@ index 515217ded..538b3adf2 100644
  };
  MODULE_DEVICE_TABLE(of, mtk_pcie_ids);
 diff --git a/drivers/phy/Kconfig b/drivers/phy/Kconfig
-index d9fa89cff..c9972a378 100644
+index d9fa89cff83f..c9972a378196 100644
 --- a/drivers/phy/Kconfig
 +++ b/drivers/phy/Kconfig
 @@ -113,6 +113,17 @@ config PHY_NXP_PTN3222
@@ -217,7 +217,7 @@ index d9fa89cff..c9972a378 100644
  source "drivers/phy/allwinner/Kconfig"
  source "drivers/phy/amlogic/Kconfig"
 diff --git a/drivers/phy/Makefile b/drivers/phy/Makefile
-index edfb847ba..a21e8fc96 100644
+index edfb847baa3a..a21e8fc96b1c 100644
 --- a/drivers/phy/Makefile
 +++ b/drivers/phy/Makefile
 @@ -13,6 +13,7 @@ obj-$(CONFIG_PHY_XGENE)			+= phy-xgene.o
@@ -230,7 +230,7 @@ index edfb847ba..a21e8fc96 100644
  					   allwinner/	\
 diff --git a/drivers/phy/phy-en7528-pcie.c b/drivers/phy/phy-en7528-pcie.c
 new file mode 100644
-index 000000000..01207bcbe
+index 000000000000..01207bcbe5c4
 --- /dev/null
 +++ b/drivers/phy/phy-en7528-pcie.c
 @@ -0,0 +1,155 @@

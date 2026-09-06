@@ -21,7 +21,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 238 insertions(+), 44 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml b/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
-index 44bf7215d..2190b4412 100644
+index 44bf7215d595..2190b4412e72 100644
 --- a/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
 +++ b/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
 @@ -25,7 +25,9 @@ properties:
@@ -50,7 +50,7 @@ index 44bf7215d..2190b4412 100644
        properties:
          reg:
 diff --git a/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml b/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
-index 064228d51..808dd7c5d 100644
+index 064228d51fa4..808dd7c5df2c 100644
 --- a/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
 +++ b/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
 @@ -4,19 +4,21 @@
@@ -132,7 +132,7 @@ index 064228d51..808dd7c5d 100644
 +    };
  ...
 diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
-index 69e4569f7..004bced39 100644
+index 69e4569f74d9..004bced398b2 100644
 --- a/arch/mips/boot/dts/econet/en751221.dtsi
 +++ b/arch/mips/boot/dts/econet/en751221.dtsi
 @@ -1,6 +1,8 @@
@@ -174,7 +174,7 @@ index 69e4569f7..004bced39 100644
  		compatible = "econet,en751221-intc";
  		reg = <0x1fb40000 0x100>;
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index a9b3b1191..0718e89c9 100644
+index a9b3b119124a..0718e89c9ec8 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -1797,7 +1797,7 @@ static int en751221_clk_hw_init(struct platform_device *pdev,
@@ -187,7 +187,7 @@ index a9b3b1191..0718e89c9 100644
  		return PTR_ERR(map);
  
 diff --git a/drivers/phy/airoha/Kconfig b/drivers/phy/airoha/Kconfig
-index 86053e4e0..bdf5b2760 100644
+index 86053e4e0cfd..bdf5b2760897 100644
 --- a/drivers/phy/airoha/Kconfig
 +++ b/drivers/phy/airoha/Kconfig
 @@ -23,16 +23,15 @@ config PHY_AIROHA_USB
@@ -213,7 +213,7 @@ index 86053e4e0..bdf5b2760 100644
  config PHY_AIROHA_AN7583_USB
  	tristate "Airoha AN7583 USB PHY Driver"
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index 136c0fc3c..a06d9ac42 100644
+index 136c0fc3c360..a06d9ac4221e 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -1,11 +1,11 @@

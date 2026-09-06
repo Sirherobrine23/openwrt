@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 2 insertions(+), 3 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
-index 0a82e9419..fa6366fad 100644
+index 0a82e94193d2..fa6366fad770 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 @@ -53,7 +53,8 @@ properties:

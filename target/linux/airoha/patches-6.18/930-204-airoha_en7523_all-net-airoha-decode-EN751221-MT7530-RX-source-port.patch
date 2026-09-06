@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 86 insertions(+), 9 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 064494131..3479e655c 100644
+index 064494131d31..3479e655cb7f 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -19,6 +19,7 @@
@@ -150,7 +150,7 @@ index 064494131..3479e655c 100644
  	skb->protocol = eth_type_trans(skb, port);
  
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index 65cbaea40..d4d1a92fb 100644
+index 65cbaea40428..d4d1a92fbb05 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -3336,7 +3336,7 @@ struct econet_eth {

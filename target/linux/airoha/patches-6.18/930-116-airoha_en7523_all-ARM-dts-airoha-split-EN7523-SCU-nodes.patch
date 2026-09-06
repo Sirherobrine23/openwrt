@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 11 insertions(+), 4 deletions(-)
 
 diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
-index 115cc4409..6d142d3a4 100644
+index 115cc44093ab..6d142d3a4cf6 100644
 --- a/arch/arm/boot/dts/airoha/en7523.dtsi
 +++ b/arch/arm/boot/dts/airoha/en7523.dtsi
 @@ -87,10 +87,17 @@ L2_0: l2-cache0 {

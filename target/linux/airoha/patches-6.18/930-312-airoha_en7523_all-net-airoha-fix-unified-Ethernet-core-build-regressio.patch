@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 53 insertions(+), 65 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 70d833a01..7aeb33ac2 100644
+index 70d833a01c36..7aeb33ac20d1 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1889,7 +1889,7 @@ static int econet_qdma_destroy_locked(struct airoha_qdma_mips *qdma)
@@ -286,7 +286,7 @@ index 70d833a01..7aeb33ac2 100644
  {
  	u8 ref_addr[ETH_ALEN] __aligned(2);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 4b8a5c58f..073e18fc4 100644
+index 4b8a5c58f0d8..073e18fc4061 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -31,6 +31,7 @@ struct ethtool_drvinfo;

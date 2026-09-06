@@ -24,7 +24,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 509 insertions(+), 539 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 97654e39a..5d58ad0a8 100644
+index 97654e39ab5b..5d58ad0a85bb 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -9510,6 +9510,7 @@ const struct airoha_eth_soc_data econet_en751221_soc_data = {
@@ -75,7 +75,7 @@ index 97654e39a..5d58ad0a8 100644
  		.get_sport = airoha_en7523_get_sport,
  		.get_vip_port = airoha_en7523_get_vip_port,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index a8d4e008f..a6b191305 100644
+index a8d4e008f566..a6b191305447 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -258,7 +258,8 @@ airoha_gdm_common_from_netdev(struct net_device *netdev)
@@ -355,7 +355,7 @@ index a8d4e008f..a6b191305 100644
  #if IS_ENABLED(CONFIG_NET_AIROHA_PPE_DEBUGFS)
  int airoha_ppe_debugfs_init(struct airoha_ppe_common *ppe);
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index c17b708ae..3f968411b 100644
+index c17b708ae3ef..3f968411b378 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -75,13 +75,9 @@ static u32 airoha_ppe_get_num_entries_shift(u32 entries)
@@ -1563,7 +1563,7 @@ index c17b708ae..3f968411b 100644
  		airoha_ppe_datapath_deinit(eth);
  }
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index 96d4d3e0c..4cf11fa16 100644
+index 96d4d3e0c6a1..4cf11fa16a52 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -359,85 +359,105 @@ static int airoha_ppe_debugfs_foe_bind_show(struct seq_file *m, void *private)
@@ -1931,7 +1931,7 @@ index 96d4d3e0c..4cf11fa16 100644
  			&airoha_ppe_debugfs_foe_all_fops,
  			&airoha_ppe_debugfs_foe_json_fops,
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 6520e025c..750a51cc2 100644
+index 6520e025c891..750a51cc2668 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -61,13 +61,10 @@

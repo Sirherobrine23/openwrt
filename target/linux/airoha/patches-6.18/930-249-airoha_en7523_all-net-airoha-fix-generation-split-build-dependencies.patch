@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 63 insertions(+), 50 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index bd04b838d..13db0664e 100644
+index bd04b838da6a..13db0664e501 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -574,6 +574,7 @@ struct airoha_qdma_common {
@@ -26,7 +26,7 @@ index bd04b838d..13db0664e 100644
  
  struct airoha_qdma {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index a16e7c682..dde0032a5 100644
+index a16e7c6822e7..dde0032a5ec5 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -24,8 +24,41 @@
@@ -104,7 +104,7 @@ index a16e7c682..dde0032a5 100644
  	static const char * const qdma_names[ECONET_NUM_QDMA] = {
  		"qdma0", "qdma1",
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 0cc22c84b..1f0c69a69 100644
+index 0cc22c84b041..1f0c69a6962b 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -985,6 +985,9 @@ static void airoha_fe_lro_rxq_enable(struct airoha_eth *eth, int qdma_id,
@@ -159,7 +159,7 @@ index 0cc22c84b..1f0c69a69 100644
  {
  	int i;
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 0538e6e1b..1818b150e 100644
+index 0538e6e1be0b..1818b150e349 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -258,6 +258,9 @@ static void airoha_ppe_hw_init(struct airoha_ppe *ppe)
@@ -173,7 +173,7 @@ index 0538e6e1b..1818b150e 100644
  			/**
  			 * the airoha_en7523 support for 64 and 80 bytes, current use 80 bytes for ppe
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index 4948b64e3..7b39319c5 100644
+index 4948b64e38e5..7b39319c5ffa 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -16,6 +16,7 @@
@@ -263,7 +263,7 @@ index 4948b64e3..7b39319c5 100644
 -	u64 rx_len[7];
 -};
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 4da88c027..19daed5a6 100644
+index 4da88c0272d5..19daed5a6a5d 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -63,6 +63,8 @@

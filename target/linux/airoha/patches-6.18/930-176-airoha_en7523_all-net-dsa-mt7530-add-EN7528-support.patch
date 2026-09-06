@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 52 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/net/dsa/mt7530-mmio.c b/drivers/net/dsa/mt7530-mmio.c
-index bc076ef64..8dd737904 100644
+index bc076ef64fa0..8dd737904050 100644
 --- a/drivers/net/dsa/mt7530-mmio.c
 +++ b/drivers/net/dsa/mt7530-mmio.c
 @@ -14,6 +14,7 @@ static const struct of_device_id mt7988_of_match[] = {
@@ -23,7 +23,7 @@ index bc076ef64..8dd737904 100644
  	{ /* sentinel */ },
  };
 diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
-index 2e3672b0a..678680de1 100644
+index 2e3672b0a079..678680de19d0 100644
 --- a/drivers/net/dsa/mt7530.c
 +++ b/drivers/net/dsa/mt7530.c
 @@ -2830,6 +2830,30 @@ static void en7581_mac_port_get_caps(struct dsa_switch *ds, int port,
@@ -117,7 +117,7 @@ index 2e3672b0a..678680de1 100644
  EXPORT_SYMBOL_GPL(mt753x_table);
  
 diff --git a/drivers/net/dsa/mt7530.h b/drivers/net/dsa/mt7530.h
-index 8103e5feb..de3e430c9 100644
+index 8103e5feb074..de3e430c99ae 100644
 --- a/drivers/net/dsa/mt7530.h
 +++ b/drivers/net/dsa/mt7530.h
 @@ -22,6 +22,7 @@ enum mt753x_id {

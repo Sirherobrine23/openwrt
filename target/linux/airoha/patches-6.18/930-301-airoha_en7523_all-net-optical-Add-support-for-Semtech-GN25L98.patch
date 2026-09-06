@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 353 insertions(+), 47 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
-index 279091011..896cabad0 100644
+index 279091011ca3..896cabad070b 100644
 --- a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 +++ b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 @@ -4,30 +4,33 @@
@@ -92,7 +92,7 @@ index 279091011..896cabad0 100644
          };
      };
 diff --git a/drivers/net/optical/semtech/Kconfig b/drivers/net/optical/semtech/Kconfig
-index ba2c102e8..ea18a144d 100644
+index ba2c102e8e69..ea18a144d084 100644
 --- a/drivers/net/optical/semtech/Kconfig
 +++ b/drivers/net/optical/semtech/Kconfig
 @@ -1,13 +1,13 @@
@@ -115,7 +115,7 @@ index ba2c102e8..ea18a144d 100644
 +	  provider of the generic optical frontend subsystem and is not tied to
 +	  Airoha MAC or PHY drivers.
 diff --git a/drivers/net/optical/semtech/gn25l95.c b/drivers/net/optical/semtech/gn25l95.c
-index 002f20236..530039bda 100644
+index 002f20236a64..530039bda743 100644
 --- a/drivers/net/optical/semtech/gn25l95.c
 +++ b/drivers/net/optical/semtech/gn25l95.c
 @@ -1,13 +1,14 @@

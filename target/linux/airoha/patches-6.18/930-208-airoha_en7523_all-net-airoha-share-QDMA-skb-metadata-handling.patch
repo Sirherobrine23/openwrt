@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 129 insertions(+), 72 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_common.c b/drivers/net/ethernet/airoha/airoha_common.c
-index 81e21ecd5..1d711a73d 100644
+index 81e21ecd54a4..1d711a73d18f 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.c
 +++ b/drivers/net/ethernet/airoha/airoha_common.c
 @@ -3,17 +3,94 @@
@@ -112,7 +112,7 @@ index 81e21ecd5..1d711a73d 100644
  {
  	return readl(base + offset);
 diff --git a/drivers/net/ethernet/airoha/airoha_common.h b/drivers/net/ethernet/airoha/airoha_common.h
-index d931be606..3c32bf6fd 100644
+index d931be606b61..3c32bf6fd204 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.h
 +++ b/drivers/net/ethernet/airoha/airoha_common.h
 @@ -10,8 +10,39 @@
@@ -156,7 +156,7 @@ index d931be606..3c32bf6fd 100644
  	AIROHA_ETH_FAMILY_AIROHA,
  	AIROHA_ETH_FAMILY_ECONET,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index bccc17b24..67cfd1031 100644
+index bccc17b24a13..67cfd1031862 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3504,56 +3504,6 @@ static u16 airoha_dev_select_queue(struct net_device *netdev,
@@ -249,7 +249,7 @@ index bccc17b24..67cfd1031 100644
  				  qid / AIROHA_NUM_QOS_QUEUES) |
  		       FIELD_PREP(QDMA_ETH_TXMSG_QUEUE_MASK,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 68068cb77..a4293b3f0 100644
+index 68068cb77b03..a4293b3f0ed4 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -90,10 +90,6 @@
@@ -264,7 +264,7 @@ index 68068cb77..a4293b3f0 100644
  	QDMA_INT_REG_IDX0,
  	QDMA_INT_REG_IDX1,
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 19d178451..d4616a7e9 100644
+index 19d1784513e0..d4616a7e9b19 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -19,7 +19,6 @@

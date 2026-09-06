@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 53 insertions(+), 21 deletions(-)
 
 diff --git a/drivers/watchdog/Kconfig b/drivers/watchdog/Kconfig
-index 05008d937..4e97ede97 100644
+index 05008d937e40..4e97ede97457 100644
 --- a/drivers/watchdog/Kconfig
 +++ b/drivers/watchdog/Kconfig
 @@ -416,17 +416,20 @@ config SL28CPLD_WATCHDOG
@@ -52,7 +52,7 @@ index 05008d937..4e97ede97 100644
  config ARM_SP805_WATCHDOG
  	tristate "ARM SP805 Watchdog"
 diff --git a/drivers/watchdog/airoha_wdt.c b/drivers/watchdog/airoha_wdt.c
-index 4bd333189..f1c85c61b 100644
+index 4bd333189b87..f1c85c61b97a 100644
 --- a/drivers/watchdog/airoha_wdt.c
 +++ b/drivers/watchdog/airoha_wdt.c
 @@ -24,8 +24,10 @@

@@ -33,7 +33,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  9 files changed, 518 insertions(+), 37 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 1012b0d29..05fea691a 100644
+index 1012b0d29916..05fea691ab00 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -62,6 +62,14 @@ struct econet_hw_stats {
@@ -195,7 +195,7 @@ index 1012b0d29..05fea691a 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 12ebc4ead..a6e134fb0 100644
+index 12ebc4eadb0c..a6e134fb0a94 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -207,12 +207,20 @@ static int airoha_eth_gen2_set_xpon_mode(struct net_device *netdev,
@@ -303,7 +303,7 @@ index 12ebc4ead..a6e134fb0 100644
  		if (nbq == 4)
  			return XSI_PCIE0_VIP_PORT_MASK;
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 36e0eaf3a..94b439cfc 100644
+index 36e0eaf3a6db..94b439cfcd82 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -213,6 +213,12 @@ void airoha_gpon_omci_set_state(struct airoha_gpon_omci *omci, u8 state)
@@ -320,7 +320,7 @@ index 36e0eaf3a..94b439cfc 100644
  {
  	omci_device_reset_session(omci->odev);
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index d219cff38..8941f3a65 100644
+index d219cff3862d..8941f3a65ceb 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -32,6 +32,7 @@ void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id);
@@ -332,7 +332,7 @@ index d219cff38..8941f3a65 100644
  int airoha_gpon_omci_send_dying_gasp(struct airoha_gpon_omci *omci);
  bool airoha_gpon_omci_receive(void *data, struct sk_buff *skb,
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
-index be546280e..f494c0688 100644
+index be546280e508..f494c06880ef 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.c
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -204,8 +204,10 @@ static void ploam_send_encrypt_key(struct ploam_priv *pp)
@@ -366,7 +366,7 @@ index be546280e..f494c0688 100644
  
  /* PLOAM_DOWN_CONFIGURE_PORT_ID (0x0E) — unicast */
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 4663d8a2c..1ca345b0a 100644
+index 4663d8a2c66d..1ca345b0a66e 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1111,9 +1111,15 @@ static void gpon_load_aes_shadow(struct xpon_priv *priv, const u8 key[16],
@@ -488,7 +488,7 @@ index 4663d8a2c..1ca345b0a 100644
  		return ret;
  	cfg.tcont = tcont_index;
 diff --git a/include/net/omci.h b/include/net/omci.h
-index a757a8634..d1455e499 100644
+index a757a863477c..d1455e499d07 100644
 --- a/include/net/omci.h
 +++ b/include/net/omci.h
 @@ -241,6 +241,8 @@ struct omci_telemetry {
@@ -516,7 +516,7 @@ index a757a8634..d1455e499 100644
  
  #endif /* _NET_OMCI_H */
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 1632cfd4c..775d849f9 100644
+index 1632cfd4cb22..775d849f94f4 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -902,7 +902,6 @@ omci_agent_profile_refresh_locked(struct omci_device *odev,
@@ -873,7 +873,7 @@ index 1632cfd4c..775d849f9 100644
 +}
 +EXPORT_SYMBOL_GPL(omci_device_reconcile_services);
 diff --git a/net/omci/me.h b/net/omci/me.h
-index 06f7b249c..7953efcb9 100644
+index 06f7b249c863..7953efcb9eef 100644
 --- a/net/omci/me.h
 +++ b/net/omci/me.h
 @@ -20,12 +20,36 @@ struct omci_mib_object;

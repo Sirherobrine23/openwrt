@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 5 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/phy/mediatek/mtk-phy-lib.c b/drivers/net/phy/mediatek/mtk-phy-lib.c
-index dfd0f4e43..78b998af5 100644
+index dfd0f4e439a2..78b998af5238 100644
 --- a/drivers/net/phy/mediatek/mtk-phy-lib.c
 +++ b/drivers/net/phy/mediatek/mtk-phy-lib.c
 @@ -36,8 +36,8 @@ static void __mtk_tr_read(struct phy_device *phydev, u8 ch_addr, u8 node_addr,
@@ -36,7 +36,7 @@ index dfd0f4e43..78b998af5 100644
  void __mtk_tr_modify(struct phy_device *phydev, u8 ch_addr, u8 node_addr,
  		     u8 data_addr, u32 mask, u32 set)
 diff --git a/drivers/net/phy/mediatek/mtk.h b/drivers/net/phy/mediatek/mtk.h
-index 320f76ffa..f172f7d67 100644
+index 320f76ffa81f..f172f7d671c9 100644
 --- a/drivers/net/phy/mediatek/mtk.h
 +++ b/drivers/net/phy/mediatek/mtk.h
 @@ -72,6 +72,8 @@ struct mtk_socphy_priv {

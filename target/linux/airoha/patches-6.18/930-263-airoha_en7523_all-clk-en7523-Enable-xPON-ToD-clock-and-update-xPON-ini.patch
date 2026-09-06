@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 58 insertions(+), 19 deletions(-)
 
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index 0718e89c9..638e3a7b6 100644
+index 0718e89c9ec8..638e3a7b634c 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -104,6 +104,10 @@
@@ -62,7 +62,7 @@ index 0718e89c9..638e3a7b6 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 8c0e407d3..d29a744a5 100644
+index 8c0e407d3049..d29a744a56b7 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -78,7 +78,8 @@ struct airoha_xpon_match_data {

@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/crypto/inside-secure/eip93/Kconfig b/drivers/crypto/inside-secure/eip93/Kconfig
-index 81b9491fe..1c2d29e25 100644
+index 81b9491fe582..1c2d29e2539d 100644
 --- a/drivers/crypto/inside-secure/eip93/Kconfig
 +++ b/drivers/crypto/inside-secure/eip93/Kconfig
 @@ -1,7 +1,7 @@

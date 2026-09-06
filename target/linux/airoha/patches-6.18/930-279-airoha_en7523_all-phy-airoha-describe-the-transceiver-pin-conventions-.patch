@@ -34,7 +34,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 79 insertions(+), 2 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml b/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
-index 808dd7c5d..3e8185eed 100644
+index 808dd7c5df2c..3e8185eedbcf 100644
 --- a/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
 +++ b/Documentation/devicetree/bindings/phy/airoha,en7523-xpon-phy.yaml
 @@ -39,6 +39,32 @@ properties:
@@ -71,7 +71,7 @@ index 808dd7c5d..3e8185eed 100644
      const: 0
  
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index d86d755c0..c3239dfa3 100644
+index d86d755c0979..c3239dfa3e69 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -114,6 +114,21 @@

@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index d62f83e9f..02104298f 100644
+index d62f83e9f0cf..02104298f8af 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1757,7 +1757,7 @@ static void gpon_cb_set_t3_preamble(void *hw_priv, u8 o3_t3, u8 o5_t3)
@@ -46,7 +46,7 @@ index d62f83e9f..02104298f 100644
  				 FIELD_GET(SN_MSG_CFG_SN_REQ_THR_MASK, sn_cfg),
  				 FIELD_GET(SN_MSG_CFG_TX_POWER_MODE_MASK, sn_cfg),
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index 54e3c391c..d86d755c0 100644
+index 54e3c391cf73..d86d755c0979 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -360,8 +360,8 @@ int airoha_xpon_phy_set_gpon_extended_preamble(struct phy *phy,

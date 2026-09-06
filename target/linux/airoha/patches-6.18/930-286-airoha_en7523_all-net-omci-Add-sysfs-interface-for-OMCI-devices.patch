@@ -27,7 +27,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/ABI/testing/sysfs-class-omci b/Documentation/ABI/testing/sysfs-class-omci
 new file mode 100644
-index 000000000..4cff6e820
+index 000000000000..4cff6e820615
 --- /dev/null
 +++ b/Documentation/ABI/testing/sysfs-class-omci
 @@ -0,0 +1,115 @@
@@ -147,7 +147,7 @@ index 000000000..4cff6e820
 +		Read-only OLT-G identity learned from the OLT.  "unknown" is returned
 +		until the corresponding OLT-G attribute has been received.
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 833e6147d..7797546c7 100644
+index 833e6147d231..7797546c7fda 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -18821,6 +18821,7 @@ F:	include/uapi/misc/ocxl.h
@@ -159,7 +159,7 @@ index 833e6147d..7797546c7 100644
  F:	include/net/omci.h
  F:	include/uapi/linux/omci.h
 diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
-index a404dd2d6..22f70ccc3 100644
+index a404dd2d6148..22f70ccc3fb4 100644
 --- a/include/uapi/linux/omci.h
 +++ b/include/uapi/linux/omci.h
 @@ -3,7 +3,7 @@
@@ -218,7 +218,7 @@ index a404dd2d6..22f70ccc3 100644
  
  enum omci_fec_status {
 diff --git a/net/omci/Kconfig b/net/omci/Kconfig
-index 002743904..9acc98c99 100644
+index 002743904e67..9acc98c99bcc 100644
 --- a/net/omci/Kconfig
 +++ b/net/omci/Kconfig
 @@ -6,7 +6,9 @@ config OMCI
@@ -233,7 +233,7 @@ index 002743904..9acc98c99 100644
  	  Extended OMCI parsing and hardware-specific provisioning remain
  	  optional capabilities supplied by the GPON hardware driver.
 diff --git a/net/omci/Makefile b/net/omci/Makefile
-index 6b53a0e9b..2015767b7 100644
+index 6b53a0e9b137..2015767b7cac 100644
 --- a/net/omci/Makefile
 +++ b/net/omci/Makefile
 @@ -1,3 +1,3 @@
@@ -242,7 +242,7 @@ index 6b53a0e9b..2015767b7 100644
 -omci-y := core.o agent.o me.o wire.o identity.o profiles.o
 +omci-y := core.o agent.o me.o wire.o identity.o profiles.o sysfs.o
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index e0da7fb87..1632cfd4c 100644
+index e0da7fb87d73..1632cfd4cb22 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -734,6 +734,25 @@ static struct omci_olt_g *omci_agent_olt_g_locked(struct omci_agent *agent)
@@ -351,7 +351,7 @@ index e0da7fb87..1632cfd4c 100644
  		*source = agent->config.olt_profile_source;
  		break;
 diff --git a/net/omci/core.c b/net/omci/core.c
-index 872105ee9..c295059a5 100644
+index 872105ee90d8..c295059a50c7 100644
 --- a/net/omci/core.c
 +++ b/net/omci/core.c
 @@ -36,6 +36,7 @@ static const struct nla_policy omci_policy[OMCI_ATTR_MAX + 1] = {
@@ -429,7 +429,7 @@ index 872105ee9..c295059a5 100644
  module_exit(omci_exit);
  
 diff --git a/net/omci/internal.h b/net/omci/internal.h
-index bc3e0c939..850580f02 100644
+index bc3e0c9390a3..850580f02569 100644
 --- a/net/omci/internal.h
 +++ b/net/omci/internal.h
 @@ -68,6 +68,7 @@ struct omci_agent_config {
@@ -477,7 +477,7 @@ index bc3e0c939..850580f02 100644
  #endif /* _NET_OMCI_INTERNAL_H */
 diff --git a/net/omci/sysfs.c b/net/omci/sysfs.c
 new file mode 100644
-index 000000000..c0358f5b8
+index 000000000000..c0358f5b8909
 --- /dev/null
 +++ b/net/omci/sysfs.c
 @@ -0,0 +1,699 @@

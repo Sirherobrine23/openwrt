@@ -57,7 +57,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 136 insertions(+), 38 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 9cbed2021..9f66ea671 100644
+index 9cbed2021475..9f66ea6719db 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -2269,10 +2269,20 @@ static void airoha_dev_set_mtu(struct net_device *netdev)
@@ -94,7 +94,7 @@ index 9cbed2021..9f66ea671 100644
  	.ppe_dram_entries = 16 * 1024,
  	.ops = {
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 774192542..cf6df47d8 100644
+index 774192542960..cf6df47d8bf3 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -80,7 +80,7 @@
@@ -150,7 +150,7 @@ index 774192542..cf6df47d8 100644
  };
  
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 2d24087f4..8559d49de 100644
+index 2d24087f4c29..8559d49dee1f 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -72,8 +72,14 @@ static u32 airoha_ppe_get_total_sram_num_entries(struct airoha_ppe *ppe)

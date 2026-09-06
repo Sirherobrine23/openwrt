@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 25 insertions(+)
 
 diff --git a/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml b/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
-index e9e75c38b..2cd090ce3 100644
+index e9e75c38bd11..2cd090ce358c 100644
 --- a/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
 +++ b/Documentation/devicetree/bindings/nvmem/layouts/u-boot,env.yaml
 @@ -62,6 +62,31 @@ properties:

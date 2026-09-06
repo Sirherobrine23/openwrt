@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 20 insertions(+), 14 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index bdddcf537..da3560dac 100644
+index bdddcf5379ff..da3560dac995 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -2469,12 +2469,16 @@ static void airoha_ppe_gen2_deinit(struct airoha_eth *eth)
@@ -112,7 +112,7 @@ index bdddcf537..da3560dac 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index c43504759..b440999cb 100644
+index c435047592f6..b440999cbdce 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -65,10 +65,6 @@

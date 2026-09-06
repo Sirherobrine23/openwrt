@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 78 insertions(+), 26 deletions(-)
 
 diff --git a/drivers/i2c/busses/i2c-mt7621.c b/drivers/i2c/busses/i2c-mt7621.c
-index 06dd67bfd..b05c762ad 100644
+index 06dd67bfd6e2..b05c762ade6d 100644
 --- a/drivers/i2c/busses/i2c-mt7621.c
 +++ b/drivers/i2c/busses/i2c-mt7621.c
 @@ -154,7 +154,7 @@ static int mtk_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
@@ -49,7 +49,7 @@ index 06dd67bfd..b05c762ad 100644
  				ret = mtk_i2c_check_ack(i2c,
  								(1 << page_len)
 diff --git a/drivers/net/phy/airoha/gn25l95.c b/drivers/net/phy/airoha/gn25l95.c
-index 440f852f0..68c2e2795 100644
+index 440f852f035a..68c2e2795afb 100644
 --- a/drivers/net/phy/airoha/gn25l95.c
 +++ b/drivers/net/phy/airoha/gn25l95.c
 @@ -67,12 +67,16 @@

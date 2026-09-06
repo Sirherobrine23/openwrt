@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 346 insertions(+), 92 deletions(-)
 
 diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
-index c64f3014d..a413d4887 100644
+index c64f3014dc7f..a413d4887ffe 100644
 --- a/arch/mips/boot/dts/econet/en751221.dtsi
 +++ b/arch/mips/boot/dts/econet/en751221.dtsi
 @@ -41,17 +41,21 @@ cpuintc: interrupt-controller {
@@ -47,7 +47,7 @@ index c64f3014d..a413d4887 100644
  		};
  	};
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index c266e1276..4135421ff 100644
+index c266e1276b07..4135421ff590 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -99,7 +99,7 @@
@@ -83,7 +83,7 @@ index c266e1276..4135421ff 100644
  	.spi_alt_base = EN751221_SPI_BASE_EN7526C,
  	.spi_alt_hir = HIR_EN7526C,
 diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
-index e62c1be2c..fed4e2bda 100644
+index e62c1be2cd36..fed4e2bda071 100644
 --- a/drivers/spi/Kconfig
 +++ b/drivers/spi/Kconfig
 @@ -66,9 +66,9 @@ config SPI_AIROHA_SNFI
@@ -100,7 +100,7 @@ index e62c1be2c..fed4e2bda 100644
  config SPI_ALTERA
  	tristate "Altera SPI Controller platform driver"
 diff --git a/drivers/spi/spi-airoha-snfi.c b/drivers/spi/spi-airoha-snfi.c
-index e5233c2b1..df2e76c17 100644
+index e5233c2b1435..df2e76c17b7f 100644
 --- a/drivers/spi/spi-airoha-snfi.c
 +++ b/drivers/spi/spi-airoha-snfi.c
 @@ -212,6 +212,15 @@

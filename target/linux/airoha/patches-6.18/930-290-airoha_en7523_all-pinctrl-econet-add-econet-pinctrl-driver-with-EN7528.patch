@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/pinctrl/airoha/pinctrl-en7528.c
 
 diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
-index 50cb05434..141b96ea0 100644
+index 50cb05434a3e..141b96ea0630 100644
 --- a/drivers/pinctrl/airoha/Kconfig
 +++ b/drivers/pinctrl/airoha/Kconfig
 @@ -19,6 +19,7 @@ config PINCTRL_AIROHA
@@ -48,7 +48,7 @@ index 50cb05434..141b96ea0 100644
 +
  endmenu
 diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
-index 9def6cadc..f9f223b6b 100644
+index 9def6cadc2b5..f9f223b6bcab 100644
 --- a/drivers/pinctrl/airoha/Makefile
 +++ b/drivers/pinctrl/airoha/Makefile
 @@ -9,3 +9,4 @@ obj-$(CONFIG_PINCTRL_AIROHA_AN7581)	+= pinctrl-an7581.o
@@ -58,7 +58,7 @@ index 9def6cadc..f9f223b6b 100644
 +obj-$(CONFIG_PINCTRL_AIROHA_EN7528)	+= pinctrl-en7528.o
 diff --git a/drivers/pinctrl/airoha/pinctrl-en7528.c b/drivers/pinctrl/airoha/pinctrl-en7528.c
 new file mode 100644
-index 000000000..29981faf0
+index 000000000000..29981faf0ec0
 --- /dev/null
 +++ b/drivers/pinctrl/airoha/pinctrl-en7528.c
 @@ -0,0 +1,1068 @@

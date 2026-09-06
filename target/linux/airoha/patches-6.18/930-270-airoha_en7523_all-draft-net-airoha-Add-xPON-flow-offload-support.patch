@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 162 insertions(+), 142 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 8b550963d..6049b693b 100644
+index 8b550963df72..6049b693b310 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -29,8 +29,6 @@
@@ -254,7 +254,7 @@ index 8b550963d..6049b693b 100644
  }
  
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 5f4e45c79..fc9473cc9 100644
+index 5f4e45c790bb..fc9473cc933b 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -2608,6 +2608,70 @@ static void econet_foe_entry_set_pse_port(struct econet_foe_entry *entry, u8 por

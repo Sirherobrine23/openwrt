@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 172 insertions(+), 42 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index d371be78a..27226c351 100644
+index d371be78a522..27226c3513d1 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -13,6 +13,7 @@
@@ -394,7 +394,7 @@ index d371be78a..27226c351 100644
  		netdev->hw_features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
  		netdev->features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index a87ceb94a..46a33421e 100644
+index a87ceb94a88f..46a33421ebac 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -63,11 +63,14 @@
@@ -421,7 +421,7 @@ index a87ceb94a..46a33421e 100644
  
  struct airoha_queue {
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 155a813a5..a399e68a5 100644
+index 155a813a563c..a399e68a5f60 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -657,6 +657,12 @@ static int airoha_ppe_foe_entry_prepare(struct airoha_eth *eth,
@@ -438,7 +438,7 @@ index 155a813a5..a399e68a5 100644
  			    airoha_is_lan_gdm_dev(dev))
  				val |= AIROHA_FOE_IB2_FAST_PATH;
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 30aec0a14..da1ec0425 100644
+index 30aec0a14d81..da1ec0425a0a 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -167,6 +167,9 @@

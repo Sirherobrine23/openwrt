@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 71 insertions(+), 16 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 6ac5c3e40..76fd0b94c 100644
+index 6ac5c3e40368..76fd0b94c6fd 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -79,6 +79,48 @@ static void airoha_qdma_irq_disable(struct airoha_irq_bank *irq_bank,
@@ -157,7 +157,7 @@ index 6ac5c3e40..76fd0b94c 100644
  	}
  
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index d6af4db84..cd77e0843 100644
+index d6af4db847bb..cd77e08434a5 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -839,6 +839,13 @@

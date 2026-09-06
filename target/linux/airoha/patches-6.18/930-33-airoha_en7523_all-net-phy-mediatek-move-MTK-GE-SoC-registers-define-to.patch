@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/phy/mediatek/mtk-ge-soc.h
 
 diff --git a/MAINTAINERS b/MAINTAINERS
-index f360ad5d3..be760aa17 100644
+index f360ad5d3dd3..be760aa17007 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -15832,6 +15832,7 @@ L:	netdev@vger.kernel.org
@@ -35,7 +35,7 @@ index f360ad5d3..be760aa17 100644
  F:	drivers/net/phy/mediatek/mtk-ge.c
  F:	drivers/net/phy/mediatek/mtk.h
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.c b/drivers/net/phy/mediatek/mtk-ge-soc.c
-index 9a5494964..46bae11ad 100644
+index 9a54949644d5..46bae11ad740 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.c
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.c
 @@ -11,322 +11,10 @@
@@ -444,7 +444,7 @@ index 9a5494964..46bae11ad 100644
  	return ret;
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
 new file mode 100644
-index 000000000..9aaa7e3ca
+index 000000000000..9aaa7e3caa41
 --- /dev/null
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
 @@ -0,0 +1,351 @@

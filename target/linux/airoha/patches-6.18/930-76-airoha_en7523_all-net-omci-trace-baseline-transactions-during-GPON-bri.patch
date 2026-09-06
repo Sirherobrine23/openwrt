@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 18 insertions(+)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index e1909c91f..dc470503c 100644
+index e1909c91f3dc..dc470503cb32 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -496,6 +496,21 @@ static int omci_agent_upload_next_locked(struct omci_agent *agent,

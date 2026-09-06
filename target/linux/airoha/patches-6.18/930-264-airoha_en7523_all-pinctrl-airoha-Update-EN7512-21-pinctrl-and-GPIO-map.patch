@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 958 insertions(+), 361 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml b/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml
-index e0a873e18..24814c1c3 100644
+index e0a873e18d79..24814c1c321d 100644
 --- a/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml
 +++ b/Documentation/devicetree/bindings/mfd/econet,en751221-gpio-sysctl.yaml
 @@ -49,7 +49,7 @@ examples:
@@ -35,7 +35,7 @@ index e0a873e18..24814c1c3 100644
          interrupt-controller;
          #interrupt-cells = <2>;
 diff --git a/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
-index 2685e9ac5..a63f9f2d6 100644
+index 2685e9ac5aa6..a63f9f2d633b 100644
 --- a/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
 +++ b/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
 @@ -9,11 +9,12 @@ title: EcoNet EN7512/EN7521 Pin Controller
@@ -441,7 +441,7 @@ index 2685e9ac5..a63f9f2d6 100644
        interrupt-controller;
        #interrupt-cells = <2>;
 diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
-index 5769b0222..e07445120 100644
+index 5769b0222920..e07445120b4e 100644
 --- a/arch/mips/boot/dts/econet/en751221.dtsi
 +++ b/arch/mips/boot/dts/econet/en751221.dtsi
 @@ -85,7 +85,7 @@ pinctrl: pinctrl {
@@ -454,7 +454,7 @@ index 5769b0222..e07445120 100644
  			interrupt-controller;
  			#interrupt-cells = <2>;
 diff --git a/drivers/pinctrl/airoha/airoha-common.h b/drivers/pinctrl/airoha/airoha-common.h
-index 99468dba1..cc5a46c42 100644
+index 99468dba1e71..cc5a46c42637 100644
 --- a/drivers/pinctrl/airoha/airoha-common.h
 +++ b/drivers/pinctrl/airoha/airoha-common.h
 @@ -93,6 +93,7 @@ struct airoha_pinctrl_conf {
@@ -482,7 +482,7 @@ index 99468dba1..cc5a46c42 100644
  };
  
 diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
-index 256a7db7e..4c968f80e 100644
+index 256a7db7e6b2..4c968f80eef9 100644
 --- a/drivers/pinctrl/airoha/pinctrl-airoha.c
 +++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
 @@ -483,8 +483,12 @@ airoha_pinmux_gpio_request_enable(struct pinctrl_dev *pctrl_dev,
@@ -571,7 +571,7 @@ index 256a7db7e..4c968f80e 100644
  	pinctrl->num_irq = data->num_irq ?: AIROHA_NUM_PINS;
  	if (pinctrl->gpiochip.ngpio > AIROHA_NUM_PINS ||
 diff --git a/drivers/pinctrl/airoha/pinctrl-en751221.c b/drivers/pinctrl/airoha/pinctrl-en751221.c
-index c2b5cc85e..819707324 100644
+index c2b5cc85e2fd..8197073240fe 100644
 --- a/drivers/pinctrl/airoha/pinctrl-en751221.c
 +++ b/drivers/pinctrl/airoha/pinctrl-en751221.c
 @@ -1,196 +1,290 @@

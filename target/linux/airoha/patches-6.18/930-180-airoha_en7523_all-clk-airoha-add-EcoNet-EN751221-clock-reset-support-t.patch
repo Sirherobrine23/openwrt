@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 253 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/clk/Kconfig b/drivers/clk/Kconfig
-index 3a1611008..9ec83f4bd 100644
+index 3a1611008e48..9ec83f4bdbdc 100644
 --- a/drivers/clk/Kconfig
 +++ b/drivers/clk/Kconfig
 @@ -218,13 +218,13 @@ config COMMON_CLK_CS2000_CP
@@ -32,7 +32,7 @@ index 3a1611008..9ec83f4bd 100644
  config COMMON_CLK_EP93XX
  	tristate "Clock driver for Cirrus Logic ep93xx SoC"
 diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
-index a53312aec..7d30f9b84 100644
+index a53312aecd1f..7d30f9b84f93 100644
 --- a/drivers/clk/clk-en7523.c
 +++ b/drivers/clk/clk-en7523.c
 @@ -14,9 +14,11 @@

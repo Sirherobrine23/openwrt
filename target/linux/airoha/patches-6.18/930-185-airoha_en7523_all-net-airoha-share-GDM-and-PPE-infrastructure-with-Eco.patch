@@ -34,7 +34,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  12 files changed, 1688 insertions(+), 294 deletions(-)
 
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 06790488a..851df88bf 100644
+index 06790488a318..851df88bf9bc 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -747,6 +747,7 @@ F:	Documentation/devicetree/bindings/net/airoha,en7523-wed.yaml
@@ -46,7 +46,7 @@ index 06790488a..851df88bf 100644
  AIROHA ETHERNET PHY DRIVER
  M:	Christian Marangi <ansuelsmth@gmail.com>
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 4cb504376..fd2fed549 100644
+index 4cb5043766a7..fd2fed549ad2 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -3,46 +3,71 @@ config NET_VENDOR_AIROHA
@@ -180,7 +180,7 @@ index 4cb504376..fd2fed549 100644
 -endif #NET_VENDOR_AIROHA
 +endif # NET_VENDOR_AIROHA
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 333871aa9..66b591619 100644
+index 333871aa95d6..66b591619a63 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -1,14 +1,24 @@
@@ -217,7 +217,7 @@ index 333871aa9..66b591619 100644
 +obj-$(CONFIG_AIROHA_XPON_V1) += airoha-xpon.o
 +airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_gpon_omci.o
 diff --git a/drivers/net/ethernet/airoha/airoha_common.c b/drivers/net/ethernet/airoha/airoha_common.c
-index 10e1b821a..81e21ecd5 100644
+index 10e1b821a141..81e21ecd54a4 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.c
 +++ b/drivers/net/ethernet/airoha/airoha_common.c
 @@ -10,6 +10,7 @@
@@ -358,7 +358,7 @@ index 10e1b821a..81e21ecd5 100644
  MODULE_LICENSE("GPL");
  MODULE_DESCRIPTION("Shared helpers for Airoha and EcoNet Ethernet drivers");
 diff --git a/drivers/net/ethernet/airoha/airoha_common.h b/drivers/net/ethernet/airoha/airoha_common.h
-index 2ae602176..d931be606 100644
+index 2ae602176fd1..d931be606b61 100644
 --- a/drivers/net/ethernet/airoha/airoha_common.h
 +++ b/drivers/net/ethernet/airoha/airoha_common.h
 @@ -3,12 +3,70 @@
@@ -460,7 +460,7 @@ index 2ae602176..d931be606 100644
 +
  #endif /* AIROHA_COMMON_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 243354ff5..bccc17b24 100644
+index 243354ff5cd3..bccc17b24a13 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -3142,20 +3142,16 @@ static int airoha_dev_open(struct net_device *netdev)
@@ -754,7 +754,7 @@ index 243354ff5..bccc17b24 100644
  		}
  		airoha_metadata_dst_free(port);
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 95a56390d..68068cb77 100644
+index 95a56390dc3f..68068cb77b03 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -668,6 +668,9 @@ struct airoha_xpon_tx_info {
@@ -820,7 +820,7 @@ index 95a56390d..68068cb77 100644
  #else
  static inline int airoha_ppe_debugfs_init(struct airoha_ppe *ppe)
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index a399e68a5..9f80757af 100644
+index a399e68a5f60..9f80757af36c 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -8,12 +8,15 @@
@@ -2040,7 +2040,7 @@ index a399e68a5..9f80757af 100644
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("Airoha and EcoNet PPE flow offload");
 diff --git a/drivers/net/ethernet/airoha/airoha_wed.h b/drivers/net/ethernet/airoha/airoha_wed.h
-index d04183b7a..1cba161f2 100644
+index d04183b7a9da..1cba161f2af6 100644
 --- a/drivers/net/ethernet/airoha/airoha_wed.h
 +++ b/drivers/net/ethernet/airoha/airoha_wed.h
 @@ -6,7 +6,11 @@
@@ -2056,7 +2056,7 @@ index d04183b7a..1cba161f2 100644
  /* EN7523 PCIe controller bases (PCIe0 = domain 0, PCIe1 = domain 1). */
  #define EN7523_PCIE_BASE(n)	(0x1fa91000 + (n) * 0x1000)
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 0804d5d96..ec3bdc50b 100644
+index 0804d5d96553..ec3bdc50bce2 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -197,9 +197,8 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
@@ -2634,7 +2634,7 @@ index 0804d5d96..ec3bdc50b 100644
  
  error:
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index ebbaef15d..6579eb2fc 100644
+index ebbaef15d01d..6579eb2fca87 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -8,6 +8,7 @@
@@ -2664,7 +2664,7 @@ index ebbaef15d..6579eb2fc 100644
  	int num_rx_descs[QDMA_NUM_CHAINS];
  	int num_tx_descs[QDMA_NUM_CHAINS];
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index 216a963c2..7332674dd 100644
+index 216a963c2210..7332674ddc25 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -6,9 +6,15 @@

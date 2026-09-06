@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 7 insertions(+), 14 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 8a0cd9e12..05f9b2d01 100644
+index 8a0cd9e1241e..05f9b2d01fbc 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -196,8 +196,6 @@ int airoha_eth_set_xpon_mode(struct net_device *netdev,
@@ -50,7 +50,7 @@ index 8a0cd9e12..05f9b2d01 100644
  	case AIROHA_XPON_MODE_EPON:
  		/* xpon_1g/eponFeChannelEnable(): LLID channels 0..7,
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 2598b4866..c83ffde36 100644
+index 2598b4866e55..c83ffde36408 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -207,12 +207,8 @@

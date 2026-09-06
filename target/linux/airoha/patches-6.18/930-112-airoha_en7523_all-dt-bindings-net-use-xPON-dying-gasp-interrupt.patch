@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 3 insertions(+), 6 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
-index fa6366fad..94560a47c 100644
+index fa6366fad770..94560a47c06a 100644
 --- a/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 +++ b/Documentation/devicetree/bindings/net/airoha,en7523-xpon.yaml
 @@ -43,6 +43,9 @@ properties:
@@ -28,7 +28,7 @@ index fa6366fad..94560a47c 100644
    interrupt-names:
      minItems: 1
 diff --git a/Documentation/devicetree/bindings/net/omci.yaml b/Documentation/devicetree/bindings/net/omci.yaml
-index 49e372f66..569b0ed12 100644
+index 49e372f669b2..569b0ed12645 100644
 --- a/Documentation/devicetree/bindings/net/omci.yaml
 +++ b/Documentation/devicetree/bindings/net/omci.yaml
 @@ -84,11 +84,5 @@ properties:

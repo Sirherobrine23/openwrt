@@ -17,7 +17,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 122 insertions(+), 29 deletions(-)
 
 diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
-index 1d4f10d96..5bb0c7b04 100644
+index 1d4f10d96dd1..5bb0c7b04209 100644
 --- a/arch/mips/boot/dts/econet/en751221.dtsi
 +++ b/arch/mips/boot/dts/econet/en751221.dtsi
 @@ -235,6 +235,24 @@ slot1: pcie@1,0 {
@@ -54,7 +54,7 @@ index 1d4f10d96..5bb0c7b04 100644
  		resets = <&scuclk EN751221_FE_RST>,
  		         <&scuclk EN751221_FE_QDMA1_RST>,
 diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
-index 60c282e2f..397d9fbf0 100644
+index 60c282e2ff45..397d9fbf0d71 100644
 --- a/arch/mips/boot/dts/econet/en7528.dtsi
 +++ b/arch/mips/boot/dts/econet/en7528.dtsi
 @@ -464,19 +464,21 @@ xpon: xmac@1fb60000 {
@@ -83,7 +83,7 @@ index 60c282e2f..397d9fbf0 100644
  
  		eth: ethernet@1fb50000 {
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index 16b783cdd..66a7ddfed 100644
+index 16b783cdd231..66a7ddfed7f9 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -49,13 +49,14 @@ config NET_AIROHA_FLOW_STATS
@@ -106,7 +106,7 @@ index 16b783cdd..66a7ddfed 100644
  	  If unsure, say N.
  
 diff --git a/drivers/net/ethernet/airoha/airoha_wed.c b/drivers/net/ethernet/airoha/airoha_wed.c
-index 4c502c809..009c80f1f 100644
+index 4c502c80979b..009c80f1f401 100644
 --- a/drivers/net/ethernet/airoha/airoha_wed.c
 +++ b/drivers/net/ethernet/airoha/airoha_wed.c
 @@ -1,15 +1,15 @@
@@ -372,7 +372,7 @@ index 4c502c809..009c80f1f 100644
  
  	mutex_lock(&hw_lock);
 diff --git a/drivers/net/ethernet/airoha/airoha_wed.h b/drivers/net/ethernet/airoha/airoha_wed.h
-index 1cba161f2..47b6a1f7e 100644
+index 1cba161f2af6..47b6a1f7e626 100644
 --- a/drivers/net/ethernet/airoha/airoha_wed.h
 +++ b/drivers/net/ethernet/airoha/airoha_wed.h
 @@ -1,6 +1,6 @@
@@ -394,7 +394,7 @@ index 1cba161f2..47b6a1f7e 100644
  int airoha_wed_add_hw(struct device_node *np, int index);
  void airoha_wed_exit(void);
 diff --git a/drivers/net/ethernet/mtk_wed_private.h b/drivers/net/ethernet/mtk_wed_private.h
-index 9370bb992..c2820921b 100644
+index 9370bb992eff..c2820921ba2b 100644
 --- a/drivers/net/ethernet/mtk_wed_private.h
 +++ b/drivers/net/ethernet/mtk_wed_private.h
 @@ -47,6 +47,7 @@ struct mtk_wed_hw {

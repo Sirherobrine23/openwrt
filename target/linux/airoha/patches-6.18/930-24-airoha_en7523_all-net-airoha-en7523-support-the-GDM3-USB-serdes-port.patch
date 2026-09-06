@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 4 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 1f71f76d4..9cbed2021 100644
+index 1f71f76d4eff..9cbed2021475 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -4399,7 +4399,7 @@ static int airoha_en7523_get_sport(struct airoha_gdm_port *port, int nbq)
@@ -49,7 +49,7 @@ index 1f71f76d4..9cbed2021 100644
  	case HSGMII_LAN_7523_ETH_SRCPORT:
  		*port = 2; /* GDM3 */
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index f1f8cac9d..774192542 100644
+index f1f8cac9dac9..774192542960 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -17,7 +17,7 @@

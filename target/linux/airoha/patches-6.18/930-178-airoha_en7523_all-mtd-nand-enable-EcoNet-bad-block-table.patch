@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/mtd/nand/en75_bmt.c
 
 diff --git a/drivers/mtd/nand/Makefile b/drivers/mtd/nand/Makefile
-index 95de9f3a7..fda6fe169 100644
+index 95de9f3a7309..fda6fe16973f 100644
 --- a/drivers/mtd/nand/Makefile
 +++ b/drivers/mtd/nand/Makefile
 @@ -3,7 +3,7 @@
@@ -27,7 +27,7 @@ index 95de9f3a7..fda6fe169 100644
  obj-$(CONFIG_MTD_NAND_QCOM) += qpic_common.o
 diff --git a/drivers/mtd/nand/en75_bmt.c b/drivers/mtd/nand/en75_bmt.c
 new file mode 100644
-index 000000000..14dfe055e
+index 000000000000..14dfe055ef9f
 --- /dev/null
 +++ b/drivers/mtd/nand/en75_bmt.c
 @@ -0,0 +1,1465 @@
@@ -1497,7 +1497,7 @@ index 000000000..14dfe055e
 +	.debug = pub_debug,
 +};
 diff --git a/drivers/mtd/nand/mtk_bmt.c b/drivers/mtd/nand/mtk_bmt.c
-index 66a82dd2d..2737496ae 100644
+index 66a82dd2d02a..2737496aec00 100644
 --- a/drivers/mtd/nand/mtk_bmt.c
 +++ b/drivers/mtd/nand/mtk_bmt.c
 @@ -421,6 +421,8 @@ int mtk_bmt_attach(struct mtd_info *mtd)
@@ -1510,7 +1510,7 @@ index 66a82dd2d..2737496ae 100644
  		return 0;
  
 diff --git a/drivers/mtd/nand/mtk_bmt.h b/drivers/mtd/nand/mtk_bmt.h
-index 517ff7414..8c3e850bb 100644
+index 517ff7414f34..8c3e850bba5a 100644
 --- a/drivers/mtd/nand/mtk_bmt.h
 +++ b/drivers/mtd/nand/mtk_bmt.h
 @@ -77,6 +77,7 @@ extern struct bmt_desc bmtd;

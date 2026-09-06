@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 326 insertions(+), 340 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 5d58ad0a8..e72f709f7 100644
+index 5d58ad0a85bb..e72f709f77c6 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -9511,6 +9511,11 @@ const struct airoha_eth_soc_data econet_en751221_soc_data = {
@@ -40,7 +40,7 @@ index 5d58ad0a8..e72f709f7 100644
  		.get_sport = airoha_en7528_get_sport,
  		.get_dev_from_sport = airoha_en7528_get_dev_from_sport,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index a6b191305..d94376fb1 100644
+index a6b191305447..d94376fb18d0 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -780,6 +780,25 @@ struct airoha_flow_table_entry {
@@ -132,7 +132,7 @@ index a6b191305..d94376fb1 100644
  		int (*get_sport)(struct airoha_gdm_port *port, int nbq);
  		u32 (*get_vip_port)(struct airoha_gdm_port *port, int nbq);
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 3f968411b..89bbe44e5 100644
+index 3f968411b378..89bbe44e5e8d 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -40,6 +40,13 @@ static const struct rhashtable_params airoha_l2_flow_table_params = {
@@ -1139,7 +1139,7 @@ index 3f968411b..89bbe44e5 100644
 -MODULE_DESCRIPTION("Airoha and EcoNet PPE flow offload");
 +MODULE_DESCRIPTION("Airoha PPE flow offload");
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index 4cf11fa16..844697cb6 100644
+index 4cf11fa16a52..844697cb6f36 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -359,7 +359,7 @@ static int airoha_ppe_debugfs_foe_bind_show(struct seq_file *m, void *private)

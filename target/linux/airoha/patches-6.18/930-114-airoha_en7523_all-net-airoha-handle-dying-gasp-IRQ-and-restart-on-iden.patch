@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 178 insertions(+), 20 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
-index 5c3cebd04..29ebf07c9 100644
+index 5c3cebd04911..29ebf07c9653 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
 @@ -5,7 +5,6 @@
@@ -93,7 +93,7 @@ index 5c3cebd04..29ebf07c9 100644
  
  void airoha_gpon_omci_unregister(struct airoha_gpon_omci *omci)
 diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
-index 2e048592d..bfbc6c30c 100644
+index 2e048592d015..bfbc6c30cb1e 100644
 --- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 +++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
 @@ -43,5 +43,7 @@ int airoha_gpon_omci_hw_get_telemetry(void *hw_priv,
@@ -105,7 +105,7 @@ index 2e048592d..bfbc6c30c 100644
  
  #endif /* _AIROHA_GPON_OMCI_H */
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
-index 1af07320b..be546280e 100644
+index 1af07320b3bc..be546280e508 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.c
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -610,6 +610,13 @@ void ploam_free(struct ploam_priv *pp)
@@ -123,7 +123,7 @@ index 1af07320b..be546280e 100644
  {
  	pp->state                = GPON_O1_INITIAL;
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.h b/drivers/net/ethernet/airoha/airoha_ploam.h
-index b01277b89..86a6af2bd 100644
+index b01277b89484..86a6af2bdc4b 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.h
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.h
 @@ -139,6 +139,8 @@ struct ploam_priv;
@@ -136,7 +136,7 @@ index b01277b89..86a6af2bd 100644
  void ploam_start(struct ploam_priv *pp);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index fa8565ec3..5a2b2ddd2 100644
+index fa8565ec34ca..5a2b2ddd2c35 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -622,6 +622,7 @@ struct xpon_priv {

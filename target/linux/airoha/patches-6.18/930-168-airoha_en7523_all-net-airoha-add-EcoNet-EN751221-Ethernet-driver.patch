@@ -35,7 +35,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 drivers/net/ethernet/airoha/econet_qdma_regs.h
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index e90ba3e68..c3259ca07 100644
+index e90ba3e68b84..c3259ca07cc0 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -1,7 +1,7 @@
@@ -68,7 +68,7 @@ index e90ba3e68..c3259ca07 100644
  	default y
  	bool "Airoha flow stats"
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index 5f49421e5..eb80d0e50 100644
+index 5f49421e5841..eb80d0e50d1c 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -11,6 +11,9 @@ airoha-eth-y := airoha_eth.o airoha_ppe.o
@@ -83,7 +83,7 @@ index 5f49421e5..eb80d0e50 100644
  # Airoha/EcoNet shared GPON + EPON MAC complex
 diff --git a/drivers/net/ethernet/airoha/econet_debugfs.c b/drivers/net/ethernet/airoha/econet_debugfs.c
 new file mode 100644
-index 000000000..dba0136c5
+index 000000000000..dba0136c5efc
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_debugfs.c
 @@ -0,0 +1,629 @@
@@ -718,7 +718,7 @@ index 000000000..dba0136c5
 +}
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
 new file mode 100644
-index 000000000..f5df09421
+index 000000000000..f5df09421a9b
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -0,0 +1,453 @@
@@ -1177,7 +1177,7 @@ index 000000000..f5df09421
 +MODULE_DESCRIPTION("Ethernet driver for EcoNet SoC");
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
 new file mode 100644
-index 000000000..1e86e6fbe
+index 000000000000..1e86e6fbe133
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -0,0 +1,234 @@
@@ -1417,7 +1417,7 @@ index 000000000..1e86e6fbe
 +#endif
 diff --git a/drivers/net/ethernet/airoha/econet_gdm_regs.h b/drivers/net/ethernet/airoha/econet_gdm_regs.h
 new file mode 100644
-index 000000000..510de8ef7
+index 000000000000..510de8ef79f9
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_gdm_regs.h
 @@ -0,0 +1,1409 @@
@@ -2832,7 +2832,7 @@ index 000000000..510de8ef7
 +#endif
 diff --git a/drivers/net/ethernet/airoha/econet_port.c b/drivers/net/ethernet/airoha/econet_port.c
 new file mode 100644
-index 000000000..6603fcc36
+index 000000000000..6603fcc36e61
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_port.c
 @@ -0,0 +1,489 @@
@@ -3327,7 +3327,7 @@ index 000000000..6603fcc36
 +}
 diff --git a/drivers/net/ethernet/airoha/econet_qdma.c b/drivers/net/ethernet/airoha/econet_qdma.c
 new file mode 100644
-index 000000000..33f8cdbc4
+index 000000000000..33f8cdbc4c5d
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_qdma.c
 @@ -0,0 +1,1224 @@
@@ -4557,7 +4557,7 @@ index 000000000..33f8cdbc4
 +}
 diff --git a/drivers/net/ethernet/airoha/econet_qdma_desc.h b/drivers/net/ethernet/airoha/econet_qdma_desc.h
 new file mode 100644
-index 000000000..80a8aeb80
+index 000000000000..80a8aeb8076d
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_qdma_desc.h
 @@ -0,0 +1,632 @@
@@ -5195,7 +5195,7 @@ index 000000000..80a8aeb80
 +#endif /* QDMA_DESC_H */
 diff --git a/drivers/net/ethernet/airoha/econet_qdma_regs.h b/drivers/net/ethernet/airoha/econet_qdma_regs.h
 new file mode 100644
-index 000000000..734445ef7
+index 000000000000..734445ef7445
 --- /dev/null
 +++ b/drivers/net/ethernet/airoha/econet_qdma_regs.h
 @@ -0,0 +1,1181 @@

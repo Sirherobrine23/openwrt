@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  create mode 100644 include/dt-bindings/reset/econet,en751221-scu.h
 
 diff --git a/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml b/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
-index dcdbf1e48..44bf7215d 100644
+index dcdbf1e48d16..44bf7215d595 100644
 --- a/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
 +++ b/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
 @@ -25,6 +25,7 @@ properties:
@@ -38,7 +38,7 @@ index dcdbf1e48..44bf7215d 100644
        properties:
          reg:
 diff --git a/Documentation/devicetree/bindings/mfd/syscon.yaml b/Documentation/devicetree/bindings/mfd/syscon.yaml
-index 657c38175..61656ac3f 100644
+index 657c38175fba..61656ac3f13d 100644
 --- a/Documentation/devicetree/bindings/mfd/syscon.yaml
 +++ b/Documentation/devicetree/bindings/mfd/syscon.yaml
 @@ -61,6 +61,7 @@ select:
@@ -58,7 +58,7 @@ index 657c38175..61656ac3f 100644
            - fsl,imx93-aonmix-ns-syscfg
            - fsl,imx93-wakeupmix-syscfg
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 892dc00cf..06790488a 100644
+index 892dc00cf447..06790488a318 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -8880,6 +8880,8 @@ F:	arch/mips/boot/dts/econet/
@@ -72,7 +72,7 @@ index 892dc00cf..06790488a 100644
  M:	Tyler Hicks <code@tyhicks.com>
 diff --git a/include/dt-bindings/clock/econet,en751221-scu.h b/include/dt-bindings/clock/econet,en751221-scu.h
 new file mode 100644
-index 000000000..318ec8a46
+index 000000000000..318ec8a4670e
 --- /dev/null
 +++ b/include/dt-bindings/clock/econet,en751221-scu.h
 @@ -0,0 +1,12 @@
@@ -90,7 +90,7 @@ index 000000000..318ec8a46
 +#endif /* _DT_BINDINGS_CLOCK_ECONET_EN751221_SCU_H_ */
 diff --git a/include/dt-bindings/reset/econet,en751221-scu.h b/include/dt-bindings/reset/econet,en751221-scu.h
 new file mode 100644
-index 000000000..bad499d4d
+index 000000000000..bad499d4d50a
 --- /dev/null
 +++ b/include/dt-bindings/reset/econet,en751221-scu.h
 @@ -0,0 +1,49 @@

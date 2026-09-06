@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 4 insertions(+), 6 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml b/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
-index 00a6e9d9c..76478f931 100644
+index 00a6e9d9cb33..76478f93198f 100644
 --- a/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
 +++ b/Documentation/devicetree/bindings/net/econet,en751221-eth.yaml
 @@ -52,20 +52,18 @@ properties:

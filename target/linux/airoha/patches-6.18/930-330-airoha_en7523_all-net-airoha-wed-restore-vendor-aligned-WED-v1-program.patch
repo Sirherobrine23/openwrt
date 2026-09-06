@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 237 insertions(+), 83 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_wed.c b/drivers/net/ethernet/airoha/airoha_wed.c
-index e7925288f..4c502c809 100644
+index e7925288f7b1..4c502c80979b 100644
 --- a/drivers/net/ethernet/airoha/airoha_wed.c
 +++ b/drivers/net/ethernet/airoha/airoha_wed.c
 @@ -32,11 +32,25 @@
@@ -571,7 +571,7 @@ index e7925288f..4c502c809 100644
  		put_device(hw->dev);
  		of_node_put(hw->node);
 diff --git a/drivers/net/ethernet/airoha/airoha_wed_debugfs.c b/drivers/net/ethernet/airoha/airoha_wed_debugfs.c
-index 610f71755..be5986359 100644
+index 610f71755608..be598635967b 100644
 --- a/drivers/net/ethernet/airoha/airoha_wed_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_wed_debugfs.c
 @@ -7,6 +7,7 @@
@@ -632,7 +632,7 @@ index 610f71755..be5986359 100644
  }
  
 diff --git a/drivers/net/ethernet/mtk_wed_private.h b/drivers/net/ethernet/mtk_wed_private.h
-index 9fa075bd6..9370bb992 100644
+index 9fa075bd6f95..9370bb992eff 100644
 --- a/drivers/net/ethernet/mtk_wed_private.h
 +++ b/drivers/net/ethernet/mtk_wed_private.h
 @@ -38,6 +38,7 @@ struct mtk_wed_hw {

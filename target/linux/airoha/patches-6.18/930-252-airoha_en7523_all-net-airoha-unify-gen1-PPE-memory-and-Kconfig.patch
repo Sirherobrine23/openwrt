@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  8 files changed, 374 insertions(+), 404 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
-index b31a0747a..016b75fbc 100644
+index b31a0747a6a9..016b75fbcccb 100644
 --- a/drivers/net/ethernet/airoha/Kconfig
 +++ b/drivers/net/ethernet/airoha/Kconfig
 @@ -8,18 +8,6 @@ config NET_VENDOR_AIROHA
@@ -103,7 +103,7 @@ index b31a0747a..016b75fbc 100644
  	depends on SFP
  	depends on AIROHA_LDDLA_PHY || AIROHA_LDDLA_PHY=n
 diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
-index f4165eae9..7ef6848ac 100644
+index f4165eae9a35..7ef6848ac3b3 100644
 --- a/drivers/net/ethernet/airoha/Makefile
 +++ b/drivers/net/ethernet/airoha/Makefile
 @@ -3,14 +3,10 @@
@@ -126,7 +126,7 @@ index f4165eae9..7ef6848ac 100644
  
  obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 6a1c02f8e..1297370bd 100644
+index 6a1c02f8e521..1297370bd587 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -775,6 +775,77 @@ struct airoha_ppe {
@@ -216,7 +216,7 @@ index 6a1c02f8e..1297370bd 100644
  
  	struct airoha_npu __rcu *npu;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index dde0032a5..28fbfec5a 100644
+index dde0032a5ec5..28fbfec5a91b 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -13,7 +13,6 @@
@@ -245,7 +245,7 @@ index dde0032a5..28fbfec5a 100644
  
  	eth->gdmp_regs = devm_platform_ioremap_resource_byname(pdev, "gdmp");
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 4d3bee67b..04d256af3 100644
+index 4d3bee67bb92..04d256af36b5 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -3948,7 +3948,6 @@ static int airoha_eth_gen2_probe(struct platform_device *pdev,
@@ -257,7 +257,7 @@ index 4d3bee67b..04d256af3 100644
  	eth->gdmp_regs = devm_platform_ioremap_resource_byname(pdev, "gdmp");
  	if (IS_ERR(eth->gdmp_regs))
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 1818b150e..bdddcf537 100644
+index 1818b150e349..bdddcf5379ff 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -8,7 +8,6 @@
@@ -1238,7 +1238,7 @@ index 1818b150e..bdddcf537 100644
  	eth->ppe_dev = NULL;
  }
 diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
-index 19daed5a6..c43504759 100644
+index 19daed5a6a5d..c435047592f6 100644
 --- a/drivers/net/ethernet/airoha/airoha_regs.h
 +++ b/drivers/net/ethernet/airoha/airoha_regs.h
 @@ -42,7 +42,6 @@
@@ -1367,7 +1367,7 @@ index 19daed5a6..c43504759 100644
  #define PPE_SRAM_CTRL_ACK_MASK			BIT(31)
  #define PPE_SRAM_CTRL_DUAL_SUCESS_MASK		BIT(30)
 diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
-index 5c07e137b..280658fff 100644
+index 5c07e137b4ec..280658fff7df 100644
 --- a/include/linux/soc/airoha/airoha_offload.h
 +++ b/include/linux/soc/airoha/airoha_offload.h
 @@ -40,7 +40,7 @@ struct airoha_ppe_dev {

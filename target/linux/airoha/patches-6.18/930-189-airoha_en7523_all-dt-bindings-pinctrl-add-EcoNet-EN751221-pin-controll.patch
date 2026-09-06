@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
 new file mode 100644
-index 000000000..0452b931e
+index 000000000000..0452b931e604
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
 @@ -0,0 +1,225 @@
@@ -245,7 +245,7 @@ index 000000000..0452b931e
 +      };
 +    };
 diff --git a/MAINTAINERS b/MAINTAINERS
-index b5d67b6c1..b6bb34c07 100644
+index b5d67b6c1d10..b6bb34c0784d 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -20334,6 +20334,7 @@ L:	linux-mediatek@lists.infradead.org (moderated for non-subscribers)

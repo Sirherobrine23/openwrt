@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  6 files changed, 85 insertions(+), 32 deletions(-)
 
 diff --git a/drivers/net/optical/airoha/airoha_lddla.h b/drivers/net/optical/airoha/airoha_lddla.h
-index d9144982f..0fad47472 100644
+index d9144982fb31..0fad474725df 100644
 --- a/drivers/net/optical/airoha/airoha_lddla.h
 +++ b/drivers/net/optical/airoha/airoha_lddla.h
 @@ -54,9 +54,39 @@ struct airoha_lddla;
@@ -68,7 +68,7 @@ index d9144982f..0fad47472 100644
  enum airoha_lddla_bob_endian {
  	AIROHA_LDDLA_BOB_ENDIAN_UNKNOWN,
 diff --git a/drivers/net/optical/airoha/airoha_lddla_core.c b/drivers/net/optical/airoha/airoha_lddla_core.c
-index a5972e139..7aff4e9ef 100644
+index a5972e139ce4..7aff4e9ef337 100644
 --- a/drivers/net/optical/airoha/airoha_lddla_core.c
 +++ b/drivers/net/optical/airoha/airoha_lddla_core.c
 @@ -210,18 +210,17 @@ int lddla_lock(struct airoha_lddla *lddla)
@@ -94,7 +94,7 @@ index a5972e139..7aff4e9ef 100644
  
  /*
 diff --git a/drivers/net/optical/airoha/en7570_main.c b/drivers/net/optical/airoha/en7570_main.c
-index f811a6099..76fe7d168 100644
+index f811a60994a2..76fe7d1680bf 100644
 --- a/drivers/net/optical/airoha/en7570_main.c
 +++ b/drivers/net/optical/airoha/en7570_main.c
 @@ -144,13 +144,27 @@ int en7570_init(struct en7570_priv *priv)
@@ -131,7 +131,7 @@ index f811a6099..76fe7d168 100644
  		return 0;	/* leave the optical chain in its default state */
  	}
 diff --git a/drivers/net/optical/airoha/en7570_regs.h b/drivers/net/optical/airoha/en7570_regs.h
-index 46f9539bc..40634b5e3 100644
+index 46f9539bce84..40634b5e348c 100644
 --- a/drivers/net/optical/airoha/en7570_regs.h
 +++ b/drivers/net/optical/airoha/en7570_regs.h
 @@ -216,9 +216,8 @@
@@ -147,7 +147,7 @@ index 46f9539bc..40634b5e3 100644
  /* xPON mode enumeration (struct en7570_priv .pon_mode). */
  #define EN7570_PON_UNKNOWN		(-1)
 diff --git a/drivers/net/optical/airoha/en7571_main.c b/drivers/net/optical/airoha/en7571_main.c
-index b25ebc6ea..da121b7d6 100644
+index b25ebc6ea656..da121b7d64f8 100644
 --- a/drivers/net/optical/airoha/en7571_main.c
 +++ b/drivers/net/optical/airoha/en7571_main.c
 @@ -129,6 +129,7 @@ static void en7571_load_config(struct en7571_priv *priv)
@@ -228,7 +228,7 @@ index b25ebc6ea..da121b7d6 100644
  
  /* ------------------------------------------------------------------ */
 diff --git a/drivers/net/optical/airoha/en7571_regs.h b/drivers/net/optical/airoha/en7571_regs.h
-index d63c5919f..e4690b221 100644
+index d63c5919f63f..e4690b22115e 100644
 --- a/drivers/net/optical/airoha/en7571_regs.h
 +++ b/drivers/net/optical/airoha/en7571_regs.h
 @@ -309,10 +309,8 @@

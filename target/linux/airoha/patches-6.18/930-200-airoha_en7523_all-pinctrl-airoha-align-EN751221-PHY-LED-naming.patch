@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 79 insertions(+), 36 deletions(-)
 
 diff --git a/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
-index 0452b931e..2685e9ac5 100644
+index 0452b931e604..2685e9ac5aa6 100644
 --- a/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
 +++ b/Documentation/devicetree/bindings/pinctrl/econet,en751221-pinctrl.yaml
 @@ -65,7 +65,8 @@ patternProperties:
@@ -79,7 +79,7 @@ index 0452b931e..2685e9ac5 100644
                properties:
                  function:
 diff --git a/drivers/pinctrl/airoha/pinctrl-en751221.c b/drivers/pinctrl/airoha/pinctrl-en751221.c
-index baf3fccc9..c2b5cc85e 100644
+index baf3fccc9473..c2b5cc85e2fd 100644
 --- a/drivers/pinctrl/airoha/pinctrl-en751221.c
 +++ b/drivers/pinctrl/airoha/pinctrl-en751221.c
 @@ -25,24 +25,25 @@

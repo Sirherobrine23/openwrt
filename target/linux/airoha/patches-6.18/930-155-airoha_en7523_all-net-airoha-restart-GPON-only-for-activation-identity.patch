@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 24 insertions(+), 5 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 6b757d770..90dc80a30 100644
+index 6b757d770916..90dc80a306b5 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1893,6 +1893,18 @@ void airoha_gpon_omci_hw_set_operational(void *hw_priv, bool operational)

@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 174 insertions(+), 152 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index b940c30b2..07f9afd15 100644
+index b940c30b21b5..07f9afd15685 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -10,12 +10,14 @@
@@ -193,7 +193,7 @@ index b940c30b2..07f9afd15 100644
  		return err;
  	if (!skb || gem_port_id > FIELD_MAX(QDMA_ETH_TXMSG_SP_TAG_MASK))
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 9e73f768d..04d58cfe0 100644
+index 9e73f768d8f4..04d58cfe0edd 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -867,6 +867,7 @@ static inline bool airoha_qdma_is_lro_queue(struct airoha_queue *q)
@@ -205,7 +205,7 @@ index 9e73f768d..04d58cfe0 100644
  			     enum airoha_xpon_mode mode,
  			     const struct airoha_xpon_link_ops *ops,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 826c745a3..1d77021aa 100644
+index 826c745a36a1..1d77021aaf1e 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -177,31 +177,12 @@ static void airoha_xpon_update_netdev_link(struct net_device *netdev,

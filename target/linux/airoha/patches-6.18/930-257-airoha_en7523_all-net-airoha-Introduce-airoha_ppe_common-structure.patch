@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  5 files changed, 269 insertions(+), 246 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 3b12ef1c9..1c017bd0a 100644
+index 3b12ef1c94c1..1c017bd0a76a 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -750,13 +750,19 @@ struct airoha_ppe_host_ops {
@@ -90,7 +90,7 @@ index 3b12ef1c9..1c017bd0a 100644
  	return 0;
  }
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen2.c b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
-index 04d256af3..12ebc4ead 100644
+index 04d256af36b5..12ebc4eadb0c 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen2.c
 @@ -3200,7 +3200,7 @@ static int airoha_dev_setup_tc_block_cb(enum tc_setup_type type,
@@ -103,7 +103,7 @@ index 04d256af3..12ebc4ead 100644
  		return airoha_dev_tc_matchall(netdev, type_data);
  	default:
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
-index 93fca4380..5f4e45c79 100644
+index 93fca4380327..5f4e45c790bb 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe.c
 @@ -45,10 +45,10 @@ static int airoha_ppe_get_num_stats_entries(struct airoha_ppe *ppe)
@@ -736,7 +736,7 @@ index 93fca4380..5f4e45c79 100644
  
  int airoha_ppe_init(struct airoha_eth *eth)
 diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
-index da14cc697..6b7bb9c4b 100644
+index da14cc697ac3..6b7bb9c4b1ff 100644
 --- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 +++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
 @@ -7,9 +7,55 @@
@@ -1125,7 +1125,7 @@ index da14cc697..6b7bb9c4b 100644
 \ No newline at end of file
 +}
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index a537aa379..a426ad97c 100644
+index a537aa379a7c..a426ad97c56c 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -2035,7 +2035,7 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)

@@ -23,7 +23,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 
 diff --git a/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 new file mode 100644
-index 000000000..3c5c22b6a
+index 000000000000..3c5c22b6a730
 --- /dev/null
 +++ b/Documentation/devicetree/bindings/net/semtech,gn25l95.yaml
 @@ -0,0 +1,68 @@
@@ -96,7 +96,7 @@ index 000000000..3c5c22b6a
 +        };
 +    };
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index d29a744a5..51de5acf0 100644
+index d29a744a56b7..51de5acf00a4 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -106,7 +106,8 @@ static struct device *airoha_xpon_find_lddla(struct device *dev)
@@ -110,7 +110,7 @@ index d29a744a5..51de5acf0 100644
  		return NULL;
  	}
 diff --git a/drivers/net/phy/airoha/Kconfig b/drivers/net/phy/airoha/Kconfig
-index f4a2e0b9c..c8a1992e5 100644
+index f4a2e0b9c6cd..c8a1992e5e5d 100644
 --- a/drivers/net/phy/airoha/Kconfig
 +++ b/drivers/net/phy/airoha/Kconfig
 @@ -1,9 +1,9 @@
@@ -141,7 +141,7 @@ index f4a2e0b9c..c8a1992e5 100644
 +
  endif
 diff --git a/drivers/net/phy/airoha/Makefile b/drivers/net/phy/airoha/Makefile
-index b29a659cb..4272b0271 100644
+index b29a659cbd78..4272b0271617 100644
 --- a/drivers/net/phy/airoha/Makefile
 +++ b/drivers/net/phy/airoha/Makefile
 @@ -2,6 +2,7 @@ obj-$(CONFIG_AIROHA_LDDLA_PHY) += airoha_lddla.o
@@ -159,7 +159,7 @@ index b29a659cb..4272b0271 100644
 +
 +semtech_gn25l95-$(CONFIG_GN25L95_PHY) += gn25l95.o
 diff --git a/drivers/net/phy/airoha/airoha_lddla.c b/drivers/net/phy/airoha/airoha_lddla.c
-index 0277ed49e..0127ead00 100644
+index 0277ed49e760..0127ead00097 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.c
 +++ b/drivers/net/phy/airoha/airoha_lddla.c
 @@ -1,7 +1,7 @@
@@ -268,7 +268,7 @@ index 0277ed49e..0127ead00 100644
  MODULE_AUTHOR("Benjamin Larsson <benjamin.larsson@genexis.eu>");
  MODULE_LICENSE("GPL");
 diff --git a/drivers/net/phy/airoha/airoha_lddla.h b/drivers/net/phy/airoha/airoha_lddla.h
-index a0207c4cb..6b9cbe585 100644
+index a0207c4cb0e3..6b9cbe58599d 100644
 --- a/drivers/net/phy/airoha/airoha_lddla.h
 +++ b/drivers/net/phy/airoha/airoha_lddla.h
 @@ -1,16 +1,15 @@
@@ -326,7 +326,7 @@ index a0207c4cb..6b9cbe585 100644
   * @lock: serialises every I2C transaction so the multi-step shared-ADC
 diff --git a/drivers/net/phy/airoha/gn25l95.c b/drivers/net/phy/airoha/gn25l95.c
 new file mode 100644
-index 000000000..7ac5d5402
+index 000000000000..7ac5d5402e0c
 --- /dev/null
 +++ b/drivers/net/phy/airoha/gn25l95.c
 @@ -0,0 +1,443 @@

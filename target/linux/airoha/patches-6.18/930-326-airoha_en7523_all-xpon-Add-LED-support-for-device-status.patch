@@ -15,7 +15,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 46 insertions(+)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 5d909fd29..73de8ab5a 100644
+index 5d909fd29824..73de8ab5a38d 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -2349,6 +2349,8 @@ static void airoha_xpon_phy_link_work_fn(struct work_struct *work)
@@ -28,7 +28,7 @@ index 5d909fd29..73de8ab5a 100644
  	if (changed)
  		dev_info(priv->dev,
 diff --git a/net/xpon/core.c b/net/xpon/core.c
-index c3d3ad0cb..8a0e09994 100644
+index c3d3ad0cb378..8a0e0999429f 100644
 --- a/net/xpon/core.c
 +++ b/net/xpon/core.c
 @@ -95,6 +95,12 @@ xpon_device_register(struct device *parent,
@@ -53,7 +53,7 @@ index c3d3ad0cb..8a0e09994 100644
  	return xpon;
  }
 diff --git a/net/xpon/internal.h b/net/xpon/internal.h
-index 8ca207f48..bb9002a07 100644
+index 8ca207f48d16..bb9002a07c21 100644
 --- a/net/xpon/internal.h
 +++ b/net/xpon/internal.h
 @@ -46,6 +46,7 @@ int xpon_sysfs_register(struct xpon_device *xpon);
@@ -65,7 +65,7 @@ index 8ca207f48..bb9002a07 100644
  		      const struct xpon_state *state);
  
 diff --git a/net/xpon/leds.c b/net/xpon/leds.c
-index 57059e108..304edcfeb 100644
+index 57059e108690..304edcfebe7e 100644
 --- a/net/xpon/leds.c
 +++ b/net/xpon/leds.c
 @@ -1,5 +1,6 @@

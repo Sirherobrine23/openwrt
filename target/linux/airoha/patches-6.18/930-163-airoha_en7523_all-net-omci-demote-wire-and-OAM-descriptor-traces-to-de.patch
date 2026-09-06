@@ -18,7 +18,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 31 insertions(+), 31 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 5be8493b4..6cadc4691 100644
+index 5be8493b4a33..6cadc46910d6 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -1604,8 +1604,8 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
@@ -44,7 +44,7 @@ index 5be8493b4..6cadc4691 100644
  					msg0, msg1, msg2, msg3, sport, channel,
  					gem_port_id,
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index f50d2c07a..fdd4f5d54 100644
+index f50d2c07ab56..fdd4f5d543ff 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -3533,7 +3533,7 @@ static void omci_agent_log_wire(struct omci_device *odev,

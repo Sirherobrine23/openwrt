@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 20 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/phy/mediatek/Kconfig b/drivers/net/phy/mediatek/Kconfig
-index 0bf07d379..ab10dbfe4 100644
+index 0bf07d379fa4..ab10dbfe4488 100644
 --- a/drivers/net/phy/mediatek/Kconfig
 +++ b/drivers/net/phy/mediatek/Kconfig
 @@ -1,14 +1,14 @@
@@ -32,7 +32,7 @@ index 0bf07d379..ab10dbfe4 100644
  
  config MEDIATEK_2P5GE_PHY
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index ce5331531..8f124ea67 100644
+index ce5331531d60..8f124ea67130 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -2247,6 +2247,22 @@ static int an7583_phy_config_init(struct phy_device *phydev)
@@ -67,7 +67,7 @@ index ce5331531..8f124ea67 100644
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7581) },
  	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7583) },
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
-index 43760a13a..f1f27489d 100644
+index 43760a13ab50..f1f27489db9b 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.h
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
 @@ -7,6 +7,7 @@

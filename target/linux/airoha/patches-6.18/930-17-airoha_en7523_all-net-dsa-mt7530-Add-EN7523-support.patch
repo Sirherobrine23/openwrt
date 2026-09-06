@@ -14,7 +14,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 53 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/net/dsa/mt7530-mmio.c b/drivers/net/dsa/mt7530-mmio.c
-index 1dc8b93fb..bc076ef64 100644
+index 1dc8b93fb51a..bc076ef64fa0 100644
 --- a/drivers/net/dsa/mt7530-mmio.c
 +++ b/drivers/net/dsa/mt7530-mmio.c
 @@ -11,6 +11,7 @@
@@ -26,7 +26,7 @@ index 1dc8b93fb..bc076ef64 100644
  	{ .compatible = "airoha,en7581-switch", .data = &mt753x_table[ID_EN7581], },
  	{ .compatible = "mediatek,mt7988-switch", .data = &mt753x_table[ID_MT7988], },
 diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
-index 2a70fa4b5..2e3672b0a 100644
+index 2a70fa4b5fa3..2e3672b0a079 100644
 --- a/drivers/net/dsa/mt7530.c
 +++ b/drivers/net/dsa/mt7530.c
 @@ -1287,7 +1287,8 @@ mt753x_cpu_port_enable(struct dsa_switch *ds, int port)
@@ -83,7 +83,7 @@ index 2a70fa4b5..2e3672b0a 100644
  EXPORT_SYMBOL_GPL(mt753x_table);
  
 diff --git a/drivers/net/dsa/mt7530.h b/drivers/net/dsa/mt7530.h
-index 7e47cd9af..8103e5feb 100644
+index 7e47cd9af256..8103e5feb074 100644
 --- a/drivers/net/dsa/mt7530.h
 +++ b/drivers/net/dsa/mt7530.h
 @@ -21,6 +21,7 @@ enum mt753x_id {

@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/net/optical/airoha/airoha_lddla_core.c b/drivers/net/optical/airoha/airoha_lddla_core.c
-index 234e8f106..8e10b3270 100644
+index 234e8f106da8..8e10b3270f90 100644
 --- a/drivers/net/optical/airoha/airoha_lddla_core.c
 +++ b/drivers/net/optical/airoha/airoha_lddla_core.c
 @@ -278,7 +278,7 @@ static int lddla_bob_import(struct airoha_lddla *lddla, const u8 *data,

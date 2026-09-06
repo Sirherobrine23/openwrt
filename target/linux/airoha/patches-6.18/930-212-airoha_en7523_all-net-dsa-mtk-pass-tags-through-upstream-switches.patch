@@ -9,7 +9,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 7 insertions(+)
 
 diff --git a/net/dsa/tag_mtk.c b/net/dsa/tag_mtk.c
-index bf5a99d80..cb85c98f6 100644
+index bf5a99d8037c..cb85c98f675c 100644
 --- a/net/dsa/tag_mtk.c
 +++ b/net/dsa/tag_mtk.c
 @@ -19,6 +19,7 @@

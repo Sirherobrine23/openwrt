@@ -37,7 +37,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 57 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 1ca345b0a..b07065cab 100644
+index 1ca345b0a66e..b07065cab9ed 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -1642,6 +1642,23 @@ static void gpon_cb_set_onu_id(void *hw_priv, u8 onu_id)
@@ -97,7 +97,7 @@ index 1ca345b0a..b07065cab 100644
  	case GPON_O3_SERIAL_NUMBER:
  	case GPON_O4_RANGING:
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index c3239dfa3..899ea260e 100644
+index c3239dfa3e69..899ea260ead6 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -71,6 +71,7 @@
@@ -152,7 +152,7 @@ index c3239dfa3..899ea260e 100644
  	struct phy *phy, enum airoha_xpon_phy_gpon_oper_state state)
  {
 diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
-index 551b6a7ea..6f1a2ea70 100644
+index 551b6a7eac47..6f1a2ea70bfb 100644
 --- a/include/linux/phy/phy-airoha-xpon.h
 +++ b/include/linux/phy/phy-airoha-xpon.h
 @@ -39,5 +39,6 @@ int airoha_xpon_phy_set_gpon_extended_preamble(struct phy *phy,

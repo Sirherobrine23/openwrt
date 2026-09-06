@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 532 insertions(+), 33 deletions(-)
 
 diff --git a/drivers/net/phy/mediatek/Kconfig b/drivers/net/phy/mediatek/Kconfig
-index fe51f4616..0bf07d379 100644
+index fe51f4616c54..0bf07d379fa4 100644
 --- a/drivers/net/phy/mediatek/Kconfig
 +++ b/drivers/net/phy/mediatek/Kconfig
 @@ -1,7 +1,6 @@
@@ -23,7 +23,7 @@ index fe51f4616..0bf07d379 100644
  	select MTK_NET_PHYLIB
  	select PHY_PACKAGE
 diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
-index 601a64d83..ce5331531 100644
+index 601a64d83365..ce5331531d60 100644
 --- a/drivers/net/phy/mediatek/airoha-ge-soc.c
 +++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
 @@ -1,5 +1,6 @@
@@ -786,7 +786,7 @@ index 601a64d83..ce5331531 100644
  
  MODULE_DEVICE_TABLE(mdio, airoha_socphy_tbl);
 diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
-index 834b61dbc..43760a13a 100644
+index 834b61dbc690..43760a13ab50 100644
 --- a/drivers/net/phy/mediatek/mtk-ge-soc.h
 +++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
 @@ -7,6 +7,7 @@

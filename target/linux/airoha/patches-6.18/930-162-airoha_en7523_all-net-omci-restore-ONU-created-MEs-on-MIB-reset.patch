@@ -24,7 +24,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 43 insertions(+), 24 deletions(-)
 
 diff --git a/net/omci/agent.c b/net/omci/agent.c
-index 70a48d48d..f50d2c07a 100644
+index 70a48d48d859..f50d2c07ab56 100644
 --- a/net/omci/agent.c
 +++ b/net/omci/agent.c
 @@ -2308,8 +2308,46 @@ static void omci_agent_reset_olt_objects_locked(struct omci_agent *agent)

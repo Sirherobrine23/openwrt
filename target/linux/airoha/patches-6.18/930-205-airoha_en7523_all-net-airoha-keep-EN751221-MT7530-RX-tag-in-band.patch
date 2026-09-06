@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 14 insertions(+), 71 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/econet_eth.c b/drivers/net/ethernet/airoha/econet_eth.c
-index 3479e655c..f9e4a02d8 100644
+index 3479e655cb7f..f9e4a02d894f 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.c
 +++ b/drivers/net/ethernet/airoha/econet_eth.c
 @@ -166,7 +166,6 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
@@ -145,7 +145,7 @@ index 3479e655c..f9e4a02d8 100644
  	skb->protocol = eth_type_trans(skb, port);
  
 diff --git a/drivers/net/ethernet/airoha/econet_eth.h b/drivers/net/ethernet/airoha/econet_eth.h
-index d4d1a92fb..87aee88fd 100644
+index d4d1a92fbb05..87aee88fd725 100644
 --- a/drivers/net/ethernet/airoha/econet_eth.h
 +++ b/drivers/net/ethernet/airoha/econet_eth.h
 @@ -3336,7 +3336,7 @@ struct econet_eth {

@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  4 files changed, 153 insertions(+), 7 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 73de8ab5a..a754632f3 100644
+index 73de8ab5a38d..a754632f3e5f 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -22,6 +22,7 @@
@@ -177,7 +177,7 @@ index 73de8ab5a..a754632f3 100644
  		goto err_cleanup_mode;
  	}
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
-index 74b3889ef..50f024cd9 100644
+index 74b3889ef37e..50f024cd9f4a 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.h
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.h
 @@ -103,6 +103,8 @@ struct airoha_xpon_match_data {
@@ -190,7 +190,7 @@ index 74b3889ef..50f024cd9 100644
  #define GPON_DBG_BWM_FILTER_CTRL	0x220
  #define GPON_DBG_BWM_SFIFO_STS	0x224
 diff --git a/drivers/net/optical/airoha/airoha_lddla_core.c b/drivers/net/optical/airoha/airoha_lddla_core.c
-index 7aff4e9ef..f29064ba8 100644
+index 7aff4e9ef337..f29064ba86c3 100644
 --- a/drivers/net/optical/airoha/airoha_lddla_core.c
 +++ b/drivers/net/optical/airoha/airoha_lddla_core.c
 @@ -567,6 +567,38 @@ airoha_lddla_frontend_get_state(struct optical_frontend *frontend,
@@ -241,7 +241,7 @@ index 7aff4e9ef..f29064ba8 100644
  };
  
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index cad92d116..67e3cb48d 100644
+index cad92d116810..67e3cb48df5b 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -75,6 +75,7 @@

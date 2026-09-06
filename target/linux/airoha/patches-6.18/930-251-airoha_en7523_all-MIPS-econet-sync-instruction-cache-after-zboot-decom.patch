@@ -10,7 +10,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  1 file changed, 40 insertions(+), 1 deletion(-)
 
 diff --git a/arch/mips/boot/compressed/decompress.c b/arch/mips/boot/compressed/decompress.c
-index 90021c6a8..b605fc306 100644
+index 90021c6a8cab..b605fc3065ff 100644
 --- a/arch/mips/boot/compressed/decompress.c
 +++ b/arch/mips/boot/compressed/decompress.c
 @@ -71,6 +71,34 @@ void error(char *x)

@@ -13,7 +13,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 116 insertions(+), 1 deletion(-)
 
 diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
-index e07445120..2b42091f7 100644
+index e07445120b4e..2b42091f7112 100644
 --- a/arch/mips/boot/dts/econet/en751221.dtsi
 +++ b/arch/mips/boot/dts/econet/en751221.dtsi
 @@ -50,6 +50,9 @@ xpon_phy: phy@1faf0000 {
@@ -41,7 +41,7 @@ index e07445120..2b42091f7 100644
  	};
  
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index a06d9ac42..54e3c391c 100644
+index a06d9ac4221e..54e3c391cf73 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -25,7 +25,7 @@

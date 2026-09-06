@@ -19,7 +19,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 92 insertions(+), 30 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.c b/drivers/net/ethernet/airoha/airoha_ploam.c
-index 43a90f7f4..3484719b1 100644
+index 43a90f7f4787..3484719b16a4 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.c
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.c
 @@ -473,7 +473,12 @@ static void handle_configure_port_id(struct ploam_priv *pp,
@@ -37,7 +37,7 @@ index 43a90f7f4..3484719b1 100644
  send_ack:
  	ploam_make_dm_bytes(dm_bytes, onu_id, type, c);
 diff --git a/drivers/net/ethernet/airoha/airoha_ploam.h b/drivers/net/ethernet/airoha/airoha_ploam.h
-index e8a0b8ce1..b01277b89 100644
+index e8a0b8ce16a0..b01277b89484 100644
 --- a/drivers/net/ethernet/airoha/airoha_ploam.h
 +++ b/drivers/net/ethernet/airoha/airoha_ploam.h
 @@ -105,7 +105,8 @@ struct ploam_msg {
@@ -60,7 +60,7 @@ index e8a0b8ce1..b01277b89 100644
  	void (*set_alloc_id)(void *priv, u16 alloc_id, bool allocate);
  	void (*state_changed)(void *priv, enum gpon_state state);
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 0b4e1c1fb..6194a9aa0 100644
+index 0b4e1c1fbc4c..6194a9aa0630 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -998,10 +998,33 @@ static int gpon_set_tcont_hw(struct gpon_priv *priv, unsigned int index,

@@ -20,7 +20,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 101 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 1a61beb2a..f18e6f79c 100644
+index 1a61beb2ae8b..f18e6f79cd7f 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -369,6 +369,71 @@ void airoha_eth_xpon_set_carrier(struct net_device *netdev, bool up)
@@ -117,7 +117,7 @@ index 1a61beb2a..f18e6f79c 100644
  			   (msg0 & EN7523_QDMA_ETH_RXMSG_OAM_MASK);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 6090e776f..7e102ffb1 100644
+index 6090e776ff3a..7e102ffb1cef 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -842,6 +842,7 @@ void airoha_eth_unregister_xpon(struct net_device *netdev,
@@ -129,7 +129,7 @@ index 6090e776f..7e102ffb1 100644
  				 struct airoha_xpon_oam_handler *handler);
  void airoha_eth_unregister_xpon_oam(struct net_device *netdev,
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index f8365e6a5..c44516aac 100644
+index f8365e6a51cd..c44516aac851 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -461,6 +461,8 @@ static void airoha_xpon_phy_stop(struct device *dev, struct phy *phy,

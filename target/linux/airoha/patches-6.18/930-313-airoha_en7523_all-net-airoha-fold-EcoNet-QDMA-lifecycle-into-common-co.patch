@@ -12,7 +12,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  2 files changed, 237 insertions(+), 230 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
-index 7aeb33ac2..48faa6f8b 100644
+index 7aeb33ac20d1..48faa6f8bf3a 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth.c
 @@ -60,6 +60,10 @@
@@ -704,7 +704,7 @@ index 7aeb33ac2..48faa6f8b 100644
  	.version = airoha_en7581,
  	.xsi_rsts_names = en7581_xsi_rsts_names,
 diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
-index 073e18fc4..a8d4e008f 100644
+index 073e18fc4061..a8d4e008f566 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth.h
 +++ b/drivers/net/ethernet/airoha/airoha_eth.h
 @@ -1180,7 +1180,7 @@ struct airoha_eth_soc_data {

@@ -26,7 +26,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 21 insertions(+), 108 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 8438431d1..c4a80130d 100644
+index 8438431d1891..c4a80130d369 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -553,7 +553,6 @@ static void airoha_xpon_phy_stop(struct device *dev, struct phy *phy,
@@ -249,7 +249,7 @@ index 8438431d1..c4a80130d 100644
  	else {
  		cancel_work_sync(&priv->irq_work);
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index 5913e29c7..fab207355 100644
+index 5913e29c73b1..fab207355974 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -166,25 +166,6 @@ static int airoha_xpon_phy_get_active_gpon(
@@ -279,7 +279,7 @@ index 5913e29c7..fab207355 100644
  					 u32 *frame_count,
  					 u32 *burst_count)
 diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
-index 4728cafec..3621dea50 100644
+index 4728cafec6b8..3621dea5051d 100644
 --- a/include/linux/phy/phy-airoha-xpon.h
 +++ b/include/linux/phy/phy-airoha-xpon.h
 @@ -24,7 +24,6 @@ enum airoha_xpon_phy_gpon_oper_state {

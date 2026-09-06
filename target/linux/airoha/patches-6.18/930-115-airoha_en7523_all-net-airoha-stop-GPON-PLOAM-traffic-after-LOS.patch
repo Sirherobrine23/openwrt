@@ -22,7 +22,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 120 insertions(+), 16 deletions(-)
 
 diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
-index 5a2b2ddd2..cc09b1941 100644
+index 5a2b2ddd2c35..cc09b1941f20 100644
 --- a/drivers/net/ethernet/airoha/airoha_xpon.c
 +++ b/drivers/net/ethernet/airoha/airoha_xpon.c
 @@ -538,6 +538,7 @@ static void airoha_xpon_phy_stop(struct device *dev, struct phy *phy,
@@ -239,7 +239,7 @@ index 5a2b2ddd2..cc09b1941 100644
  	dev_info(dev, "xPON initial mode: %s\n",
  		 airoha_xpon_mode_name(priv->mode));
 diff --git a/drivers/phy/airoha/phy-airoha-xpon.c b/drivers/phy/airoha/phy-airoha-xpon.c
-index fab207355..136c0fc3c 100644
+index fab207355974..136c0fc3c360 100644
 --- a/drivers/phy/airoha/phy-airoha-xpon.c
 +++ b/drivers/phy/airoha/phy-airoha-xpon.c
 @@ -144,6 +144,30 @@ static bool airoha_xpon_phy_los(struct airoha_xpon_phy *priv)
@@ -274,7 +274,7 @@ index fab207355..136c0fc3c 100644
  	struct phy *phy, struct airoha_xpon_phy **privp)
  {
 diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
-index 3621dea50..551b6a7ea 100644
+index 3621dea5051d..551b6a7eac47 100644
 --- a/include/linux/phy/phy-airoha-xpon.h
 +++ b/include/linux/phy/phy-airoha-xpon.h
 @@ -24,6 +24,7 @@ enum airoha_xpon_phy_gpon_oper_state {

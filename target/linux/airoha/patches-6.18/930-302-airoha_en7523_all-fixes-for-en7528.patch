@@ -11,7 +11,7 @@ Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
  3 files changed, 24 insertions(+), 14 deletions(-)
 
 diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
-index 827ad4234..3eff3712a 100644
+index 827ad42342ff..3eff3712ac4e 100644
 --- a/arch/mips/boot/dts/econet/en7528.dtsi
 +++ b/arch/mips/boot/dts/econet/en7528.dtsi
 @@ -480,13 +480,15 @@ eth: ethernet@1fb50000 {
@@ -38,7 +38,7 @@ index 827ad4234..3eff3712a 100644
  
  			#address-cells = <1>;
 diff --git a/drivers/net/ethernet/airoha/airoha_eth_gen1.c b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
-index 05fea691a..e48c4cb28 100644
+index 05fea691ab00..e48c4cb28b6a 100644
 --- a/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 +++ b/drivers/net/ethernet/airoha/airoha_eth_gen1.c
 @@ -201,7 +201,7 @@ static void econet_set_gdm_port_fwd_cfg(struct econet_gdm_port *port,
@@ -78,7 +78,7 @@ index 05fea691a..e48c4cb28 100644
  			struct fwd_cfg fc = econet_rreg(&port->regs->fwd_cfg);
  
 diff --git a/drivers/net/ethernet/airoha/airoha_qdma.c b/drivers/net/ethernet/airoha/airoha_qdma.c
-index cd48b0d73..29141c732 100644
+index cd48b0d73fca..29141c73236c 100644
 --- a/drivers/net/ethernet/airoha/airoha_qdma.c
 +++ b/drivers/net/ethernet/airoha/airoha_qdma.c
 @@ -1306,7 +1306,10 @@ static void econet_init_en751221_qdma(struct econet_qdma *qdma)
