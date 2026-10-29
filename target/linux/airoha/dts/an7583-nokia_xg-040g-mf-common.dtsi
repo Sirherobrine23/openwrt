@@ -14,7 +14,7 @@
 		button-0 {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
-			gpios = <&an7583_pinctrl 0 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
 			debounce-interval = <60>;
 		};
 	};
@@ -25,19 +25,19 @@
 		led-0 {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WAN;
-			gpios = <&an7583_pinctrl 6 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 6 GPIO_ACTIVE_LOW>;
 		};
 
 		led-1 {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_WAN_ONLINE;
-			gpios = <&an7583_pinctrl 7 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
 		};
 
 		led_power_green: led-2 {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_POWER;
-			gpios = <&an7583_pinctrl 25 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 25 GPIO_ACTIVE_LOW>;
 			panic-indicator;
 		};
 
@@ -45,7 +45,7 @@
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_USB;
 			function-enumerator = <1>;
-			gpios = <&an7583_pinctrl 26 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 26 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "usbport";
 			trigger-sources = <&usb_port1>;
 		};
@@ -53,14 +53,14 @@
 		led-4 {
 			color = <LED_COLOR_ID_RED>;
 			function = LED_FUNCTION_WAN;
-			gpios = <&an7583_pinctrl 27 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 27 GPIO_ACTIVE_LOW>;
 		};
 
 		led-5 {
 			color = <LED_COLOR_ID_GREEN>;
 			function = LED_FUNCTION_USB;
 			function-enumerator = <2>;
-			gpios = <&an7583_pinctrl 33 GPIO_ACTIVE_LOW>;
+			gpios = <&pinctrl 33 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "usbport";
 			trigger-sources = <&usb_port2>;
 		};
@@ -78,7 +78,7 @@
 	reg_usb_5v: regulator-usb-5v {
 		compatible = "regulator-fixed";
 		enable-active-high;
-		gpio = <&an7583_pinctrl 30 GPIO_ACTIVE_HIGH>;
+		gpio = <&pinctrl 30 GPIO_ACTIVE_HIGH>;
 		regulator-boot-on;
 		regulator-max-microvolt = <5000000>;
 		regulator-min-microvolt = <5000000>;
@@ -94,8 +94,8 @@
 	};
 };
 
-&an7583_pinctrl {
-	gpio-ranges = <&an7583_pinctrl 0 2 53>;
+&pinctrl {
+	gpio-ranges = <&pinctrl 0 2 53>;
 
 	mdio0_pins: mdio0-pins {
 		mux {
@@ -169,7 +169,7 @@
 		compatible = "ethernet-phy-id03a2.a411";
 		reg = <0xf>;
 
-		reset-gpios = <&an7583_pinctrl 34 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&pinctrl 34 GPIO_ACTIVE_LOW>;
 		reset-assert-us = <10000>;
 		reset-deassert-us = <20000>;
 

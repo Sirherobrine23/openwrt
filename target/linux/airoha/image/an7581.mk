@@ -67,6 +67,7 @@ endef
 TARGET_DEVICES += airoha_an7581-evb
 
 define Device/airoha_an7581-evb-emmc-eagle
+  $(call Device/FitImageLzma)
   DEVICE_VENDOR := Airoha
   DEVICE_MODEL := AN7581 Evaluation Board (eMMC + Eagle)
   DEVICE_DTS := an7581-evb-emmc-eagle
@@ -79,6 +80,7 @@ endef
 TARGET_DEVICES += airoha_an7581-evb-emmc-eagle
 
 define Device/airoha_an7581-evb-emmc-kite
+  $(call Device/FitImageLzma)
   DEVICE_VENDOR := Airoha
   DEVICE_MODEL := AN7581 Evaluation Board (eMMC + Kite)
   DEVICE_DTS := an7581-evb-emmc-kite
@@ -129,6 +131,7 @@ endef
 TARGET_DEVICES += gemtek_w1700k-ubi
 
 define Device/nokia_valyrian
+  $(call Device/FitImageLzma)
   DEVICE_VENDOR := Nokia
   DEVICE_MODEL := Valyrian
   DEVICE_DTS := an7581-nokia-valyrian
@@ -156,6 +159,7 @@ define Device/nokia_xg-040g-md-common
 endef
 
 define Device/nokia_xg-040g-md
+  $(call Device/FitImageLzma)
   $(call Device/nokia_xg-040g-md-common)
   DEVICE_DTS := an7581-nokia_xg-040g-md
   DEVICE_DTS_CONFIG := config@1

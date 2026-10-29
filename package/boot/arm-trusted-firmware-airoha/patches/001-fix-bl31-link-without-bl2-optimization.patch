@@ -1,0 +1,25 @@
+diff --git a/make_helpers/build_macros.mk b/make_helpers/build_macros.mk
+index 9f92011..d57e663 100644
+--- a/make_helpers/build_macros.mk
++++ b/make_helpers/build_macros.mk
+@@ -684,6 +684,12 @@ else
+ 		$(sort $(OBJS)) $(LDPATHS) $(LIBWRAPPER) $(LDLIBS) $(BL_LIBS)
+ endif
+ else
++ifeq ($(1),bl31)
++	$$(Q)$$(LD) -o $$@ $$(TF_LDFLAGS) $$(LDFLAGS) $(BL_LDFLAGS) -Map=$(MAPFILE) \
++		$(addprefix -T ,$(LINKER_SCRIPTS)) --script $(DEFAULT_LINKER_SCRIPT) \
++		$(BUILD_DIR)/build_message.o \
++		$(sort $(OBJS) $(UNOPEN_OBJS)) $(LDPATHS) $(LIBWRAPPER) $(LDLIBS) $(BL_LIBS)
++else
+ ifneq ($(TCSUPPORT_BB_FIX_UNOPEN),0)
+ 	$$(Q)$$(LD) -o $$@ $$(TF_LDFLAGS) $$(LDFLAGS) $(BL_LDFLAGS) -Map=$(MAPFILE) \
+ 		--script $(LINKERFILE) $(BUILD_DIR)/build_message.o \
+@@ -701,6 +707,7 @@ else
+ 	fi
+ endif
+ endif
++endif
+ else
+ 	$$(Q)$$(LD) -o $$@ $$(TF_LDFLAGS) $$(LDFLAGS) $(BL_LDFLAGS) -Map=$(MAPFILE) \
+ 		$(addprefix -T ,$(LINKER_SCRIPTS)) --script $(DEFAULT_LINKER_SCRIPT) \

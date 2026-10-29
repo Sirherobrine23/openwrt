@@ -255,6 +255,7 @@ define Build/Prepare
 	# its files win over the matching upstream ones.
 	$(eval $(call Download,atf-airoha))
 	$(TAR) -C $(PKG_BUILD_DIR) --strip-components=1 -xf $(DL_DIR)/$(FILE)
+	$(Build/Patch)
 endef
 
 define Build/Compile/bl1
