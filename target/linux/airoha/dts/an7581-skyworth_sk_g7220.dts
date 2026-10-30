@@ -1,0 +1,400 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+
+#include "an7581.dtsi"
+#include "an7581-npu-mt7996.dtsi"
+
+/ {
+	model = "Skyworth SK-G7220";
+	compatible = "skyworth,sk-g7220", "airoha,an7581";
+
+	aliases {
+		serial0 = &uart1;
+		led-boot = &led_power;
+		led-failsafe = &led_power;
+		led-running = &led_power;
+		led-upgrade = &led_power;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0x10000000>;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_power: led-power {
+			gpios = <&pinctrl 17 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <17>;
+			default-state = "on";
+		};
+
+		xpon_status: led-pon {
+			gpios = <&pinctrl 18 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_XPON;
+			function-enumerator = <18>;
+		};
+
+		los: led-los {
+			gpios = <&pinctrl 19 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_XPON_LOS;
+			function-enumerator = <19>;
+		};
+
+		led-internet {
+			gpios = <&pinctrl 20 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WAN;
+			function-enumerator = <20>;
+		};
+
+		led-voip {
+			gpios = <&pinctrl 23 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_VOIP;
+			function-enumerator = <23>;
+		};
+
+		led-wps {
+			gpios = <&pinctrl 25 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_WPS;
+			function-enumerator = <25>;
+		};
+
+		led-usb {
+			gpios = <&pinctrl 27 GPIO_ACTIVE_LOW>;
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_USB;
+			function-enumerator = <27>;
+		};
+	};
+
+	keys {
+		/* OEM firmware polls these pins every 100 ms. */
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
+
+		key-reset {
+			label = "reset";
+			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+
+		key-wps {
+			label = "wps";
+			gpios = <&pinctrl 22 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+		};
+	};
+};
+
+&pinctrl {
+	mdio_pins: mdio-pins {
+		mux {
+			function = "mdio";
+			groups = "mdio";
+		};
+	};
+
+	/*
+	 * OEM second GPIO bank, line 9 => GPIO line 41.
+	 * The stock firmware exposes this signal as "phy_tx_ben" and
+	 * configures it high by default. It is NOT an indicator LED.
+	 * WARNING: output-high actively drives the line; confirm the
+	 * board circuitry and burst control before connecting the PON.
+	 */
+	pon_tx_ben_hog: pon-tx-burst-enable-hog {
+		gpio-hog;
+		gpios = <41 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "pon-tx-burst-enable";
+	};
+};
+
+&snfi {
+	status = "okay";
+};
+
+&spi_nand {
+	/* OEM partition layout; do not flash a normal OpenWrt sysupgrade. */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00080000>;
+			read-only;
+		};
+
+		partition@80000 {
+			label = "tclinux";
+			reg = <0x00080000 0x03c00000>;
+			read-only;
+		};
+
+		partition@3c80000 {
+			label = "tclinux_slave";
+			reg = <0x03c80000 0x03c00000>;
+			read-only;
+		};
+
+		partition@7880000 {
+			label = "rootfs_data";
+			reg = <0x07880000 0x00800000>;
+			read-only;
+		};
+
+		partition@8080000 {
+			label = "ubifs";
+			reg = <0x08080000 0x02000000>;
+			read-only;
+		};
+
+		partition@a080000 {
+			label = "others";
+			reg = <0x0a080000 0x00200000>;
+			read-only;
+		};
+
+		/*
+		 * mtd10 matches the full-flash dump at 0x0dc80000, byte-for-byte.
+		 * The OEM DTB used a dynamic offset of 0xffffffff, so its
+		 * node name is NOT reliable for the real start address.
+		 * Keep board-specific calibration and identity data read-only.
+		 * An unused 58 MiB gap precedes this partition; do not
+		 * reclaim it without validating the OEM bootloader layout.
+		 */
+		partition@dc80000 {
+			label = "art";
+			reg = <0x0dc80000 0x00380000>;
+			read-only;
+
+			nvmem-layout {
+				compatible = "fixed-layout";
+				#address-cells = <1>;
+				#size-cells = <1>;
+
+				macaddr: macaddr@4f100 {
+					reg = <0x000000 0x11>;
+					compatible = "mac-base";
+					#nvmem-cell-cells = <1>;
+				};
+
+				eeprom: eeprom@80000 {
+					reg = <0x040000 0x1000>;
+				};
+
+				bob_calibration: bob_calibration@c0000 {
+					reg = <0x260000 0xff>;
+				};
+			};
+		};
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+
+	nvmem-cells = <&macaddr 0>;
+	nvmem-cell-names = "mac-address";
+};
+
+&i2c0 {
+	status = "okay";
+
+	pon_bob: bob@70 {
+		compatible = "airoha,en7571";
+		reg = <0x70>;
+
+		nvmem-cells = <&bob_calibration>;
+		nvmem-cell-names = "calibration";
+
+		#optical-frontend-cells = <0>;
+	};
+};
+
+&xpon_phy {
+	status = "okay";
+};
+
+&xpon {
+	status = "okay";
+
+	optical-frontends = <&pon_bob>;
+	optical-frontend-names = "pon";
+
+	leds = <&xpon_status>, <&los>;
+	led-names = "pon", "los";
+};
+
+&gdm2 {
+	status = "okay";
+	phy-mode = "internal";
+
+	nvmem-cells = <&macaddr 0>;
+	nvmem-cell-names = "mac-address";
+
+	/delete-property/ pcs-handle;
+
+	openwrt,netdev-name = "pon0";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&pcie2 {
+	status = "okay";
+};
+
+&pcie1_slot1 {
+	mt7992@0,0 {
+		reg = <0x0000 0 0 0 0>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		nvmem-cells = <&eeprom>;
+		nvmem-cell-names = "eeprom";
+
+		airoha,npu = <&npu>;
+		airoha,eth = <&eth>;
+
+		band@0 {
+			/* 2.4 GHz */
+			reg = <0>;
+			nvmem-cells = <&macaddr 1>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		band@1 {
+			/* 5 GHz */
+			reg = <1>;
+			nvmem-cells = <&macaddr 2>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		band@2 {
+			/* 6 GHz */
+			reg = <2>;
+			nvmem-cells = <&macaddr 3>;
+			nvmem-cell-names = "mac-address";
+		};
+	};
+};
+
+&usb0 {
+	status = "okay";
+};
+
+&usb1 {
+	status = "okay";
+};
+
+&switch {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mdio_pins>;
+
+	status = "okay";
+};
+
+&gsw_port2 {
+	label = "lan2";
+	status = "okay";
+};
+
+&gsw_port3 {
+	label = "lan3";
+	status = "okay";
+};
+
+&gsw_port4 {
+	label = "lan4";
+	status = "okay";
+};
+
+&gsw_phy2 {
+	status = "okay";
+};
+
+&gsw_phy3 {
+	status = "okay";
+};
+
+&gsw_phy4 {
+	status = "okay";
+	color = <LED_COLOR_ID_BLUE>;
+};
+
+&gsw_phy2_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_BLUE>;
+};
+
+&gsw_phy3_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_BLUE>;
+};
+
+&gsw_phy4_led0 {
+	status = "okay";
+	color = <LED_COLOR_ID_BLUE>;
+};
+
+&mdio {
+	en8811h: ethernet-phy@f {
+		compatible = "ethernet-phy-id03a2.a411";
+		reg = <0xf>;
+
+		reset-gpios = <&pinctrl 31 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <10000>;
+		reset-deassert-us = <20000>;
+
+		leds {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			led-0 {
+				reg = <0>;
+				color = <LED_COLOR_ID_BLUE>;
+				function = LED_FUNCTION_LAN;
+				function-enumerator = <1>;
+				default-state = "keep";
+			};
+		};
+	};
+};
+
+&gdm4 {
+	status = "okay";
+
+	phy-mode = "2500base-x";
+	phy-handle = <&en8811h>;
+
+	nvmem-cells = <&macaddr 0>;
+	nvmem-cell-names = "mac-address";
+
+	openwrt,netdev-name = "lan1";
+};
