@@ -1,0 +1,57 @@
+Subject: [PATCH] wifi: mt76: request the radio-specific NPU firmware before setup
+
+Apply after experimental patches 172, 173 and 174. Acquire and boot the NPU
+for the detected radio before programming mailbox, memory or DMA rings.
+Keep the existing SDK-24 RX descriptor format and transport restrictions.
+
+diff --git a/mt7915/npu.c b/mt7915/npu.c
+--- a/mt7915/npu.c
++++ b/mt7915/npu.c
+@@ -293,6 +293,7 @@
+ 	/* The transport owns this device, independently of mt76 DMA setup. */
+ 	if (priv->napi_dev)
+ 		free_netdev(priv->napi_dev);
++	priv->napi_dev = NULL;
+ 
+ 	if (retain) {
+ 		/* A mailbox ACK alone does not prove that all DMA writes are drained. */
+@@ -343,7 +344,8 @@
+ 		return dev_err_probe(device, -EINVAL,
+ 				     "NPU RX requires the explicit sdk-24 firmware ABI\n");
+ 
+-	npu = airoha_npu_get(device);
++	npu = airoha_npu_wlan_get(device, is_mt7915(&dev->mt76) ?
++				   AIROHA_NPU_WLAN_MT7915 : AIROHA_NPU_WLAN_MT7916);
+ 	if (IS_ERR(npu))
+ 		return PTR_ERR(npu);
+ 
+diff --git a/npu.c b/npu.c
+--- a/npu.c
++++ b/npu.c
+@@ -476,14 +476,24 @@
+ {
+ 	struct airoha_ppe_dev *ppe_dev;
+ 	struct airoha_npu *npu;
++	enum airoha_npu_wlan_chip chip;
+ 	int err = 0;
+ 
++	if (is_mt7996(dev))
++		chip = AIROHA_NPU_WLAN_MT7996;
++	else if (is_mt7992(dev))
++		chip = AIROHA_NPU_WLAN_MT7992;
++	else if (is_mt7990(dev))
++		chip = AIROHA_NPU_WLAN_MT7990;
++	else
++		return -EOPNOTSUPP;
++
+ 	mutex_lock(&dev->mutex);
+ 
+-	npu = airoha_npu_get(dev->dev);
++	npu = airoha_npu_wlan_get(dev->dev, chip);
+ 	if (IS_ERR(npu)) {
+ 		request_module("airoha-npu");
+-		npu = airoha_npu_get(dev->dev);
++		npu = airoha_npu_wlan_get(dev->dev, chip);
+ 	}
+ 
+ 	if (IS_ERR(npu)) {

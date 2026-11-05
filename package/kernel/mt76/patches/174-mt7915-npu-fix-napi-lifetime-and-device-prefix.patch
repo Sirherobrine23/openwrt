@@ -1,0 +1,83 @@
+From: Sirherobrine23 <sirherobrine23@users.noreply.github.com>
+Subject: [PATCH] mt7915: fix experimental NPU NAPI ownership and device layout
+
+NPU setup runs before mt76_init_queues() allocates mt76.napi_dev.
+Allocate a private dummy netdev for the NPU NAPI instances and free it
+after removing them, including on initialization failure.
+
+Keep the mt76/mphy union at offset zero and assert this layout at build
+time. Moving it breaks private-data aliases used by mt76/mac80211.
+
+diff --git a/mt7915/mt7915.h b/mt7915/mt7915.h
+--- a/mt7915/mt7915.h
++++ b/mt7915/mt7915.h
+@@ -256,11 +256,12 @@
+ };
+ 
+ struct mt7915_dev {
+-	struct mt7915_npu *npu;
+ 	union { /* must be first */
+ 		struct mt76_dev mt76;
+ 		struct mt76_phy mphy;
+ 	};
++
++	struct mt7915_npu *npu;
+ 
+ 	struct mt7915_hif *hif2;
+ 	struct mt7915_reg_desc reg;
+@@ -342,6 +343,10 @@
+ 	void __iomem *dcm;
+ 	void __iomem *sku;
+ };
++
++/* mt76/mac80211 private data aliases the first union of this structure. */
++static_assert(offsetof(struct mt7915_dev, mt76) == 0);
++static_assert(offsetof(struct mt7915_dev, mphy) == 0);
+ 
+ enum {
+ 	WFDMA0 = 0x0,
+diff --git a/mt7915/npu.c b/mt7915/npu.c
+--- a/mt7915/npu.c
++++ b/mt7915/npu.c
+@@ -55,6 +55,7 @@
+ 
+ struct mt7915_npu {
+ 	struct airoha_npu *npu;
++	struct net_device *napi_dev;
+ 	struct mt7915_npu_queue q[2];
+ 	void *ba;
+ 	dma_addr_t ba_dma;
+@@ -288,6 +289,10 @@
+ 					  MT7915_NPU_BUF_SIZE * MT7915_NPU_DESC_NUM,
+ 					  q->buf, q->buf_dma);
+ 	}
++
++	/* The transport owns this device, independently of mt76 DMA setup. */
++	if (priv->napi_dev)
++		free_netdev(priv->napi_dev);
+ 
+ 	if (retain) {
+ 		/* A mailbox ACK alone does not prove that all DMA writes are drained. */
+@@ -404,6 +409,13 @@
+ 		}
+ 	}
+ 
++	/* mt76 creates its napi_dev later, in mt76_init_queues(). */
++	priv->napi_dev = alloc_netdev_dummy(0);
++	if (!priv->napi_dev) {
++		err = -ENOMEM;
++		goto cleanup;
++	}
++
+ 	priv->ba = dma_alloc_coherent(npu->dev, MT7915_NPU_BA_SIZE,
+ 				      &priv->ba_dma, GFP_KERNEL);
+ 	if (!priv->ba) {
+@@ -441,7 +453,7 @@
+ 		for (j = 0; j < MT7915_NPU_DESC_NUM; j++)
+ 			q->desc[j].addr = lower_32_bits(q->buf_dma + j * MT7915_NPU_BUF_SIZE);
+ 
+-		netif_napi_add(dev->mt76.napi_dev, &q->napi, mt7915_npu_poll);
++		netif_napi_add(priv->napi_dev, &q->napi, mt7915_npu_poll);
+ 		q->napi_added = true;
+ 		err = request_irq(q->irq, mt7915_npu_irq, IRQF_SHARED,
+ 				  "mt7915-npu-rx", q);

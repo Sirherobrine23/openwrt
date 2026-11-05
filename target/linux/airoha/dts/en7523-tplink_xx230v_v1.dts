@@ -247,6 +247,10 @@ New Maping:
 		airoha,npu = <&npu>;
 		airoha,eth = <&eth>;
 
+		airoha,npu-rx-abi = "sdk-24";
+		airoha,npu-driver-model = <0>;
+		airoha,npu-port-type = <1>;
+
 		// 2.4 GHz
 		band@0 {
 			reg = <0>;
@@ -263,6 +267,12 @@ New Maping:
 	};
 };
 
+&npu {
+	status = "okay";
+
+	airoha,wlan-firmware-abi = "xx530v-mt7915";
+};
+
 &eth {
 	status = "okay";
 };
@@ -276,7 +286,7 @@ New Maping:
 
 		nvmem-cells = <&en7571_bob>;
 		nvmem-cell-names = "calibration";
-		
+
 		#optical-frontend-cells = <0>;
 	};
 };

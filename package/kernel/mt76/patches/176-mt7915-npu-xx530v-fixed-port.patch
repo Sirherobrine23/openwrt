@@ -1,0 +1,42 @@
+--- a/mt7915/npu.c
++++ b/mt7915/npu.c
+@@ -320,7 +320,7 @@
+ 		WLAN_FUNC_SET_WAIT_NPU_INIT_DONE, WLAN_FUNC_SET_WAIT_BA_WIN_SIZE,
+ 		WLAN_FUNC_SET_WAIT_DRIVER_MODEL, WLAN_FUNC_SET_WAIT_DEL_STA,
+ 		WLAN_FUNC_SET_WAIT_DRAM_BA_NODE_ADDR, WLAN_FUNC_SET_WAIT_PKT_BUF_ADDR,
+-		WLAN_FUNC_SET_WAIT_IS_FORCE_TO_CPU, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
++		WLAN_FUNC_SET_WAIT_IS_FORCE_TO_CPU,
+ 		WLAN_FUNC_SET_WAIT_BAR_INFO,
+ 	};
+ 	struct device *device = dev->mt76.dev;
+@@ -391,6 +391,13 @@
+ 	err = of_property_read_u32(device->of_node, "airoha,npu-port-type", &priv->port);
+ 	if (err || priv->port > 1) {
+ 		err = -EINVAL;
++		goto cleanup;
++	}
++
++	/* Firmware without port selection is restricted to the fixed PCIe1 profile. */
++	if (!airoha_npu_wlan_has_cmd(npu, true, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE) &&
++	    (!is_mt7915(&dev->mt76) || priv->port != 1)) {
++		err = -EOPNOTSUPP;
+ 		goto cleanup;
+ 	}
+ 
+@@ -481,10 +488,12 @@
+ 		if (err)
+ 			goto cleanup;
+ 	}
+-	err = mt7915_npu_send(dev, 0, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
+-			      priv->port, GFP_KERNEL);
+-	if (err)
+-		goto cleanup;
++	if (airoha_npu_wlan_has_cmd(npu, true, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE)) {
++		err = mt7915_npu_send(dev, 0, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
++				      priv->port, GFP_KERNEL);
++		if (err)
++			goto cleanup;
++	}
+ 
+ 	dev_info(device, "experimental NPU RX: sdk-24, model %u, port %u, host delivery\n",
+ 		 priv->model, priv->port);

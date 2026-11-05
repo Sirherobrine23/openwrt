@@ -1,0 +1,1015 @@
+Subject: [PATCH RFC] wifi: mt76: add opt-in Airoha SDK-24 NPU RX for MT7915/MT7916
+
+Add a separate receive transport for the legacy NPU protocol. Keep radio
+TX and TX completion on the host and require an explicit firmware ABI,
+model and PCIe topology. The transport is experimental, disabled by
+default, and deliberately keeps all packets on the host during bring-up.
+The old SDK-16 and the Wi-Fi 7 HW-RRO protocols are not interchangeable.
+
+The legacy protocol has no documented DMA-drain acknowledgment: retain
+published DMA storage until reboot and refuse recovery/restart after stop.
+This is a hardware bring-up RFC, not production-ready NPU acceleration.
+Requires the Airoha NPU startup/command-capability prerequisite patch.
+
+diff --git a/mt7915/Kconfig b/mt7915/Kconfig
+--- a/mt7915/Kconfig
++++ b/mt7915/Kconfig
+@@ -23,3 +23,13 @@
+ 	  This adds support for the built-in WMAC on MT7981 and MT7986 SoC device
+ 	  which has the same feature set as a MT7915, but enables 6E
+ 	  support.
++
++config MT7915_NPU
++	bool "MT7915/MT7916 experimental Airoha NPU receive support"
++	depends on MT7915E
++	depends on NET_AIROHA_NPU=y || MT7915E=NET_AIROHA_NPU
++	help
++	  Enable the legacy Airoha NPU receive transport. This requires the
++	  SDK 24-byte receive ABI, a single PCIe DBDC radio, matching firmware,
++	  an explicit device-tree configuration and npu_enable=1.
++	  Transmit processing remains on the host. If unsure, say N.
+diff --git a/mt7915/Makefile b/mt7915/Makefile
+--- a/mt7915/Makefile
++++ b/mt7915/Makefile
+@@ -9,3 +9,5 @@
+ mt7915e-$(CONFIG_NL80211_TESTMODE) += testmode.o
+ mt7915e-$(CONFIG_MT798X_WMAC) += soc.o
+ mt7915e-$(CONFIG_DEV_COREDUMP) += coredump.o
++
++mt7915e-$(CONFIG_MT7915_NPU) += npu.o
+diff --git a/mt7915/debugfs.c b/mt7915/debugfs.c
+--- a/mt7915/debugfs.c
++++ b/mt7915/debugfs.c
+@@ -1308,6 +1308,7 @@
+ 	struct dentry *dir;
+ 
+ 	dir = mt76_register_debugfs_fops(phy->mt76, NULL);
++	mt7915_npu_debugfs(dev, dir);
+ 
+ 	debugfs_create_file("muru_debug", 0600, dir, dev, &fops_muru_debug);
+ 	debugfs_create_file("muru_stats", 0400, dir, phy,
+diff --git a/mt7915/dma.c b/mt7915/dma.c
+--- a/mt7915/dma.c
++++ b/mt7915/dma.c
+@@ -257,6 +257,11 @@
+ 	struct mt76_dev *mdev = &dev->mt76;
+ 	u32 hif1_ofs = 0;
+ 	u32 irq_mask;
++	int err;
++
++	err = mt7915_npu_start(dev);
++	if (err)
++		return err;
+ 
+ 	if (dev->hif2)
+ 		hif1_ofs = MT_WFDMA0_PCIE1(0) - MT_WFDMA0(0);
+@@ -322,6 +327,9 @@
+ 
+ 		mtk_wed_device_start(&dev->mt76.mmio.wed, wed_irq_mask);
+ 	}
++
++	if (mt7915_npu_active(dev))
++		irq_mask &= ~(MT_INT_RX(MT_RXQ_MAIN) | MT_INT_RX(MT_RXQ_BAND1));
+ 
+ 	irq_mask = reset ? MT_INT_MCU_CMD : irq_mask;
+ 
+@@ -421,6 +429,10 @@
+ 
+ 	mt7915_dma_disable(dev, true);
+ 
++	ret = mt7915_npu_init(dev);
++	if (ret)
++		return ret;
++
+ 	if (mtk_wed_device_active(&mdev->mmio.wed)) {
+ 		if (!is_mt798x(mdev)) {
+ 			u8 wed_control_rx1 = is_mt7915(mdev) ? 1 : 2;
+@@ -516,11 +528,17 @@
+ 			mdev->q_rx[MT_RXQ_MAIN].wed = &mdev->mmio.wed;
+ 		}
+ 
+-		ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN],
+-				       MT_RXQ_ID(MT_RXQ_MAIN),
+-				       MT7915_RX_RING_SIZE,
+-				       MT_RX_BUF_SIZE,
+-				       MT_RXQ_RING_BASE(MT_RXQ_MAIN));
++		if (mt7915_npu_active(dev))
++			ret = mt7915_npu_rx_ring(dev, MT_RXQ_MAIN,
++						MT7915_RX_RING_SIZE,
++						MT_RXQ_RING_BASE(MT_RXQ_MAIN) +
++						MT_RXQ_ID(MT_RXQ_MAIN) * 0x10);
++		else
++			ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN],
++					       MT_RXQ_ID(MT_RXQ_MAIN),
++					       MT7915_RX_RING_SIZE,
++					       MT_RX_BUF_SIZE,
++					       MT_RXQ_RING_BASE(MT_RXQ_MAIN));
+ 		if (ret)
+ 			return ret;
+ 	}
+@@ -556,11 +574,17 @@
+ 		}
+ 
+ 		/* rx data queue for band1 */
+-		ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_BAND1],
+-				       MT_RXQ_ID(MT_RXQ_BAND1),
+-				       MT7915_RX_RING_SIZE,
+-				       MT_RX_BUF_SIZE,
+-				       MT_RXQ_RING_BASE(MT_RXQ_BAND1) + hif1_ofs);
++		if (mt7915_npu_active(dev))
++			ret = mt7915_npu_rx_ring(dev, MT_RXQ_BAND1,
++						MT7915_RX_RING_SIZE,
++						MT_RXQ_RING_BASE(MT_RXQ_BAND1) +
++						MT_RXQ_ID(MT_RXQ_BAND1) * 0x10);
++		else
++			ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_BAND1],
++					       MT_RXQ_ID(MT_RXQ_BAND1),
++					       MT7915_RX_RING_SIZE,
++					       MT_RX_BUF_SIZE,
++					       MT_RXQ_RING_BASE(MT_RXQ_BAND1) + hif1_ofs);
+ 		if (ret)
+ 			return ret;
+ 
+@@ -591,7 +615,14 @@
+ {
+ 	struct mt76_phy *mphy_ext = dev->mt76.phys[MT_BAND1];
+ 	struct mtk_wed_device *wed = &dev->mt76.mmio.wed;
+-	int i;
++	int i, err;
++
++	if (mt7915_npu_active(dev)) {
++		err = mt7915_npu_stop(dev);
++		dev_err(dev->mt76.dev,
++			"experimental NPU RX requires a reboot after recovery\n");
++		return err ? err : -EOPNOTSUPP;
++	}
+ 
+ 	/* clean up hw queues */
+ 	for (i = 0; i < ARRAY_SIZE(dev->mt76.phy.q_tx); i++) {
+@@ -642,14 +673,14 @@
+ 		mt76_rmw(dev, MT_WFDMA0_EXT0_CFG, MT_WFDMA0_EXT0_RXWB_KEEP,
+ 			 MT_WFDMA0_EXT0_RXWB_KEEP);
+ 
+-	mt7915_dma_enable(dev, !force);
+-
+-	return 0;
++
++	return mt7915_dma_enable(dev, !force);
+ }
+ 
+ void mt7915_dma_cleanup(struct mt7915_dev *dev)
+ {
+ 	mt7915_dma_disable(dev, true);
++	mt7915_npu_cleanup(dev);
+ 
+ 	mt76_dma_cleanup(&dev->mt76);
+ }
+diff --git a/mt7915/mac.c b/mt7915/mac.c
+--- a/mt7915/mac.c
++++ b/mt7915/mac.c
+@@ -1083,6 +1083,9 @@
+ 		break;
+ 	case PKT_TYPE_NORMAL:
+ 		if (!mt7915_mac_fill_rx(dev, skb, q, info)) {
++			if (mt7915_npu_active(dev) &&
++			    (q == MT_RXQ_NPU0 || q == MT_RXQ_NPU1))
++				mt7915_npu_rx_status(dev, skb);
+ 			mt76_rx(&dev->mt76, q, skb);
+ 			return;
+ 		}
+diff --git a/mt7915/main.c b/mt7915/main.c
+--- a/mt7915/main.c
++++ b/mt7915/main.c
+@@ -766,7 +766,7 @@
+ 	struct mt7915_sta *msta = (struct mt7915_sta *)sta->drv_priv;
+ 	struct mt7915_vif *mvif = (struct mt7915_vif *)vif->drv_priv;
+ 	bool ext_phy = mvif->phy != &dev->phy;
+-	int idx;
++	int idx, err;
+ 
+ 	if (mtk_wed_device_active(&dev->mt76.mmio.wed) &&
+ 	    !is_mt7915(&dev->mt76) &&
+@@ -779,6 +779,12 @@
+ 	if (idx < 0)
+ 		return -ENOSPC;
+ 
++	err = mt7915_npu_sta_clear(dev, mvif->phy->mt76->band_idx, idx);
++	if (err) {
++		mt76_wcid_mask_clear(mdev->wcid_mask, idx);
++		return err;
++	}
++
+ 	INIT_LIST_HEAD(&msta->rc_list);
+ 	INIT_LIST_HEAD(&msta->wcid.poll_list);
+ 	msta->vif = mvif;
+@@ -909,6 +915,12 @@
+ {
+ 	struct mt7915_dev *dev = container_of(mdev, struct mt7915_dev, mt76);
+ 	struct mt7915_sta *msta = (struct mt7915_sta *)sta->drv_priv;
++	int err;
++
++	err = mt7915_npu_sta_clear(dev, msta->vif->phy->mt76->band_idx,
++				   msta->wcid.idx);
++	if (err)
++		dev_warn(mdev->dev, "NPU station cleanup failed: %d\n", err);
+ 
+ 	mt7915_mac_wtbl_update(dev, msta->wcid.idx,
+ 			       MT_WTBL_UPDATE_ADM_COUNT_CLEAR);
+@@ -988,10 +1000,21 @@
+ 		mt76_rx_aggr_start(&dev->mt76, &msta->wcid, tid, ssn,
+ 				   params->buf_size);
+ 		ret = mt7915_mcu_add_rx_ba(dev, params, true);
++		if (!ret)
++			ret = mt7915_npu_ba(dev, msta->vif->phy->mt76->band_idx,
++					    msta->wcid.idx, tid, ssn,
++					    params->buf_size);
++		if (ret) {
++			mt7915_mcu_add_rx_ba(dev, params, false);
++			mt76_rx_aggr_stop(&dev->mt76, &msta->wcid, tid);
++		}
+ 		break;
+ 	case IEEE80211_AMPDU_RX_STOP:
+ 		mt76_rx_aggr_stop(&dev->mt76, &msta->wcid, tid);
+-		ret = mt7915_mcu_add_rx_ba(dev, params, false);
++		ret = mt7915_npu_ba(dev, msta->vif->phy->mt76->band_idx,
++				    msta->wcid.idx, tid, 0, 0);
++		if (!ret)
++			ret = mt7915_mcu_add_rx_ba(dev, params, false);
+ 		break;
+ 	case IEEE80211_AMPDU_TX_OPERATIONAL:
+ 		mtxq->aggr = true;
+diff --git a/mt7915/mt7915.h b/mt7915/mt7915.h
+--- a/mt7915/mt7915.h
++++ b/mt7915/mt7915.h
+@@ -256,6 +256,7 @@
+ };
+ 
+ struct mt7915_dev {
++	struct mt7915_npu *npu;
+ 	union { /* must be first */
+ 		struct mt76_dev mt76;
+ 		struct mt76_phy mphy;
+@@ -580,8 +581,83 @@
+ void mt7915_mcu_rx_event(struct mt7915_dev *dev, struct sk_buff *skb);
+ void mt7915_mcu_exit(struct mt7915_dev *dev);
+ 
++#ifdef CONFIG_MT7915_NPU
++bool mt7915_npu_requested(struct mt7915_dev *dev);
++bool mt7915_npu_active(struct mt7915_dev *dev);
++int mt7915_npu_init(struct mt7915_dev *dev);
++int mt7915_npu_rx_ring(struct mt7915_dev *dev, enum mt76_rxq_id qid,
++			unsigned int count, u32 regs);
++int mt7915_npu_start(struct mt7915_dev *dev);
++int mt7915_npu_stop(struct mt7915_dev *dev);
++void mt7915_npu_cleanup(struct mt7915_dev *dev);
++int mt7915_npu_ba(struct mt7915_dev *dev, unsigned int band, u16 wcid,
++		  u8 tid, u16 ssn, u16 size);
++int mt7915_npu_sta_clear(struct mt7915_dev *dev, unsigned int band, u16 wcid);
++void mt7915_npu_rx_status(struct mt7915_dev *dev, struct sk_buff *skb);
++void mt7915_npu_debugfs(struct mt7915_dev *dev, struct dentry *dir);
++#else
++static inline bool mt7915_npu_requested(struct mt7915_dev *dev)
++{
++	return false;
++}
++
++static inline bool mt7915_npu_active(struct mt7915_dev *dev)
++{
++	return false;
++}
++
++static inline int mt7915_npu_init(struct mt7915_dev *dev)
++{
++	return 0;
++}
++
++static inline int mt7915_npu_rx_ring(struct mt7915_dev *dev,
++				      enum mt76_rxq_id qid,
++				      unsigned int count, u32 regs)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline int mt7915_npu_start(struct mt7915_dev *dev)
++{
++	return 0;
++}
++
++static inline int mt7915_npu_stop(struct mt7915_dev *dev)
++{
++	return 0;
++}
++
++static inline void mt7915_npu_cleanup(struct mt7915_dev *dev)
++{
++}
++
++static inline int mt7915_npu_ba(struct mt7915_dev *dev, unsigned int band,
++			      u16 wcid, u8 tid, u16 ssn, u16 size)
++{
++	return 0;
++}
++
++static inline int mt7915_npu_sta_clear(struct mt7915_dev *dev,
++				     unsigned int band, u16 wcid)
++{
++	return 0;
++}
++
++static inline void mt7915_npu_rx_status(struct mt7915_dev *dev,
++				     struct sk_buff *skb)
++{
++}
++
++static inline void mt7915_npu_debugfs(struct mt7915_dev *dev, struct dentry *dir)
++{
++}
++#endif
++
+ static inline u16 mt7915_wtbl_size(struct mt7915_dev *dev)
+ {
++	if (mt7915_npu_active(dev))
++		return 256;
+ 	return is_mt7915(&dev->mt76) ? MT7915_WTBL_SIZE : MT7916_WTBL_SIZE;
+ }
+ 
+diff --git a/mt7915/pci.c b/mt7915/pci.c
+--- a/mt7915/pci.c
++++ b/mt7915/pci.c
+@@ -136,7 +136,10 @@
+ 	mdev = &dev->mt76;
+ 	mt7915_wfsys_reset(dev);
+ 
+-	ret = mt7915_mmio_wed_init(dev, pdev, true, &irq);
++	if (mt7915_npu_requested(dev))
++		ret = 0;
++	else
++		ret = mt7915_mmio_wed_init(dev, pdev, true, &irq);
+ 	if (ret < 0)
+ 		goto free_wed_or_irq_vector;
+ 
+@@ -198,6 +201,7 @@
+ 	else
+ 		pci_free_irq_vectors(pdev);
+ free_device:
++	mt7915_npu_cleanup(dev);
+ 	mt76_free_device(&dev->mt76);
+ 
+ 	return ret;
+diff --git a/mt7915/npu.c b/mt7915/npu.c
+new file mode 100644
+--- /dev/null
++++ b/mt7915/npu.c
+@@ -0,0 +1,652 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Airoha legacy NPU receive transport for PCIe MT7915/MT7916 radios. */
++#include <linux/debugfs.h>
++#include <linux/of.h>
++#include <linux/seq_file.h>
++#include <linux/pci.h>
++#include <linux/regmap.h>
++#include <linux/sizes.h>
++
++#include "mt7915.h"
++#include "mac.h"
++
++#define MT7915_NPU_DESC_NUM	512
++#define MT7915_NPU_BUF_SIZE	4096
++#define MT7915_NPU_BA_SIZE	SZ_2M
++#define MT7915_NPU_RX_DONE	BIT(0)
++#define MT7915_NPU_RX_CUR_LEN	GENMASK(13, 1)
++#define MT7915_NPU_RX_LEN	GENMASK(26, 14)
++#define MT7915_NPU_RX_LAST	BIT(27)
++#define MT7915_NPU_RX_PART	GENMASK(28, 26)
++#define MT7915_NPU_RX_PARTS	GENMASK(31, 29)
++
++/* SDK HOSTADPT_DMA_DSCP_T, not the mt7996 HW-RRO descriptor ABI. */
++struct mt7915_npu_desc {
++	u32 ctrl;
++	u32 info;
++	u32 vendor;
++	u32 addr;
++	u64 cookie;
++} __packed;
++
++struct mt7915_npu_queue {
++	struct mt7915_dev *dev;
++	struct napi_struct napi;
++	struct mt7915_npu_desc *desc;
++	dma_addr_t desc_dma;
++	void *buf;
++	dma_addr_t buf_dma;
++	struct sk_buff *partial;
++	u32 regs;
++	u32 radio_regs;
++	u32 radio_desc;
++	u16 head;
++	u16 total;
++	u8 part;
++	u8 band;
++	int irq;
++	bool napi_added;
++	bool irq_added;
++	bool napi_enabled;
++	atomic64_t interrupts;
++	atomic64_t descriptors;
++	atomic64_t packets;
++};
++
++struct mt7915_npu {
++	struct airoha_npu *npu;
++	struct mt7915_npu_queue q[2];
++	void *ba;
++	dma_addr_t ba_dma;
++	u32 model;
++	u32 port;
++	bool published;
++	bool started;
++	bool retired;
++};
++
++static bool npu_enable = 1;
++module_param(npu_enable, bool, 0444);
++MODULE_PARM_DESC(npu_enable, "Enable experimental Airoha legacy NPU RX (DT opt-in required)");
++
++/* Both host-adapter receive rings belong to one DBDC radio. */
++static DEFINE_MUTEX(mt7915_npu_lock);
++static struct mt7915_dev *mt7915_npu_owner;
++
++bool mt7915_npu_requested(struct mt7915_dev *dev)
++{
++	return npu_enable && of_property_present(dev->mt76.dev->of_node,
++						"airoha,npu-rx-abi");
++}
++
++bool mt7915_npu_active(struct mt7915_dev *dev)
++{
++	return !!dev->npu;
++}
++
++static int mt7915_npu_send(struct mt7915_dev *dev, unsigned int band,
++			   enum airoha_npu_wlan_set_cmd cmd, u32 val,
++			   gfp_t gfp)
++{
++	return airoha_npu_wlan_send_msg(dev->npu->npu, band, cmd,
++				      &val, sizeof(val), gfp);
++}
++
++static void mt7915_npu_drop_partial(struct mt7915_npu_queue *q)
++{
++	dev_kfree_skb_any(q->partial);
++	q->partial = NULL;
++	q->part = 0;
++	q->total = 0;
++}
++
++/* Normal packets may be interleaved between the fragments of a large packet. */
++static struct sk_buff *mt7915_npu_rx(struct mt7915_npu_queue *q, u32 ctrl,
++				      u32 info, void *data)
++{
++	unsigned int len = FIELD_GET(MT7915_NPU_RX_LEN, ctrl);
++	unsigned int cur = FIELD_GET(MT7915_NPU_RX_CUR_LEN, ctrl);
++	unsigned int part = FIELD_GET(MT7915_NPU_RX_PART, info);
++	unsigned int parts = FIELD_GET(MT7915_NPU_RX_PARTS, info);
++	struct sk_buff *skb;
++
++	if (!cur || cur > MT7915_NPU_BUF_SIZE || cur > len)
++		goto invalid;
++
++	if (cur == len) {
++		skb = napi_alloc_skb(&q->napi, len);
++		if (skb)
++			skb_put_data(skb, data, len);
++		return skb;
++	}
++
++	if (part == 1) {
++		mt7915_npu_drop_partial(q);
++		q->partial = napi_alloc_skb(&q->napi, len);
++		q->total = len;
++	}
++
++	if (!q->partial || part != q->part + 1U || q->total != len ||
++	    cur > len - q->partial->len || cur > skb_tailroom(q->partial))
++		goto invalid;
++
++	skb_put_data(q->partial, data, cur);
++	q->part = part;
++	if (!(ctrl & MT7915_NPU_RX_LAST))
++		return NULL;
++
++	if (q->partial->len != len || part != parts)
++		goto invalid;
++
++	skb = q->partial;
++	q->partial = NULL;
++	q->part = 0;
++	q->total = 0;
++	return skb;
++
++invalid:
++	mt7915_npu_drop_partial(q);
++	return NULL;
++}
++
++static int mt7915_npu_poll(struct napi_struct *napi, int budget)
++{
++	struct mt7915_npu_queue *q = container_of(napi, typeof(*q), napi);
++	struct mt7915_dev *dev = q->dev;
++	struct airoha_npu *npu = dev->npu->npu;
++	enum mt76_rxq_id qid = MT_RXQ_NPU0 + q->band;
++	int done = 0;
++
++	rcu_read_lock();
++	while (done < budget) {
++		struct mt7915_npu_desc *desc = &q->desc[q->head];
++		struct sk_buff *skb;
++		u32 ctrl = READ_ONCE(desc->ctrl);
++		u32 info;
++
++		if (!(ctrl & MT7915_NPU_RX_DONE))
++			break;
++
++		dma_rmb();
++		info = READ_ONCE(desc->info);
++		skb = mt7915_npu_rx(q, ctrl, info,
++				    q->buf + q->head * MT7915_NPU_BUF_SIZE);
++		if (skb && skb->len >= MT_TXD_SIZE) {
++			u32 rx_info = 0;
++
++			memset(skb->cb, 0, sizeof(skb->cb));
++			atomic64_inc(&q->packets);
++			mt7915_queue_rx_skb(&dev->mt76, qid, skb, &rx_info);
++		} else {
++			dev_kfree_skb_any(skb);
++		}
++
++		desc->info = 0;
++		desc->vendor = 0;
++		dma_wmb();
++		WRITE_ONCE(desc->ctrl, 0);
++		q->head = (q->head + 1) % MT7915_NPU_DESC_NUM;
++		atomic64_inc(&q->descriptors);
++		done++;
++	}
++
++	/* Return descriptors only after all packet bytes have been copied. */
++	dma_wmb();
++	regmap_write(npu->regmap, q->regs + 0xc, q->head);
++	mt76_rx_poll_complete(&dev->mt76, qid, napi);
++	if (done < budget && napi_complete_done(napi, done))
++		airoha_npu_wlan_enable_irq(npu, q->band);
++	rcu_read_unlock();
++
++	return done;
++}
++
++static irqreturn_t mt7915_npu_irq(int irq, void *data)
++{
++	struct mt7915_npu_queue *q = data;
++	struct airoha_npu *npu = q->dev->npu->npu;
++	u32 status = airoha_npu_wlan_get_irq_status(npu, q->band);
++	u32 mask = BIT(16 + q->band);
++
++	if (!(status & mask))
++		return IRQ_NONE;
++
++	atomic64_inc(&q->interrupts);
++	airoha_npu_wlan_disable_irq(npu, q->band);
++	airoha_npu_wlan_set_irq_status(npu, mask);
++	napi_schedule_irqoff(&q->napi);
++	return IRQ_HANDLED;
++}
++
++int mt7915_npu_stop(struct mt7915_dev *dev)
++{
++	struct mt7915_npu *priv = dev->npu;
++	int i, err = 0;
++
++	if (!priv)
++		return 0;
++
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		struct mt7915_npu_queue *q = &priv->q[i];
++		int ret;
++
++		airoha_npu_wlan_disable_irq(priv->npu, i);
++		if (q->irq_added)
++			synchronize_irq(q->irq);
++		if (q->napi_enabled) {
++			napi_disable(&q->napi);
++			q->napi_enabled = false;
++		}
++		/* A poll completing concurrently with stop must leave IRQs masked. */
++		airoha_npu_wlan_disable_irq(priv->npu, i);
++		if (!priv->published)
++			continue;
++		ret = mt7915_npu_send(dev, i, WLAN_FUNC_SET_WAIT_NPU_INIT_DONE,
++				      0, GFP_KERNEL);
++		if (ret && !err)
++			err = ret;
++	}
++	priv->started = false;
++	if (priv->published)
++		priv->retired = true;
++	return err;
++}
++
++void mt7915_npu_cleanup(struct mt7915_dev *dev)
++{
++	struct mt7915_npu *priv = dev->npu;
++	bool retain;
++	int i;
++
++	if (!priv)
++		return;
++
++	/* The legacy ABI has no documented DMA-drain acknowledgment. */
++	if (mt7915_npu_stop(dev))
++		dev_err(dev->mt76.dev, "NPU stop request failed\n");
++	retain = priv->published;
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		struct mt7915_npu_queue *q = &priv->q[i];
++
++		if (q->irq_added)
++			free_irq(q->irq, q);
++		if (q->napi_added)
++			netif_napi_del(&q->napi);
++		mt7915_npu_drop_partial(q);
++		if (retain)
++			continue;
++		if (priv->published) {
++			regmap_write(priv->npu->regmap, q->regs + 4, 0);
++			regmap_write(priv->npu->regmap, q->regs, 0);
++		}
++		if (q->desc)
++			dma_free_coherent(priv->npu->dev,
++					  sizeof(*q->desc) * MT7915_NPU_DESC_NUM,
++					  q->desc, q->desc_dma);
++		if (q->buf)
++			dma_free_coherent(priv->npu->dev,
++					  MT7915_NPU_BUF_SIZE * MT7915_NPU_DESC_NUM,
++					  q->buf, q->buf_dma);
++	}
++
++	if (retain) {
++		/* A mailbox ACK alone does not prove that all DMA writes are drained. */
++		dev_warn(dev->mt76.dev, "experimental NPU RX retains DMA storage and NPU reference until reboot\n");
++		dev->npu = NULL;
++		return;
++	}
++
++	if (priv->ba)
++		dma_free_coherent(priv->npu->dev, MT7915_NPU_BA_SIZE,
++				  priv->ba, priv->ba_dma);
++	airoha_npu_put(priv->npu);
++	kfree(priv);
++	dev->npu = NULL;
++	mutex_lock(&mt7915_npu_lock);
++	mt7915_npu_owner = NULL;
++	mutex_unlock(&mt7915_npu_lock);
++}
++
++int mt7915_npu_init(struct mt7915_dev *dev)
++{
++	static const enum airoha_npu_wlan_set_cmd cmds[] = {
++		WLAN_FUNC_SET_WAIT_PCIE_ADDR, WLAN_FUNC_SET_WAIT_DESC,
++		WLAN_FUNC_SET_WAIT_NPU_INIT_DONE, WLAN_FUNC_SET_WAIT_BA_WIN_SIZE,
++		WLAN_FUNC_SET_WAIT_DRIVER_MODEL, WLAN_FUNC_SET_WAIT_DEL_STA,
++		WLAN_FUNC_SET_WAIT_DRAM_BA_NODE_ADDR, WLAN_FUNC_SET_WAIT_PKT_BUF_ADDR,
++		WLAN_FUNC_SET_WAIT_IS_FORCE_TO_CPU, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
++		WLAN_FUNC_SET_WAIT_BAR_INFO,
++	};
++	struct device *device = dev->mt76.dev;
++	struct mt7915_npu *priv;
++	struct airoha_npu *npu;
++	const char *abi;
++	int i, j, err;
++
++	if (!mt7915_npu_requested(dev))
++		return 0;
++
++	/* This port owns both bands on one PCIe function. */
++	if (IS_ENABLED(CONFIG_CPU_BIG_ENDIAN) || !dev_is_pci(device) ||
++	    dev->hif2 || !dev->dbdc_support ||
++	    (!is_mt7915(&dev->mt76) && !is_mt7916(&dev->mt76)))
++		return dev_err_probe(device, -EOPNOTSUPP,
++				     "NPU RX requires a little-endian, single-HIF PCIe DBDC radio\n");
++
++	err = of_property_read_string(device->of_node, "airoha,npu-rx-abi", &abi);
++	if (err || strcmp(abi, "sdk-24"))
++		return dev_err_probe(device, -EINVAL,
++				     "NPU RX requires the explicit sdk-24 firmware ABI\n");
++
++	npu = airoha_npu_get(device);
++	if (IS_ERR(npu))
++		return PTR_ERR(npu);
++
++	/* Keep this legacy transport separate from the Wi-Fi 7 NPU provider. */
++	if (airoha_npu_wlan_has_cmd(npu, true, WLAN_FUNC_SET_WAIT_TOKEN_ID_SIZE)) {
++		dev_err(device, "NPU RX requires a legacy firmware command profile\n");
++		err = -EOPNOTSUPP;
++		goto put_npu;
++	}
++
++	for (i = 0; i < ARRAY_SIZE(cmds); i++)
++		if (!airoha_npu_wlan_has_cmd(npu, true, cmds[i])) {
++			err = -EOPNOTSUPP;
++			goto put_npu;
++		}
++	if (!airoha_npu_wlan_has_cmd(npu, false, WLAN_FUNC_GET_WAIT_RXDESC_BASE)) {
++		err = -EOPNOTSUPP;
++		goto put_npu;
++	}
++
++	mutex_lock(&mt7915_npu_lock);
++	if (mt7915_npu_owner) {
++		mutex_unlock(&mt7915_npu_lock);
++		err = -EBUSY;
++		goto put_npu;
++	}
++	mt7915_npu_owner = dev;
++	mutex_unlock(&mt7915_npu_lock);
++
++	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
++	if (!priv) {
++		err = -ENOMEM;
++		goto release_owner;
++	}
++	priv->npu = npu;
++	dev->npu = priv;
++	err = of_property_read_u32(device->of_node, "airoha,npu-driver-model",
++				   &priv->model);
++	if (err || priv->model != (is_mt7915(&dev->mt76) ? 0 : 2)) {
++		err = -EINVAL;
++		goto cleanup;
++	}
++	err = of_property_read_u32(device->of_node, "airoha,npu-port-type", &priv->port);
++	if (err || priv->port > 1) {
++		err = -EINVAL;
++		goto cleanup;
++	}
++
++	/* Refuse an already configured host adapter, including a Wi-Fi 7 consumer. */
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		u32 base, count;
++		u32 regs = airoha_npu_wlan_get_queue_addr(npu, i, false);
++
++		err = regmap_read(npu->regmap, regs, &base);
++		if (err)
++			goto cleanup;
++		err = regmap_read(npu->regmap, regs + 4, &count);
++		if (err)
++			goto cleanup;
++		if (base || count) {
++			err = -EBUSY;
++			goto cleanup;
++		}
++	}
++
++	priv->ba = dma_alloc_coherent(npu->dev, MT7915_NPU_BA_SIZE,
++				      &priv->ba_dma, GFP_KERNEL);
++	if (!priv->ba) {
++		err = -ENOMEM;
++		goto cleanup;
++	}
++	if (upper_32_bits(priv->ba_dma)) {
++		err = -EOVERFLOW;
++		goto cleanup;
++	}
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		struct mt7915_npu_queue *q = &priv->q[i];
++
++		q->dev = dev;
++		q->band = i;
++		q->regs = airoha_npu_wlan_get_queue_addr(npu, i, false);
++		q->irq = npu->irqs[i];
++		airoha_npu_wlan_disable_irq(npu, i);
++		q->desc = dma_alloc_coherent(npu->dev,
++					     sizeof(*q->desc) * MT7915_NPU_DESC_NUM,
++					     &q->desc_dma, GFP_KERNEL);
++		q->buf = dma_alloc_coherent(npu->dev,
++					    MT7915_NPU_BUF_SIZE * MT7915_NPU_DESC_NUM,
++					    &q->buf_dma, GFP_KERNEL);
++		if (!q->desc || !q->buf) {
++			err = -ENOMEM;
++			goto cleanup;
++		}
++		if (upper_32_bits(q->desc_dma) ||
++		    upper_32_bits(q->buf_dma + MT7915_NPU_BUF_SIZE *
++				  MT7915_NPU_DESC_NUM - 1)) {
++			err = -EOVERFLOW;
++			goto cleanup;
++		}
++		for (j = 0; j < MT7915_NPU_DESC_NUM; j++)
++			q->desc[j].addr = lower_32_bits(q->buf_dma + j * MT7915_NPU_BUF_SIZE);
++
++		netif_napi_add(dev->mt76.napi_dev, &q->napi, mt7915_npu_poll);
++		q->napi_added = true;
++		err = request_irq(q->irq, mt7915_npu_irq, IRQF_SHARED,
++				  "mt7915-npu-rx", q);
++		if (err)
++			goto cleanup;
++		q->irq_added = true;
++	}
++
++	err = airoha_npu_wlan_init_reserved_memory(npu);
++	if (err)
++		goto cleanup;
++	/* Keep all packets on the host while validating this RX-only transport. */
++	err = mt7915_npu_send(dev, 0, WLAN_FUNC_SET_WAIT_IS_FORCE_TO_CPU, 1, GFP_KERNEL);
++	if (err)
++		goto cleanup;
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		err = mt7915_npu_send(dev, i, WLAN_FUNC_SET_WAIT_DRIVER_MODEL,
++				      priv->model, GFP_KERNEL);
++		if (err)
++			goto cleanup;
++		err = mt7915_npu_send(dev, i, WLAN_FUNC_SET_WAIT_DRAM_BA_NODE_ADDR,
++				      lower_32_bits(priv->ba_dma), GFP_KERNEL);
++		if (err)
++			goto cleanup;
++	}
++	err = mt7915_npu_send(dev, 0, WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
++			      priv->port, GFP_KERNEL);
++	if (err)
++		goto cleanup;
++
++	dev_info(device, "experimental NPU RX: sdk-24, model %u, port %u, host delivery\n",
++		 priv->model, priv->port);
++	return 0;
++
++cleanup:
++	mt7915_npu_cleanup(dev);
++	return err;
++release_owner:
++	mutex_lock(&mt7915_npu_lock);
++	mt7915_npu_owner = NULL;
++	mutex_unlock(&mt7915_npu_lock);
++put_npu:
++	airoha_npu_put(npu);
++	return err;
++}
++
++int mt7915_npu_rx_ring(struct mt7915_dev *dev, enum mt76_rxq_id qid,
++			unsigned int count, u32 regs)
++{
++	struct mt7915_npu_queue *q;
++	unsigned int band = qid == MT_RXQ_BAND1;
++	struct pci_dev *pdev = to_pci_dev(dev->mt76.dev);
++	phys_addr_t base = pci_resource_start(pdev, 0);
++	u32 desc;
++	int err;
++
++	if (upper_32_bits(base + regs))
++		return -EOVERFLOW;
++	q = &dev->npu->q[band];
++	q->radio_regs = regs;
++	err = mt7915_npu_send(dev, band, WLAN_FUNC_SET_WAIT_PCIE_ADDR,
++			      lower_32_bits(base + regs), GFP_KERNEL);
++	if (err)
++		return err;
++	err = mt7915_npu_send(dev, band, WLAN_FUNC_SET_WAIT_DESC, count, GFP_KERNEL);
++	if (err)
++		return err;
++	err = airoha_npu_wlan_get_msg(dev->npu->npu, band,
++				     WLAN_FUNC_GET_WAIT_RXDESC_BASE,
++				     &desc, sizeof(desc), GFP_KERNEL);
++	if (err)
++		return err;
++	if (!desc || !IS_ALIGNED(desc, 16))
++		return -EINVAL;
++
++	q->radio_desc = desc;
++	mt76_wr(dev, regs, desc);
++	mt76_wr(dev, regs + 4, count);
++	mt76_wr(dev, regs + 8, count - 1);
++	mt76_wr(dev, regs + 0xc, 0);
++	return 0;
++}
++
++int mt7915_npu_start(struct mt7915_dev *dev)
++{
++	struct mt7915_npu *priv = dev->npu;
++	int i, err;
++
++	if (!priv || priv->started)
++		return 0;
++	if (priv->retired)
++		return -ESHUTDOWN;
++
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		struct mt7915_npu_queue *q = &priv->q[i];
++
++		if (!q->radio_desc)
++			return -EINVAL;
++		q->head = 0;
++		mt7915_npu_drop_partial(q);
++		for (int j = 0; j < MT7915_NPU_DESC_NUM; j++) {
++			q->desc[j].ctrl = 0;
++			q->desc[j].info = 0;
++			q->desc[j].vendor = 0;
++		}
++		regmap_write(priv->npu->regmap, q->regs + 4, MT7915_NPU_DESC_NUM);
++		regmap_write(priv->npu->regmap, q->regs + 8, 0);
++		regmap_write(priv->npu->regmap, q->regs + 0xc, 0);
++		dma_wmb();
++		regmap_write(priv->npu->regmap, q->regs, lower_32_bits(q->desc_dma));
++		priv->published = true;
++		napi_enable(&q->napi);
++		q->napi_enabled = true;
++		err = mt7915_npu_send(dev, i, WLAN_FUNC_SET_WAIT_NPU_INIT_DONE, 1, GFP_KERNEL);
++		if (err) {
++			mt7915_npu_stop(dev);
++			return err;
++		}
++		airoha_npu_wlan_enable_irq(priv->npu, i);
++	}
++	priv->started = true;
++	return 0;
++}
++
++int mt7915_npu_ba(struct mt7915_dev *dev, unsigned int band, u16 wcid,
++		  u8 tid, u16 ssn, u16 size)
++{
++	u32 val;
++
++	if (!dev->npu)
++		return 0;
++	if (band > 1 || wcid > 255 || tid > 7 || size > 511)
++		return -EINVAL;
++	val = ((u32)(size ? (ssn - 1) & 0xfff : 0) << 20) |
++	      ((u32)size << 11) |
++	      ((u32)wcid << 3) | tid;
++	return mt7915_npu_send(dev, band, WLAN_FUNC_SET_WAIT_BA_WIN_SIZE, val, GFP_KERNEL);
++}
++
++int mt7915_npu_sta_clear(struct mt7915_dev *dev, unsigned int band, u16 wcid)
++{
++	if (!dev->npu)
++		return 0;
++	if (band > 1 || wcid > 255)
++		return -EINVAL;
++	return mt7915_npu_send(dev, band, WLAN_FUNC_SET_WAIT_DEL_STA, wcid, GFP_KERNEL);
++}
++
++void mt7915_npu_rx_status(struct mt7915_dev *dev, struct sk_buff *skb)
++{
++	struct mt76_rx_status *status = (void *)skb->cb;
++	struct ieee80211_bar *bar;
++	u16 control, ssn;
++	u32 val;
++	int err;
++
++	/* The NPU has already reordered these packets. Keep host PN checks. */
++	if (status->aggr) {
++		status->aggr = false;
++		status->flag |= RX_FLAG_DUP_VALIDATED;
++	}
++	if (status->flag & RX_FLAG_8023 || skb->len < sizeof(*bar))
++		return;
++	bar = mt76_skb_get_hdr(skb);
++	if (!ieee80211_is_back_req(bar->frame_control) || !status->wcid)
++		return;
++	control = le16_to_cpu(bar->control);
++	if (control & IEEE80211_BAR_CTRL_MULTI_TID ||
++	    ((control & IEEE80211_BAR_CTRL_TID_INFO_MASK) >> 12) > 7)
++		return;
++	ssn = le16_to_cpu(bar->start_seq_num) >> 4;
++	val = ((u32)ssn << 11) | ((u32)status->wcid->idx << 3) |
++	      ((control & IEEE80211_BAR_CTRL_TID_INFO_MASK) >> 12);
++	err = mt7915_npu_send(dev, status->phy_idx, WLAN_FUNC_SET_WAIT_BAR_INFO,
++			      val, GFP_ATOMIC);
++	if (err)
++		dev_warn_ratelimited(dev->mt76.dev, "NPU BAR update failed: %d\n", err);
++}
++
++static int mt7915_npu_status_show(struct seq_file *s, void *data)
++{
++	struct mt7915_dev *dev = s->private;
++	struct mt7915_npu *priv = dev->npu;
++	int i;
++
++	if (!priv) {
++		seq_puts(s, "inactive\n");
++		return 0;
++	}
++
++	seq_printf(s, "abi: sdk-24\nmodel: %u\nport: %u\nstarted: %u\nhost_delivery: 1\n",
++		   priv->model, priv->port, priv->started);
++	for (i = 0; i < ARRAY_SIZE(priv->q); i++) {
++		struct mt7915_npu_queue *q = &priv->q[i];
++
++		seq_printf(s, "band%d: irq=%d interrupts=%lld descriptors=%lld packets=%lld\n",
++			   i, q->irq, atomic64_read(&q->interrupts),
++			   atomic64_read(&q->descriptors), atomic64_read(&q->packets));
++	}
++	return 0;
++}
++DEFINE_SHOW_ATTRIBUTE(mt7915_npu_status);
++
++void mt7915_npu_debugfs(struct mt7915_dev *dev, struct dentry *dir)
++{
++	if (dev->npu)
++		debugfs_create_file("npu_rx", 0400, dir, dev, &mt7915_npu_status_fops);
++}
