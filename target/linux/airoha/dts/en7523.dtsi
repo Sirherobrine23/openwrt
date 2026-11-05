@@ -30,7 +30,8 @@
 
 		npu_binary: npu-binary@84000000 {
 			no-map;
-			reg = <0x84000000 0x00100000>;
+			/* RV32 code is followed by firmware workspace at +2 MiB. */
+			reg = <0x84000000 0x00400000>;
 		};
 
 		npu_pkt: npu-pkt@84d00000 {

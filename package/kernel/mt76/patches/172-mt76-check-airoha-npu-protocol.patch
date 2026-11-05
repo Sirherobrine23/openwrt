@@ -1,0 +1,68 @@
+Subject: [PATCH] wifi: mt76: check Airoha WLAN commands before NPU attachment
+
+NPU v1 and AN7552 legacy firmware do not implement the HW-RRO command
+set used by mt7996. Check the provider without modifying its firmware
+or DMA state, and leave those radios on their normal CPU path.
+Requires the matching Airoha kernel command-capability API.
+
+diff --git a/npu.c b/npu.c
+index dd954df..cead827 100644
+--- a/npu.c
++++ b/npu.c
+@@ -437,6 +437,41 @@ unlock:
+ }
+ EXPORT_SYMBOL_GPL(mt76_npu_disable_irqs);
+ 
++static bool mt76_npu_has_wlan_commands(struct airoha_npu *npu)
++{
++	static const enum airoha_npu_wlan_set_cmd set_cmds[] = {
++		WLAN_FUNC_SET_WAIT_PCIE_ADDR,
++		WLAN_FUNC_SET_WAIT_DESC,
++		WLAN_FUNC_SET_WAIT_DRAM_BA_NODE_ADDR,
++		WLAN_FUNC_SET_WAIT_PKT_BUF_ADDR,
++		WLAN_FUNC_SET_WAIT_IS_FORCE_TO_CPU,
++		WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
++		WLAN_FUNC_SET_WAIT_TX_RING_PCIE_ADDR,
++		WLAN_FUNC_SET_WAIT_TX_BUF_SPACE_HW_BASE,
++		WLAN_FUNC_SET_WAIT_RX_RING_FOR_TXDONE_HW_BASE,
++		WLAN_FUNC_SET_WAIT_TX_PKT_BUF_ADDR,
++		WLAN_FUNC_SET_WAIT_INODE_TXRX_REG_ADDR,
++		WLAN_FUNC_SET_WAIT_TOKEN_ID_SIZE,
++	};
++	static const enum airoha_npu_wlan_get_cmd get_cmds[] = {
++		WLAN_FUNC_GET_WAIT_NPU_INFO,
++		WLAN_FUNC_GET_WAIT_RXDESC_BASE,
++		WLAN_FUNC_GET_WAIT_NPU_VERSION,
++	};
++	int i;
++
++	/* Legacy NPU firmware uses a different Wi-Fi datapath, without HW-RRO. */
++	for (i = 0; i < ARRAY_SIZE(set_cmds); i++)
++		if (!airoha_npu_wlan_has_cmd(npu, true, set_cmds[i]))
++			return false;
++
++	for (i = 0; i < ARRAY_SIZE(get_cmds); i++)
++		if (!airoha_npu_wlan_has_cmd(npu, false, get_cmds[i]))
++			return false;
++
++	return true;
++}
++
+ int mt76_npu_init(struct mt76_dev *dev, phys_addr_t phy_addr, int type)
+ {
+ 	struct airoha_ppe_dev *ppe_dev;
+@@ -456,6 +491,14 @@ int mt76_npu_init(struct mt76_dev *dev, phys_addr_t phy_addr, int type)
+ 		goto error_unlock;
+ 	}
+ 
++	/* Check the SoC command table before changing firmware or DMA state. */
++	if (!mt76_npu_has_wlan_commands(npu)) {
++		dev_info(dev->dev,
++			 "NPU firmware protocol lacks Wi-Fi HW-RRO support\n");
++		err = -EOPNOTSUPP;
++		goto error_npu_put;
++	}
++
+ 	ppe_dev = airoha_ppe_get_dev(dev->dev);
+ 	if (IS_ERR(ppe_dev)) {
+ 		request_module("airoha-eth");
