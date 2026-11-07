@@ -465,6 +465,12 @@ sub gen_package_mk() {
 		my %variant_config;
 		my %deplines = ('' => {});
 
+		if (my $profile = $src->{auxiliary_toolchain}) {
+			$profile =~ /^[a-zA-Z0-9_.+-]+$/ or die "Invalid auxiliary toolchain profile '$profile'\n";
+			$line .= sprintf "\$(curdir)/%s/compile += toolchain/auxiliary/%s/compile\n", $src->{path}, $profile;
+			$line .= sprintf "\$(curdir)/%s/download += toolchain/auxiliary/%s/download\n", $src->{path}, $profile;
+		}
+
 		foreach my $pkg (@{$src->{packages}}) {
 			foreach my $dep (@{$pkg->{depends}}) {
 				next if ($dep =~ /@/);

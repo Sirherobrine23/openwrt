@@ -7,6 +7,7 @@ __package_mk:=1
 all: $(if $(DUMP),dumpinfo,$(if $(CHECK),check,compile))
 
 include $(INCLUDE_DIR)/download.mk
+include $(INCLUDE_DIR)/auxiliary-toolchain.mk
 
 PKG_BUILD_DIR ?= $(BUILD_DIR)/$(if $(BUILD_VARIANT),$(PKG_NAME)-$(BUILD_VARIANT)/)$(PKG_NAME)$(if $(PKG_VERSION),-$(PKG_VERSION))
 PKG_INSTALL_DIR ?= $(PKG_BUILD_DIR)/ipkg-install

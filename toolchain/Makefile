@@ -84,6 +84,18 @@ ifndef DUMP_TARGET_DB
 $(TOOLCHAIN_DIR)/stamp/.gcc_final_installed:
 endif
 
+# Auxiliary toolchains do not participate in the default Linux toolchain
+# build. A package source requests one through Build-Auxiliary-Toolchain;
+# package-metadata.pl adds the dependency to that package only.
+$(curdir)/auxiliary/%/compile: $(tools/stamp-compile)
+	+$(SUBMAKE) -C toolchain/auxiliary AUX_PROFILE="$*" compile
+
+$(curdir)/auxiliary/%/download:
+	+$(SUBMAKE) -C toolchain/auxiliary AUX_PROFILE="$*" download
+
+$(curdir)/auxiliary/%/clean:
+	+$(SUBMAKE) -C toolchain/auxiliary AUX_PROFILE="$*" clean
+
 $(curdir)/install: $(curdir)/compile
 
 $(eval $(call stampfile,$(curdir),toolchain,compile,$(TOOLCHAIN_DIR)/stamp/.gcc_final_installed,,$(TOOLCHAIN_DIR)))
