@@ -1,0 +1,51 @@
+Subject: [PATCH] wifi: mt76: enable WED by default
+
+Enable WED by default for mt7615, mt7915 and mt7996 on supported systems.
+Retain the module parameter as an explicit opt-out, including MT7915
+boards selecting the ClankerNPU hybrid receive profile.
+
+diff --git a/mt7615/wed.c b/mt7615/wed.c
+--- a/mt7615/wed.c
++++ b/mt7615/wed.c
+@@ -5,7 +5,7 @@
+ #include "mac.h"
+ 
+ #if IS_ENABLED(CONFIG_NET_AIROHA_SOC_WED)
+-static bool wed_enable;
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ MODULE_PARM_DESC(wed_enable, "Enable Airoha WED transmit offload");
+ 
+diff --git a/mt7915/mmio.c b/mt7915/mmio.c
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -13,7 +13,7 @@
+ #include "../trace.h"
+ #include "../dma.h"
+ 
+-static bool wed_enable;
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ MODULE_PARM_DESC(wed_enable, "Enable Wireless Ethernet Dispatch support");
+ 
+@@ -637,7 +637,7 @@
+ 	struct mtk_wed_device *wed = &dev->mt76.mmio.wed;
+ 	int ret;
+ 
+-	if (!wed_enable && !mt7915_npu_wed_requested(dev))
++	if (!wed_enable)
+ 		return 0;
+ 
+ 	if (pci) {
+diff --git a/mt7996/mmio.c b/mt7996/mmio.c
+--- a/mt7996/mmio.c
++++ b/mt7996/mmio.c
+@@ -14,7 +14,7 @@
+ #include "../trace.h"
+ #include "../dma.h"
+ 
+-static bool wed_enable;
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ 
+ #define INVALID_REG_ADDR	0xffffffff

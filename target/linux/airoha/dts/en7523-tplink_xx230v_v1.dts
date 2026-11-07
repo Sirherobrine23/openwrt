@@ -246,6 +246,10 @@ New Maping:
 		nvmem-cell-names = "eeprom";
 		airoha,npu = <&npu>;
 		airoha,eth = <&eth>;
+		airoha,npu-rx-abi = "clanker-kite-24";
+		airoha,npu-wed-tx;
+		airoha,npu-driver-model = <1>;
+		airoha,npu-port-type = <1>;
 
 		// 2.4 GHz
 		band@0 {
@@ -261,6 +265,14 @@ New Maping:
 			nvmem-cell-names = "mac-address";
 		};
 	};
+};
+
+&npu {
+	status = "okay";
+	firmware-name = "airoha/en7523_mt7915_npu_rv32.bin",
+			"airoha/en7523_mt7915_npu_data.bin";
+
+	airoha,enable_npu_tx_uart;
 };
 
 &eth {

@@ -1,0 +1,59 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: idiazraz <muhammadrazman@gmail.com>
+Date: Thu, 5 Nov 2026 16:59:43 +0800
+Subject: [PATCH 1/2] mt7915: enable CTXD and TX flow control for WED on MT7916
+
+---
+ mt7915/dma.c  | 17 +++++++++++++++++
+ mt7915/regs.h | 10 ++++++++++
+ 2 files changed, 27 insertions(+)
+
+diff --git a/mt7915/dma.c b/mt7915/dma.c
+index aabd373..60dc196 100644
+--- a/mt7915/dma.c
++++ b/mt7915/dma.c
+@@ -320,6 +320,23 @@ int mt7915_dma_start(struct mt7915_dev *dev, bool reset, bool wed_reset)
+ 		if (ret)
+ 			return ret;
+ 
++		/* Note: the vendor driver turns on CTXD for the WED rings 18/19
++		 * and TX flow control when WED is used. Without them the MT7916
++		 * stops taking WED frames after a few and the MCU times out.
++		 */
++		if (is_mt7916(&dev->mt76)) {
++			mt76_rmw(dev, MT_WFDMA0_CTXD_CFG,
++				 MT_WFDMA0_CTXD_CASCADE_NUM |
++				 MT_WFDMA0_CTXD_BAND1_RING |
++				 MT_WFDMA0_CTXD_BAND0_RING,
++				 FIELD_PREP(MT_WFDMA0_CTXD_BAND1_RING, 19) |
++				 MT_WFDMA0_CTXD_BAND1_EN |
++				 FIELD_PREP(MT_WFDMA0_CTXD_BAND0_RING, 18) |
++				 MT_WFDMA0_CTXD_BAND0_EN);
++			mt76_set(dev, MT_WFDMA0_GLO_CFG_EXT1,
++				 MT_WFDMA0_GLO_CFG_EXT1_TX_FCTRL);
++		}
++
+ 		mtk_wed_device_start(&dev->mt76.mmio.wed, wed_irq_mask);
+ 	}
+ 
+diff --git a/mt7915/regs.h b/mt7915/regs.h
+index dc7bb9a..f2f3ff3 100644
+--- a/mt7915/regs.h
++++ b/mt7915/regs.h
+@@ -604,6 +604,16 @@ enum offs_rev {
+ #define MT_WFDMA0_EXT0_CFG		MT_WFDMA0(0x2b0)
+ #define MT_WFDMA0_EXT0_RXWB_KEEP	BIT(10)
+ 
++#define MT_WFDMA0_GLO_CFG_EXT1		MT_WFDMA0(0x2b4)
++#define MT_WFDMA0_GLO_CFG_EXT1_TX_FCTRL	BIT(28)
++
++#define MT_WFDMA0_CTXD_CFG		MT_WFDMA0(0x2bc)
++#define MT_WFDMA0_CTXD_CASCADE_NUM	GENMASK(15, 12)
++#define MT_WFDMA0_CTXD_BAND1_RING	GENMASK(11, 7)
++#define MT_WFDMA0_CTXD_BAND1_EN		BIT(6)
++#define MT_WFDMA0_CTXD_BAND0_RING	GENMASK(5, 1)
++#define MT_WFDMA0_CTXD_BAND0_EN		BIT(0)
++
+ #define MT_WFDMA0_PRI_DLY_INT_CFG0	MT_WFDMA0(0x2f0)
+ #define MT_WFDMA0_PRI_DLY_INT_CFG1	MT_WFDMA0(0x2f4)
+ #define MT_WFDMA0_PRI_DLY_INT_CFG2	MT_WFDMA0(0x2f8)
