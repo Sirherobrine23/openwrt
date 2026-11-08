@@ -30,7 +30,7 @@
 
 		npu_binary: npu-binary@84000000 {
 			no-map;
-			reg = <0x84000000 0x00100000>;
+			reg = <0x84000000 0x00400000>;
 		};
 
 		npu_pkt: npu-pkt@84d00000 {
@@ -78,7 +78,7 @@
 			opp-supported-hw = <AIROHA_CPU_HW_1G>;
 		};
 
-		opp-700000000 {
+		opp-7000000000 {
 			opp-hz = /bits/ 64 <700000000>;
 			opp-supported-hw = <AIROHA_CPU_HW_1G>;
 		};
@@ -219,7 +219,7 @@
 		its: gic-its@09020000 {
 			compatible = "arm,gic-v3-its";
 			msi-controller;
-			#msi-cells = <1>;
+			#msi-cell = <1>;
 			reg = <0x090200000 0x20000>;
 		};
 	};
@@ -613,6 +613,42 @@
 
 		#dma-cells = <1>;
 		dma-channels = <8>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		gdma_channel0: dma-channel@0 {
+			reg = <0>;
+			airoha,npu-gdma;
+		};
+
+		gdma_channel1: dma-channel@1 {
+			reg = <1>;
+			airoha,npu-gdma;
+		};
+
+		gdma_channel2: dma-channel@2 {
+			reg = <2>;
+		};
+
+		gdma_channel3: dma-channel@3 {
+			reg = <3>;
+		};
+
+		gdma_channel4: dma-channel@4 {
+			reg = <4>;
+		};
+
+		gdma_channel5: dma-channel@5 {
+			reg = <5>;
+		};
+
+		gdma_channel6: dma-channel@6 {
+			reg = <6>;
+		};
+
+		gdma_channel7: dma-channel@7 {
+			reg = <7>;
+		};
 	};
 
 	hsdma: dma-controller@1fa01800 {
@@ -663,7 +699,7 @@
 		      <0x1fa95700 0x568>;
 		reg-names = "pcie0", "pcie1";
 		#phy-cells = <0>;
-		airoha,chip-scu = <&chip_scu>;
+		airoha,chip_scu = <&chip_scu>;
 	};
 
 	pcie0: pcie@1fa91000 {
