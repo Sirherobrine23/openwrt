@@ -263,6 +263,15 @@ New Maping:
 	};
 };
 
+&npu {
+	status = "okay";
+
+	airoha,enable_npu_tx_uart;
+	firmware-names = "rv32", "data";
+	firmware-name = "airoha/en7523_mt7915_npu_rv32.bin",
+                  "airoha/en7523_mt7915_npu_data.bin";
+};
+
 &eth {
 	status = "okay";
 };
