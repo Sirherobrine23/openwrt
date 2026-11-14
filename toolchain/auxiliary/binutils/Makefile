@@ -10,6 +10,9 @@ PKG_SOURCE_URL:=@GNU/binutils/
 PKG_HASH:=e127a709cba24c76de8936cb7083dd768f28cd37eb010492e2f19b71eb1294e4
 HOST_BUILD_PARALLEL:=1
 
+# Keep compiler patches scoped to this auxiliary source version.
+PATCH_DIR:=$(CURDIR)/patches/$(PKG_VERSION)
+
 include $(INCLUDE_DIR)/toolchain-build.mk
 
 AUX_OUT_DIR:=$(HOST_BUILD_DIR)-build

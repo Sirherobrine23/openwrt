@@ -9,6 +9,9 @@ PKG_SOURCE:=gcc-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=@GNU/gcc/gcc-$(PKG_VERSION)
 HOST_BUILD_PARALLEL:=1
 
+# Keep compiler patches scoped to this auxiliary source version.
+PATCH_DIR:=$(CURDIR)/patches/$(PKG_VERSION)
+
 ifeq ($(PKG_VERSION),13.4.0)
   PKG_HASH:=9c4ce6dbb040568fdc545588ac03c5cbc95a8dbf0c7aa490170843afb59ca8f5
 else ifeq ($(PKG_VERSION),14.4.0)

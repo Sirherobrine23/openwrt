@@ -1,0 +1,88 @@
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -553,7 +553,7 @@
+ 	extra_objs="${extra_objs} riscv-vector-builtins.o riscv-vector-builtins-shapes.o riscv-vector-builtins-bases.o"
+ 	extra_objs="${extra_objs} thead.o riscv-target-attr.o"
+ 	d_target_objs="riscv-d.o"
+-	extra_headers="riscv_vector.h riscv_crypto.h riscv_bitmanip.h riscv_th_vector.h"
++	extra_headers="riscv_vector.h riscv_crypto.h riscv_bitmanip.h riscv_th_vector.h en7523_intrinsics.h"
+ 	target_gtfiles="$target_gtfiles \$(srcdir)/config/riscv/riscv-vector-builtins.cc"
+ 	target_gtfiles="$target_gtfiles \$(srcdir)/config/riscv/riscv-vector-builtins.h"
+ 	;;
+--- /dev/null
++++ b/gcc/config/riscv/en7523_intrinsics.h
+@@ -0,0 +1,74 @@
++/* Experimental EN7523, local GNU interface, hardware coverage in README.
++ * SPDX-License-Identifier: MIT
++ */
++#ifndef EN7523_INTRINSICS_H
++#define EN7523_INTRINSICS_H
++#if !defined(__riscv_xen7523ops) || __riscv_xlen != 32
++#error "Use -march=rv32im_zicsr_zifencei_xen7523ops -mabi=ilp32"
++#endif
++#define en7523_bclri(a,k) __extension__ ({ unsigned _r; unsigned _a=(a); \
++ __asm__ ("en7523.bclri %0,%1,%2" : "=r"(_r) : "r"(_a), "n"(k)); _r; })
++#define en7523_btsti(a,k) __extension__ ({ unsigned _r; unsigned _a=(a); \
++ __asm__ ("en7523.btsti %0,%1,%2" : "=r"(_r) : "r"(_a), "n"(k)); _r; })
++#define en7523_bseti(a,k) __extension__ ({ unsigned _r; unsigned _a=(a); \
++ __asm__ ("en7523.bseti %0,%1,%2" : "=r"(_r) : "r"(_a), "n"(k)); _r; })
++#define en7523_binvi(a,k) __extension__ ({ unsigned _r; unsigned _a=(a); \
++ __asm__ ("en7523.binvi %0,%1,%2" : "=r"(_r) : "r"(_a), "n"(k)); _r; })
++#define en7523_bexti(a,k) __extension__ ({ unsigned _r; unsigned _a=(a); \
++ __asm__ ("en7523.bexti %0,%1,%2" : "=r"(_r) : "r"(_a), "n"(k)); _r; })
++#define en7523_masklo(a,k) __extension__ ({ unsigned _r; unsigned _a=(a); \
++ __asm__ ("en7523.masklo %0,%1,%2" : "=r"(_r) : "r"(_a), "n"(k)); _r; })
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_bclr(unsigned a,unsigned b) { unsigned r; __asm__("en7523.bclr %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_btst(unsigned a,unsigned b) { unsigned r; __asm__("en7523.btst %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_bset(unsigned a,unsigned b) { unsigned r; __asm__("en7523.bset %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_addsh1(unsigned a,unsigned b) { unsigned r; __asm__("en7523.addsh1 %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_addsh2(unsigned a,unsigned b) { unsigned r; __asm__("en7523.addsh2 %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_max_s(unsigned a,unsigned b) { unsigned r; __asm__("en7523.max.s %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_min_s(unsigned a,unsigned b) { unsigned r; __asm__("en7523.min.s %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_negif_s(unsigned a,unsigned b) { unsigned r; __asm__("en7523.negif.s %0,%1,%2":"=r"(r):"r"(a),"r"(b)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_clz(unsigned a) { unsigned r; __asm__("en7523.clz %0,%1":"=r"(r):"r"(a)); return r; }
++static __inline__ __attribute__((__always_inline__)) unsigned en7523_ctz(unsigned a) { unsigned r; __asm__("en7523.ctz %0,%1":"=r"(r):"r"(a)); return r; }
++#define en7523_ins(seed,a,p,k) __extension__ ({ unsigned _d=(seed),_a=(a); \
++ __asm__("en7523.ins %0,%1,%2,%3":"+&r"(_d):"r"(_a),"n"(p),"n"(k)); _d; })
++#define en7523_exts(a,p,k) __extension__ ({ unsigned _r,_a=(a); \
++ __asm__("en7523.exts %0,%1,%2,%3":"=r"(_r):"r"(_a),"n"(p),"n"(k)); _r; })
++#define en7523_extu(a,p,k) __extension__ ({ unsigned _r,_a=(a); \
++ __asm__("en7523.extu %0,%1,%2,%3":"=r"(_r):"r"(_a),"n"(p),"n"(k)); _r; })
++#define en7523_lb_post(base,delta) __extension__ ({ \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _r; \
++ __asm__ __volatile__("en7523.lb.post %0,(%1),%2":"=&r"(_r),"+r"(_p):"n"(delta):"memory"); \
++ *_pp=_p; _r; })
++#define en7523_lbu_post(base,delta) __extension__ ({ \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _r; \
++ __asm__ __volatile__("en7523.lbu.post %0,(%1),%2":"=&r"(_r),"+r"(_p):"n"(delta):"memory"); \
++ *_pp=_p; _r; })
++#define en7523_lh_post(base,delta) __extension__ ({ \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _r; \
++ __asm__ __volatile__("en7523.lh.post %0,(%1),%2":"=&r"(_r),"+r"(_p):"n"(delta):"memory"); \
++ *_pp=_p; _r; })
++#define en7523_lhu_post(base,delta) __extension__ ({ \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _r; \
++ __asm__ __volatile__("en7523.lhu.post %0,(%1),%2":"=&r"(_r),"+r"(_p):"n"(delta):"memory"); \
++ *_pp=_p; _r; })
++#define en7523_lw_post(base,delta) __extension__ ({ \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _r; \
++ __asm__ __volatile__("en7523.lw.post %0,(%1),%2":"=&r"(_r),"+r"(_p):"n"(delta):"memory"); \
++ *_pp=_p; _r; })
++#define en7523_sb_post(base,value,delta) do { \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _v=(value); \
++ __asm__ __volatile__("en7523.sb.post %1,(%0),%2":"+&r"(_p):"r"(_v),"n"(delta):"memory"); \
++ *_pp=_p; } while(0)
++#define en7523_sh_post(base,value,delta) do { \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _v=(value); \
++ __asm__ __volatile__("en7523.sh.post %1,(%0),%2":"+&r"(_p):"r"(_v),"n"(delta):"memory"); \
++ *_pp=_p; } while(0)
++#define en7523_sw_post(base,value,delta) do { \
++ __typeof__(&(base)) _pp=&(base); __typeof__(base) _p=*_pp; unsigned _v=(value); \
++ __asm__ __volatile__("en7523.sw.post %1,(%0),%2":"+&r"(_p):"r"(_v),"n"(delta):"memory"); \
++ *_pp=_p; } while(0)
++/* Raw command interface. 0x18 discards dirty D-cache data. Not a DMA clean. */
++static __inline__ __attribute__((__always_inline__)) void en7523_cacheop(unsigned command) {
++ register unsigned a0 __asm__("a0")=command;
++ __asm__ __volatile__("en7523.cacheop %0"::"r"(a0):"memory");
++}
++#endif

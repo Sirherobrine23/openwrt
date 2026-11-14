@@ -1,0 +1,322 @@
+--- a/gcc/common/config/riscv/riscv-common.cc
++++ b/gcc/common/config/riscv/riscv-common.cc
+@@ -368,6 +368,7 @@
+   {"xcvsimd", ISA_SPEC_CLASS_NONE, 1, 0},
+   {"xcvbi", ISA_SPEC_CLASS_NONE, 1, 0},
+ 
++  {"xen7523ops", ISA_SPEC_CLASS_NONE, 0, 1},
+   {"xtheadba", ISA_SPEC_CLASS_NONE, 1, 0},
+   {"xtheadbb", ISA_SPEC_CLASS_NONE, 1, 0},
+   {"xtheadbs", ISA_SPEC_CLASS_NONE, 1, 0},
+@@ -1644,6 +1645,7 @@
+   {"xcvsimd",       &gcc_options::x_riscv_xcv_subext, MASK_XCVSIMD},
+   {"xcvbi",         &gcc_options::x_riscv_xcv_subext, MASK_XCVBI},
+ 
++  {"xen7523ops", &gcc_options::x_riscv_en7523_subext, MASK_XEN7523OPS},
+   {"xtheadba",      &gcc_options::x_riscv_xthead_subext, MASK_XTHEADBA},
+   {"xtheadbb",      &gcc_options::x_riscv_xthead_subext, MASK_XTHEADBB},
+   {"xtheadbs",      &gcc_options::x_riscv_xthead_subext, MASK_XTHEADBS},
+--- a/gcc/config/riscv/bitmanip.md
++++ b/gcc/config/riscv/bitmanip.md
+@@ -196,12 +196,12 @@
+ (define_expand "clzsi2"
+   [(set (match_operand:SI 0 "register_operand")
+ 	(clz:SI (match_operand:SI 1 "register_operand")))]
+-  "TARGET_ZBB || (!TARGET_64BIT && TARGET_XTHEADBB)")
++  "TARGET_ZBB || (!TARGET_64BIT && (TARGET_XTHEADBB || TARGET_XEN7523OPS))")
+ 
+ (define_expand "ctz<mode>2"
+   [(set (match_operand:GPR 0 "register_operand")
+ 	(ctz:GPR (match_operand:GPR 1 "register_operand")))]
+-  "TARGET_ZBB")
++  "TARGET_ZBB || (!TARGET_64BIT && TARGET_XEN7523OPS)")
+ 
+ (define_expand "popcount<mode>2"
+   [(set (match_operand:GPR 0 "register_operand")
+@@ -511,7 +511,7 @@
+   [(set (match_operand:SI 0 "register_operand" "=r")
+         (bitmanip_minmax:SI (match_operand:SI 1 "register_operand" "r")
+                             (match_operand:SI 2 "register_operand" "r")))]
+-  "TARGET_ZBB"
++  "TARGET_ZBB || (TARGET_XEN7523OPS && (<CODE> == SMIN || <CODE> == SMAX))"
+ {
+   if (TARGET_64BIT)
+     {
+--- a/gcc/config/riscv/predicates.md
++++ b/gcc/config/riscv/predicates.md
+@@ -660,3 +660,6 @@
+   return (riscv_symbolic_constant_p (op, &type)
+          && type == SYMBOL_PCREL);
+ })
++
++(define_predicate "en7523_branch_operator"
++  (match_code "eq,ne,lt,ge,ltu,geu"))
+--- a/gcc/config/riscv/riscv.cc
++++ b/gcc/config/riscv/riscv.cc
+@@ -3397,9 +3397,13 @@
+ 	}
+       gcc_fallthrough ();
+     case SIGN_EXTRACT:
+-      if (TARGET_XTHEADBB && outer_code == SET
+-	  && CONST_INT_P (XEXP (x, 1))
+-	  && CONST_INT_P (XEXP (x, 2)))
++      if ((TARGET_XTHEADBB || TARGET_XEN7523OPS) && outer_code == SET
++          && CONST_INT_P (XEXP (x, 1))
++          && CONST_INT_P (XEXP (x, 2))
++          && (!TARGET_XEN7523OPS
++              || (IN_RANGE (INTVAL (XEXP (x, 1)), 1, 31)
++                  && IN_RANGE (INTVAL (XEXP (x, 2)), 0, 31)
++                  && INTVAL (XEXP (x, 1)) + INTVAL (XEXP (x, 2)) <= 32)))
+ 	{
+ 	  *total = COSTS_N_INSNS (SINGLE_SHIFT_COST);
+ 	  return true;
+@@ -4501,6 +4505,32 @@
+ void
+ riscv_expand_conditional_branch (rtx label, rtx_code code, rtx op0, rtx op1)
+ {
++  if (TARGET_XEN7523OPS && GET_MODE (op0) == SImode && CONST_INT_P (op1))
++    {
++      /* Canonical GIMPLE often represents >=k as >k-1 and <k as <=k-1. */
++      HOST_WIDE_INT val = INTVAL (op1);
++      if ((code == GT || code == LE) && IN_RANGE (val, -17, 14))
++        {
++          code = code == GT ? GE : LT;
++          op1 = GEN_INT (val + 1);
++        }
++      else if ((code == GTU || code == LEU) && IN_RANGE (val, 0, 30))
++        {
++          code = code == GTU ? GEU : LTU;
++          op1 = GEN_INT (val + 1);
++        }
++      bool uns = code == LTU || code == GEU;
++      if ((uns || code == EQ || code == NE || code == LT || code == GE)
++          && (uns ? IN_RANGE (INTVAL (op1), 0, 31)
++                  : IN_RANGE (INTVAL (op1), -16, 15)))
++        {
++          op0 = force_reg (SImode, op0);
++          rtx cond = gen_rtx_fmt_ee (code, VOIDmode, op0, op1);
++          emit_jump_insn (gen_en7523_cbranchsi (label, cond, op0, op1));
++          return;
++        }
++    }
++
+   if (FLOAT_MODE_P (GET_MODE (op1)))
+     riscv_emit_float_compare (&code, &op0, &op1);
+   else
+@@ -9326,6 +9356,21 @@
+   SUBTARGET_OVERRIDE_OPTIONS;
+ #endif
+ 
++  if (TARGET_XEN7523OPS)
++    {
++      if (TARGET_64BIT)
++        error ("xen7523ops requires RV32");
++      const riscv_subset_list *isa = riscv_cmdline_subset_list ();
++      for (const riscv_subset_t *sub = isa->begin (); sub != isa->end (); sub = sub->next)
++        {
++          const auto &e = *sub;
++        if (e.name != "i" && e.name != "m" && e.name != "a"
++            && e.name != "zmmul" && e.name != "zicsr"
++            && e.name != "zifencei" && e.name != "xen7523ops")
++          error ("xen7523ops: unsupported combination with %qs", e.name.c_str ());
++        }
++    }
++
+   flag_pcc_struct_return = 0;
+ 
+   if (flag_pic)
+--- a/gcc/config/riscv/riscv.md
++++ b/gcc/config/riscv/riscv.md
+@@ -3696,21 +3696,32 @@
+ 
+ (define_expand "extv<mode>"
+   [(set (match_operand:GPR 0 "register_operand" "=r")
+-	(sign_extract:GPR (match_operand:GPR 1 "register_operand" "r")
+-			 (match_operand 2 "const_int_operand")
+-			 (match_operand 3 "const_int_operand")))]
+-  "TARGET_XTHEADBB"
+-)
++        (sign_extract:GPR (match_operand:GPR 1 "register_operand" "r")
++                         (match_operand 2 "const_int_operand")
++                         (match_operand 3 "const_int_operand")))]
++  "TARGET_XTHEADBB || TARGET_XEN7523OPS"
++{
++  if (TARGET_XEN7523OPS
++      && (!IN_RANGE (INTVAL (operands[2]), 1, 31)
++          || !IN_RANGE (INTVAL (operands[3]), 0, 31)
++          || INTVAL (operands[2]) + INTVAL (operands[3]) > 32))
++    FAIL;
++})
+ 
+ (define_expand "extzv<mode>"
+   [(set (match_operand:GPR 0 "register_operand" "=r")
+-	(zero_extract:GPR (match_operand:GPR 1 "register_operand" "r")
+-			 (match_operand 2 "const_int_operand")
+-			 (match_operand 3 "const_int_operand")))]
+-  "TARGET_XTHEADBB"
++        (zero_extract:GPR (match_operand:GPR 1 "register_operand" "r")
++                         (match_operand 2 "const_int_operand")
++                         (match_operand 3 "const_int_operand")))]
++  "TARGET_XTHEADBB || TARGET_XEN7523OPS"
+ {
+   if (TARGET_XTHEADBB
+       && (INTVAL (operands[2]) < 8) && (INTVAL (operands[3]) == 0))
++    FAIL;
++  if (TARGET_XEN7523OPS
++      && (!IN_RANGE (INTVAL (operands[2]), 1, 31)
++          || !IN_RANGE (INTVAL (operands[3]), 0, 31)
++          || INTVAL (operands[2]) + INTVAL (operands[3]) > 32))
+     FAIL;
+ })
+ 
+@@ -3810,6 +3821,7 @@
+   [(set_attr "type" "load")
+    (set (attr "length") (const_int 8))])
+ 
++(include "en7523.md")
+ (include "bitmanip.md")
+ (include "crypto.md")
+ (include "sync.md")
+--- a/gcc/config/riscv/riscv.opt
++++ b/gcc/config/riscv/riscv.opt
+@@ -456,6 +456,11 @@
+ Mask(XCVSIMD) Var(riscv_xcv_subext)
+ 
+ TargetVariable
++int riscv_en7523_subext
++
++Mask(XEN7523OPS) Var(riscv_en7523_subext)
++
++TargetVariable
+ int riscv_xthead_subext
+ 
+ Mask(XTHEADBA)      Var(riscv_xthead_subext)
+--- /dev/null
++++ b/gcc/config/riscv/en7523.md
+@@ -0,0 +1,126 @@
++;; Experimental EN7523 operations, hardware characterized on hart 0.
++;; Local names, not an official vendor ISA specification.
++;; SPDX-License-Identifier: GPL-3.0-or-later
++
++(define_code_iterator EN_COUNT [clz ctz])
++(define_code_attr en_count [(clz "clz") (ctz "ctz")])
++(define_insn "en7523_<en_count>si2"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (EN_COUNT:SI (match_operand:SI 1 "register_operand" "r")))]
++  "TARGET_XEN7523OPS"
++  "en7523.<en_count>\t%0,%1"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_code_iterator EN_MINMAX [smin smax])
++(define_code_attr en_minmax [(smin "min.s") (smax "max.s")])
++(define_insn "en7523_<code>si3"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (EN_MINMAX:SI (match_operand:SI 1 "register_operand" "r")
++                     (match_operand:SI 2 "register_operand" "r")))]
++  "TARGET_XEN7523OPS"
++  "en7523.<en_minmax>\t%0,%1,%2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_addshsi3"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (plus:SI (ashift:SI (match_operand:SI 1 "register_operand" "r")
++                           (match_operand 2 "const_int_operand" "n"))
++                 (match_operand:SI 3 "register_operand" "r")))]
++  "TARGET_XEN7523OPS && IN_RANGE (INTVAL (operands[2]), 1, 2)"
++  { return INTVAL (operands[2]) == 1
++      ? "en7523.addsh1\t%0,%3,%1" : "en7523.addsh2\t%0,%3,%1"; }
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_extusi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (zero_extract:SI (match_operand:SI 1 "register_operand" "r")
++                         (match_operand 2 "const_int_operand" "n")
++                         (match_operand 3 "const_int_operand" "n")))]
++  "TARGET_XEN7523OPS && IN_RANGE (INTVAL (operands[2]), 1, 31)
++   && IN_RANGE (INTVAL (operands[3]), 0, 31)
++   && INTVAL (operands[2]) + INTVAL (operands[3]) <= 32"
++  "en7523.extu\t%0,%1,%3,%2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_extssi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (sign_extract:SI (match_operand:SI 1 "register_operand" "r")
++                         (match_operand 2 "const_int_operand" "n")
++                         (match_operand 3 "const_int_operand" "n")))]
++  "TARGET_XEN7523OPS && IN_RANGE (INTVAL (operands[2]), 1, 31)
++   && IN_RANGE (INTVAL (operands[3]), 0, 31)
++   && INTVAL (operands[2]) + INTVAL (operands[3]) <= 32"
++  "en7523.exts\t%0,%1,%3,%2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_inssi"
++  [(set (zero_extract:SI (match_operand:SI 0 "register_operand" "+r")
++                        (match_operand 1 "const_int_operand" "n")
++                        (match_operand 2 "const_int_operand" "n"))
++        (match_operand:SI 3 "register_operand" "r"))]
++  "TARGET_XEN7523OPS && IN_RANGE (INTVAL (operands[1]), 1, 31)
++   && IN_RANGE (INTVAL (operands[2]), 0, 31)
++   && INTVAL (operands[1]) + INTVAL (operands[2]) <= 32"
++  "en7523.ins\t%0,%3,%2,%1"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_bclrisi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (and:SI (match_operand:SI 1 "register_operand" "r")
++                (match_operand:SI 2 "not_single_bit_mask_operand" "DnS")))]
++  "TARGET_XEN7523OPS"
++  "en7523.bclri\t%0,%1,%T2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_bsetisi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (ior:SI (match_operand:SI 1 "register_operand" "r")
++                (match_operand:SI 2 "single_bit_mask_operand" "n")))]
++  "TARGET_XEN7523OPS"
++  "en7523.bseti\t%0,%1,%S2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_binvisi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (xor:SI (match_operand:SI 1 "register_operand" "r")
++                (match_operand:SI 2 "single_bit_mask_operand" "n")))]
++  "TARGET_XEN7523OPS"
++  "en7523.binvi\t%0,%1,%S2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_btstisi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (and:SI (match_operand:SI 1 "register_operand" "r")
++                (match_operand:SI 2 "single_bit_mask_operand" "n")))]
++  "TARGET_XEN7523OPS"
++  "en7523.btsti\t%0,%1,%S2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_bsetsi"
++  [(set (match_operand:SI 0 "register_operand" "=r")
++        (ior:SI (ashift:SI (const_int 1)
++                          (match_operand:QI 2 "register_operand" "r"))
++                (match_operand:SI 1 "register_operand" "r")))]
++  "TARGET_XEN7523OPS"
++  "en7523.bset\t%0,%1,%2"
++  [(set_attr "type" "bitmanip") (set_attr "mode" "SI")])
++
++(define_insn "en7523_cbranchsi"
++  [(set (pc)
++        (if_then_else
++          (match_operator 1 "en7523_branch_operator"
++            [(match_operand:SI 2 "register_operand" "r")
++             (match_operand:SI 3 "const_int_operand" "n")])
++          (label_ref (match_operand 0 "" "")) (pc)))]
++  "TARGET_XEN7523OPS
++   && ((GET_CODE (operands[1]) == LTU || GET_CODE (operands[1]) == GEU)
++       ? IN_RANGE (INTVAL (operands[3]), 0, 31)
++       : IN_RANGE (INTVAL (operands[3]), -16, 15))"
++{
++  if (get_attr_length (insn) == 12)
++    return "en7523.b%N1i\t%2,%3,1f; jump\t%l0,ra; 1:";
++  if (get_attr_length (insn) == 8)
++    return "en7523.b%N1i\t%2,%3,1f; j\t%l0; 1:";
++  return "en7523.b%C1i\t%2,%3,%l0";
++}
++  [(set_attr "type" "branch") (set_attr "mode" "none")])

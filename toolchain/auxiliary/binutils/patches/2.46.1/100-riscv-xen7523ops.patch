@@ -1,0 +1,153 @@
+--- a/bfd/elfxx-riscv.c
++++ b/bfd/elfxx-riscv.c
+@@ -1619,6 +1619,7 @@
+   {"xcvmac",		ISA_SPEC_CLASS_DRAFT,   1, 0, 0 },
+   {"xcvmem",		ISA_SPEC_CLASS_DRAFT,	1, 0, 0 },
+   {"xcvsimd",		ISA_SPEC_CLASS_DRAFT,	1, 0, 0 },
++  {"xen7523ops", ISA_SPEC_CLASS_DRAFT, 0, 1, 0 },
+   {"xtheadba",		ISA_SPEC_CLASS_DRAFT,	1, 0, 0 },
+   {"xtheadbb",		ISA_SPEC_CLASS_DRAFT,	1, 0, 0 },
+   {"xtheadbs",		ISA_SPEC_CLASS_DRAFT,	1, 0, 0 },
+@@ -2293,6 +2294,26 @@
+       rps->error_handler (_ ("rv%d does not support the `supm' extension"),
+ 			  xlen);
+       no_conflict = false;
++    }
++
++  if (riscv_subset_supports (rps, "xen7523ops"))
++    {
++      if (xlen != 32)
++        {
++          rps->error_handler (_("xen7523ops requires RV32"));
++          no_conflict = false;
++        }
++      for (riscv_subset_t *e = rps->subset_list->head; e; e = e->next)
++        if (strcmp (e->name, "i") && strcmp (e->name, "m")
++            && strcmp (e->name, "a") && strcmp (e->name, "zmmul")
++            && strcmp (e->name, "zaamo") && strcmp (e->name, "zalrsc")
++            && strcmp (e->name, "zicsr") && strcmp (e->name, "zifencei")
++            && strcmp (e->name, "xen7523ops"))
++          {
++            rps->error_handler (_("xen7523ops: unsupported combination with `%s'"),
++                                e->name);
++            no_conflict = false;
++          }
+     }
+ 
+   bool support_zve = false;
+@@ -2998,6 +3019,8 @@
+       return riscv_subset_supports (rps, "svinval");
+     case INSN_CLASS_H:
+       return riscv_subset_supports (rps, "h");
++    case INSN_CLASS_XEN7523OPS:
++      return riscv_subset_supports (rps, "xen7523ops");
+     case INSN_CLASS_XCVALU:
+       return riscv_subset_supports (rps, "xcvalu");
+     case INSN_CLASS_XCVBI:
+@@ -3309,6 +3332,8 @@
+       return "svinval";
+     case INSN_CLASS_H:
+       return _("h");
++    case INSN_CLASS_XEN7523OPS:
++      return "xen7523ops";
+     case INSN_CLASS_XCVALU:
+       return "xcvalu";
+     case INSN_CLASS_XCVBI:
+--- a/gas/config/tc-riscv.c
++++ b/gas/config/tc-riscv.c
+@@ -5459,7 +5459,14 @@
+ 
+       /* Invert the branch condition.  Branch over the jump.  */
+       insn = bfd_getl32 (buf);
+-      insn ^= MATCH_BEQ ^ MATCH_BNE;
++      if ((insn & 0x7f) == 0x67)
++        {
++          unsigned f = (insn >> 12) & 7;
++          f = (f & 1) ? f + 1 : f - 1;
++          insn = (insn & ~0x7000) | (f << 12);
++        }
++      else
++        insn ^= MATCH_BEQ ^ MATCH_BNE;
+       insn |= ENCODE_BTYPE_IMM (8);
+       bfd_putl32 (insn, buf);
+       buf += 4;
+--- a/include/opcode/riscv.h
++++ b/include/opcode/riscv.h
+@@ -574,6 +574,7 @@
+   INSN_CLASS_ZACAS,
+   INSN_CLASS_ZABHA_AND_ZACAS,
+   INSN_CLASS_H,
++  INSN_CLASS_XEN7523OPS,
+   INSN_CLASS_XCVALU,
+   INSN_CLASS_XCVBI,
+   INSN_CLASS_XCVBITMANIP,
+--- a/opcodes/riscv-dis.c
++++ b/opcodes/riscv-dis.c
+@@ -99,6 +99,12 @@
+     {
+       pd->riscv_gpr_names = riscv_gpr_names_numeric;
+       pd->riscv_fpr_names = riscv_fpr_names_numeric;
++    }
++  else if (strcmp (option, "xen7523ops") == 0)
++    {
++      riscv_release_subset_list (pd->riscv_rps_dis.subset_list);
++      pd->default_arch = "rv32im_zicsr_zifencei_xen7523ops";
++      riscv_parse_subset (&pd->riscv_rps_dis, pd->default_arch);
+     }
+   else if (strcmp (option, "max") == 0)
+     pd->all_ext = true;
+@@ -1626,6 +1632,9 @@
+   { "numeric",
+     N_("Print numeric register names, rather than ABI names."),
+     RISCV_OPTION_ARG_NONE },
++  { "xen7523ops",
++    N_("Decode raw EN7523 experimental instructions (RV32)."),
++    RISCV_OPTION_ARG_NONE },
+   { "no-aliases",
+     N_("Disassemble only into canonical instructions."),
+     RISCV_OPTION_ARG_NONE },
+--- a/opcodes/riscv-opc.c
++++ b/opcodes/riscv-opc.c
+@@ -450,6 +450,42 @@
+ 
+ const struct riscv_opcode riscv_opcodes[] =
+ {
++/* Experimental EN7523, local mnemonics; only enabled by xen7523ops. */
++{"en7523.bclri", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@20", 0x08000033, 0xfe00707f, match_opcode, 0 },
++{"en7523.btsti", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@20", 0x08002033, 0xfe00707f, match_opcode, 0 },
++{"en7523.bseti", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@20", 0x08003033, 0xfe00707f, match_opcode, 0 },
++{"en7523.binvi", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@20", 0x08004033, 0xfe00707f, match_opcode, 0 },
++{"en7523.bexti", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@20", 0x08005033, 0xfe00707f, match_opcode, 0 },
++{"en7523.masklo", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@20", 0x08006033, 0xfe00707f, match_opcode, 0 },
++{"en7523.bclr", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x80000033, 0xfe00707f, match_opcode, 0 },
++{"en7523.btst", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x80002033, 0xfe00707f, match_opcode, 0 },
++{"en7523.bset", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x80003033, 0xfe00707f, match_opcode, 0 },
++{"en7523.ins", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@27,Xtu5@20", 0x06000033, 0x0600707f, match_opcode, 0 },
++{"en7523.exts", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@27,Xtu5@20", 0x06001033, 0x0600707f, match_opcode, 0 },
++{"en7523.extu", 32, INSN_CLASS_XEN7523OPS, "d,s,Xtu5@27,Xtu5@20", 0x06002033, 0x0600707f, match_opcode, 0 },
++{"en7523.clz", 32, INSN_CLASS_XEN7523OPS, "d,s", 0x10001033, 0xfff0707f, match_opcode, 0 },
++{"en7523.ctz", 32, INSN_CLASS_XEN7523OPS, "d,s", 0x10002033, 0xfff0707f, match_opcode, 0 },
++{"en7523.addsh1", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x20000033, 0xfe00707f, match_opcode, 0 },
++{"en7523.addsh2", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x20001033, 0xfe00707f, match_opcode, 0 },
++{"en7523.max.s", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x20002033, 0xfe00707f, match_opcode, 0 },
++{"en7523.min.s", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x20004033, 0xfe00707f, match_opcode, 0 },
++{"en7523.negif.s", 32, INSN_CLASS_XEN7523OPS, "d,s,t", 0x20006033, 0xfe00707f, match_opcode, 0 },
++{"en7523.beqi", 32, INSN_CLASS_XEN7523OPS, "s,Xts5@20,p", 0x00001067, 0x0000707f, match_opcode, INSN_CONDBRANCH },
++{"en7523.bnei", 32, INSN_CLASS_XEN7523OPS, "s,Xts5@20,p", 0x00002067, 0x0000707f, match_opcode, INSN_CONDBRANCH },
++{"en7523.blti", 32, INSN_CLASS_XEN7523OPS, "s,Xts5@20,p", 0x00003067, 0x0000707f, match_opcode, INSN_CONDBRANCH },
++{"en7523.bgei", 32, INSN_CLASS_XEN7523OPS, "s,Xts5@20,p", 0x00004067, 0x0000707f, match_opcode, INSN_CONDBRANCH },
++{"en7523.bltui", 32, INSN_CLASS_XEN7523OPS, "s,Xtu5@20,p", 0x00005067, 0x0000707f, match_opcode, INSN_CONDBRANCH },
++{"en7523.bgeui", 32, INSN_CLASS_XEN7523OPS, "s,Xtu5@20,p", 0x00006067, 0x0000707f, match_opcode, INSN_CONDBRANCH },
++{"en7523.lb.post", 32, INSN_CLASS_XEN7523OPS, "d,(s),j", 0x0000000b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.lbu.post", 32, INSN_CLASS_XEN7523OPS, "d,(s),j", 0x0000300b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.lh.post", 32, INSN_CLASS_XEN7523OPS, "d,(s),j", 0x0000500b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.lhu.post", 32, INSN_CLASS_XEN7523OPS, "d,(s),j", 0x0000600b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.lw.post", 32, INSN_CLASS_XEN7523OPS, "d,(s),j", 0x0000700b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.sb.post", 32, INSN_CLASS_XEN7523OPS, "t,(s),q", 0x0000100b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.sh.post", 32, INSN_CLASS_XEN7523OPS, "t,(s),q", 0x0000200b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.sw.post", 32, INSN_CLASS_XEN7523OPS, "t,(s),q", 0x0000400b, 0x0000707f, match_opcode, INSN_DREF },
++{"en7523.cacheop", 32, INSN_CLASS_XEN7523OPS, "s", 0x0000400f, 0xfff07fff, match_opcode, 0 },
++
+ /* name, xlen, isa, operands, match, mask, match_func, pinfo.  */
+ 
+ /* Standard hints.  */
