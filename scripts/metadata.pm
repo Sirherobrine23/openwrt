@@ -247,6 +247,8 @@ sub parse_package_metadata($) {
 		};
 		/^Build-Depends: \s*(.+)\s*$/ and $src->{builddepends} = [ split /\s+/, $1 ];
 		/^Build-Depends\/(\w+): \s*(.+)\s*$/ and $src->{"builddepends/$1"} = [ split /\s+/, $2 ];
+		/^Build-Package-Toolchain:\s*(\S+)\s*$/ and $src->{package_toolchain} = $1;
+		/^Build-Package-Toolchain-([A-Z_]+):\s*(.*?)\s*$/ and $src->{package_toolchain_config}{$1} = $2;
 		/^Build-Types:\s*(.+)\s*$/ and $src->{buildtypes} = [ split /\s+/, $1 ];
 		/^Parallel-Variants:/ and $src->{parallel_variants} = 1;
 		next unless $pkg;

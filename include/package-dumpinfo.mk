@@ -9,7 +9,9 @@ define SOURCE_INFO
 $(if $(PKG_BUILD_DEPENDS),Build-Depends: $(PKG_BUILD_DEPENDS)
 )$(if $(HOST_BUILD_DEPENDS),Build-Depends/host: $(HOST_BUILD_DEPENDS)
 )$(if $(BUILD_TYPES),Build-Types: $(BUILD_TYPES)
-)$(if $(PKG_PARALLEL_VARIANTS),Parallel-Variants: 1
+)$(if $(PKG_TOOLCHAIN_PROFILE),Build-Package-Toolchain: $(PKG_TOOLCHAIN_PROFILE)
+)$(subst $(newline)$(space),$(newline),$(foreach v,$(if $(PKG_TOOLCHAIN_PROFILE),$(foreach f,$(PKG_TOOLCHAIN_FIELDS),$(if $(strip $(PKG_TOOLCHAIN_$(f))),$(f)))),Build-Package-Toolchain-$(v): $(strip $(PKG_TOOLCHAIN_$(v)))
+))$(if $(PKG_PARALLEL_VARIANTS),Parallel-Variants: 1
 )
 
 endef

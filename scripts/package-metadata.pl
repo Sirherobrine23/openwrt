@@ -1,5 +1,6 @@
 #!/usr/bin/env perl
 use FindBin;
+use File::Find ();
 use lib "$FindBin::Bin";
 use strict;
 use metadata;
@@ -454,6 +455,43 @@ sub get_conditional_dep($$) {
 	}
 }
 
+# Reconstruct only the resolved compiler settings, never include the firmware
+# package Makefile in a compiler submake (it contains unrelated build rules).
+sub gen_package_toolchains() {
+	parse_package_metadata($ARGV[0]) or exit 1;
+	my %seen;
+	foreach my $src (sort { $a->{path} cmp $b->{path} } values %srcpackage) {
+		my $profile = $src->{package_toolchain} or next;
+		$profile =~ /^[a-zA-Z0-9_.+-]+$/ or die "Invalid package toolchain profile '$profile'\n";
+		my $config = $src->{package_toolchain_config} || {};
+		my @scan_deps = ('$(TOPDIR)/.config');
+		foreach my $component (qw(GCC BINUTILS)) {
+			my $dir = $config->{"${component}_PATCH_DIR"} or next;
+			File::Find::find({ no_chdir => 1, wanted => sub { push @scan_deps, $File::Find::name } }, $dir);
+		}
+		my $deps = join(' ', sort @scan_deps);
+		print "PACKAGE_TOOLCHAIN_SCAN_DEPS += $deps\n";
+		print "PACKAGE_TOOLCHAIN_SCAN_DEPS_$src->{makefile} := $deps\n";
+		my $text = "";
+		foreach my $key (sort keys %$config) {
+			$key =~ /^(?:ARCH|TARGET|CPU_TYPE|ABI|LIBC|LANGUAGES|VARIANT|CONFIG_HASH|GCC_VERSION|BINUTILS_VERSION|(?:GCC|BINUTILS)_(?:SOURCE(?:_PROTO|_URL|_VERSION|_DATE|_SUBDIR)?|HASH|MIRROR_HASH|PATCH_DIR|CONFIGURE_ARGS|CONFIGURE_VARS|MAKE_FLAGS))$/
+				or die "Invalid package toolchain setting '$key'\n";
+			my $value = $config->{$key};
+			# Escape literal make syntax after expansion in the package scanner.
+			$value =~ s/\$/\$\$/g;
+			$value =~ s/#/\\#/g;
+			$value =~ /\\$/ and die "Trailing backslash in package toolchain setting '$key'\n";
+			$text .= "PTC_$key := $value\n";
+		}
+		if (exists $seen{$profile}) {
+			$seen{$profile} eq $text or die "Conflicting package toolchain '$profile'; select distinct PKG_TOOLCHAIN_VARIANT values\n";
+			next;
+		}
+		$seen{$profile} = $text;
+		print "ifeq (\$(PTC_PROFILE),$profile)\nPTC_PROFILE_FOUND := 1\n${text}endif\n";
+	}
+}
+
 sub gen_package_mk() {
 	my $line;
 
@@ -464,6 +502,12 @@ sub gen_package_mk() {
 		my @variants;
 		my %variant_config;
 		my %deplines = ('' => {});
+
+		if (my $profile = $src->{package_toolchain}) {
+			$profile =~ /^[a-zA-Z0-9_.+-]+$/ or die "Invalid package toolchain profile '$profile'\n";
+			$line .= sprintf "\$(curdir)/%s/compile += toolchain/package-toolchain/%s/compile\n", $src->{path}, $profile;
+			$line .= sprintf "\$(curdir)/%s/download += toolchain/package-toolchain/%s/download\n", $src->{path}, $profile;
+		}
 
 		foreach my $pkg (@{$src->{packages}}) {
 			foreach my $dep (@{$pkg->{depends}}) {
@@ -885,6 +929,7 @@ sub parse_command() {
 	my $cmd = shift @ARGV;
 	for ($cmd) {
 		/^mk$/ and return gen_package_mk();
+		/^toolchains$/ and return gen_package_toolchains();
 		/^config$/ and return gen_package_config();
 		/^kconfig/ and return gen_kconfig_overrides();
 		/^source$/ and return gen_package_source();
@@ -899,6 +944,7 @@ sub parse_command() {
 	}
 	die <<EOF
 Available Commands:
+	$0 toolchains [file]			Package toolchain configurations
 	$0 mk [file]					Package metadata in makefile format
 	$0 config [file] 				Package metadata in Kconfig format
 	$0 kconfig [file] [config] [patchver]	Kernel config overrides

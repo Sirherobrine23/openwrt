@@ -82,7 +82,13 @@ _ignore = $(foreach p,$(IGNORE_PACKAGES),--ignore $(p))
 
 # package/kernel/linux names these files in SCAN_DEPS, so the package scan
 # reads them although they sit in the target tree.
-SCAN_DEPS_packageinfo:=target/linux/*/modules.mk target/linux/feeds/*/modules.mk
+# Resolved package toolchain patch dependencies are emitted by the metadata generator.
+# prepare-tmpinfo creates this cache. Do not let %:: try to remake a missing
+# include during startup: that would recursively invoke make prereq.
+-include $(wildcard $(TOPDIR)/tmp/.package-toolchains.mk)
+SCAN_DEPS_packageinfo:=target/linux/*/modules.mk target/linux/feeds/*/modules.mk \
+  include/package-toolchain.mk toolchain/gcc/source.mk toolchain/binutils/source.mk \
+  toolchain/package-toolchain/*.mk toolchain/package-toolchain/*/Makefile $(PACKAGE_TOOLCHAIN_SCAN_DEPS)
 
 # $(1): scan target, $(2): scan directory, $(3): scan depth
 SCAN_STAMP=tmp/info/.scan-$(1).stamp
@@ -115,6 +121,7 @@ prepare-tmpinfo: FORCE
 	./scripts/feeds feed_config > tmp/.config-feeds.in.new
 	cmp -s tmp/.config-feeds.in.new tmp/.config-feeds.in && rm -f tmp/.config-feeds.in.new || \
 		mv tmp/.config-feeds.in.new tmp/.config-feeds.in
+	$(call tmpinfo_gen,tmp/.package-toolchains.mk,toolchains)
 	$(call tmpinfo_gen,tmp/.packagedeps,mk)
 	$(call tmpinfo_gen,tmp/.packageauxvars,pkgaux)
 	$(call tmpinfo_gen,tmp/.packageusergroup,usergroup)

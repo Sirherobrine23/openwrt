@@ -84,6 +84,18 @@ ifndef DUMP_TARGET_DB
 $(TOOLCHAIN_DIR)/stamp/.gcc_final_installed:
 endif
 
+# Package toolchains do not participate in the default Linux toolchain
+# build. A package source requests one through Build-Package-Toolchain;
+# package-metadata.pl adds the dependency to that package only.
+$(curdir)/package-toolchain/%/compile: $(tools/stamp-compile)
+	+$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" compile
+
+$(curdir)/package-toolchain/%/download:
+	+$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" download
+
+$(curdir)/package-toolchain/%/clean:
+	+$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" clean
+
 $(curdir)/install: $(curdir)/compile
 
 $(eval $(call stampfile,$(curdir),toolchain,compile,$(TOOLCHAIN_DIR)/stamp/.gcc_final_installed,,$(TOOLCHAIN_DIR)))

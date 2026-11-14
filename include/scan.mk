@@ -1,6 +1,8 @@
 include $(TOPDIR)/include/verbose.mk
 include $(TOPDIR)/rules.mk
 TMP_DIR:=$(TOPDIR)/tmp
+# Read the metadata cache only when it already exists.
+-include $(wildcard $(TMP_DIR)/.package-toolchains.mk)
 
 all: $(TMP_DIR)/.$(SCAN_TARGET)
 
@@ -21,7 +23,9 @@ endef
 ifeq ($(SCAN_NAME),target)
   SCAN_DEPS=image/Makefile profiles/*.mk $(TOPDIR)/include/kernel*.mk $(TOPDIR)/include/target.mk image/*.mk
 else
-  SCAN_DEPS=$(TOPDIR)/include/package*.mk
+  SCAN_DEPS=$(TOPDIR)/include/package*.mk $(TOPDIR)/include/package-toolchain.mk \
+  $(TOPDIR)/toolchain/gcc/source.mk $(TOPDIR)/toolchain/binutils/source.mk \
+  $(TOPDIR)/toolchain/package-toolchain/*.mk $(TOPDIR)/toolchain/package-toolchain/*/Makefile
 ifneq ($(call feedname,$(SCAN_DIR)),)
   SCAN_DEPS += $(TOPDIR)/feeds/$(call feedname,$(SCAN_DIR))/*.mk
 endif
@@ -45,7 +49,7 @@ endif
 
 define PackageDir
   $(TMP_DIR)/.$(SCAN_TARGET): $(TMP_DIR)/info/.$(SCAN_TARGET)-$(1)
-  $(TMP_DIR)/info/.$(SCAN_TARGET)-$(1): $(SCAN_DIR)/$(2)/Makefile $(foreach DEP,$(DEPS_$(SCAN_DIR)/$(2)/Makefile) $(SCAN_DEPS),$(wildcard $(if $(filter /%,$(DEP)),$(DEP),$(SCAN_DIR)/$(2)/$(DEP))))
+  $(TMP_DIR)/info/.$(SCAN_TARGET)-$(1): $(SCAN_DIR)/$(2)/Makefile $(foreach DEP,$(DEPS_$(SCAN_DIR)/$(2)/Makefile) $(SCAN_DEPS) $(PACKAGE_TOOLCHAIN_SCAN_DEPS_$(SCAN_DIR)/$(2)/Makefile),$(wildcard $(if $(filter /%,$(DEP)),$(DEP),$(SCAN_DIR)/$(2)/$(DEP))))
 	{ \
 		$$(call progress,Collecting $(SCAN_NAME) info: $(SCAN_DIR)/$(2)) \
 		echo Source-Makefile: $(SCAN_DIR)/$(2)/Makefile; \
