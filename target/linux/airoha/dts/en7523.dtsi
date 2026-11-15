@@ -30,22 +30,22 @@
 
 		npu_binary: npu-binary@84000000 {
 			no-map;
-			reg = <0x84000000 0x00100000>;
+			reg = <0x84000000 0x00400000>;
 		};
 
 		npu_pkt: npu-pkt@84d00000 {
 			no-map;
-			reg = <0x84d00000 0x01600000>;
+			reg = <0x84400000 0x01600000>;
 		};
 
 		qdma0_buf: qdma0-buf@86400000 {
 			no-map;
-			reg = <0x86400000 0x02000000>;
+			reg = <0x85a00000 0x01000000>;
 		};
 
 		qdma1_buf: qdma1-buf@88400000 {
 			no-map;
-			reg = <0x88400000 0x01000000>;
+			reg = <0x86a00000 0x00800000>;
 		};
 	};
 
@@ -78,7 +78,7 @@
 			opp-supported-hw = <AIROHA_CPU_HW_1G>;
 		};
 
-		opp-700000000 {
+		opp-7000000000 {
 			opp-hz = /bits/ 64 <700000000>;
 			opp-supported-hw = <AIROHA_CPU_HW_1G>;
 		};
@@ -219,7 +219,7 @@
 		its: gic-its@09020000 {
 			compatible = "arm,gic-v3-its";
 			msi-controller;
-			#msi-cells = <1>;
+			#msi-cell = <1>;
 			reg = <0x090200000 0x20000>;
 		};
 	};
