@@ -1,0 +1,329 @@
+From d0fad56bf57219f4395ea3859ac15a6e3dfc3d17 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 15 Nov 2026 19:57:24 -0300
+Subject: [PATCH 1083/1083] fix env boot and migration
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ configs/en7523-tplink_ex530v_v1_defconfig    | 10 +---------
+ configs/en7523-tplink_xx230v_v1_defconfig    | 10 +---------
+ defenvs/en751221_nokia_g240g-e               |  6 +++---
+ defenvs/en751221_tplink_archer-xr500v-v1     |  2 +-
+ defenvs/en7523-askey-rtf8225vw_env           | 11 ++++++-----
+ defenvs/en7523-genexis_pixly_r1_env          |  2 +-
+ defenvs/en7523-mitrastar_gpt_2742gx4x5v6_env |  9 +++++----
+ defenvs/en7523-tplink-ex530v_v1_env          |  8 ++++----
+ defenvs/en7523-tplink-xx230v_v1_env          |  9 ++++-----
+ defenvs/en7528_xc220_g3v_env                 |  4 ++--
+ 10 files changed, 28 insertions(+), 43 deletions(-)
+
+diff --git a/configs/en7523-tplink_ex530v_v1_defconfig b/configs/en7523-tplink_ex530v_v1_defconfig
+index a906223e..263d5176 100644
+--- a/configs/en7523-tplink_ex530v_v1_defconfig
++++ b/configs/en7523-tplink_ex530v_v1_defconfig
+@@ -25,8 +25,8 @@ CONFIG_CMD_BOOTZ=y
+ CONFIG_CMD_BOOTMENU=y
+ # CONFIG_CMD_ELF is not set
+ # CONFIG_CMD_XIMG is not set
+-CONFIG_CMD_BIND=y
+ CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_BIND=y
+ CONFIG_CMD_GPIO=y
+ CONFIG_CMD_MTD=y
+ CONFIG_CMD_PART=y
+@@ -42,11 +42,6 @@ CONFIG_CMD_UBI=y
+ CONFIG_OF_UPSTREAM=y
+ CONFIG_ENV_OVERWRITE=y
+ # CONFIG_ENV_IS_IN_MTD is not set
+-CONFIG_ENV_IS_IN_UBI=y
+-CONFIG_ENV_REDUNDANT=y
+-CONFIG_ENV_UBI_PART="ubi"
+-CONFIG_ENV_UBI_VOLUME="ubootenv"
+-CONFIG_ENV_UBI_VOLUME_REDUND="ubootenv2"
+ CONFIG_ENV_RELOC_GD_ENV_ADDR=y
+ CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE=y
+ CONFIG_ENV_DEFAULT_ENV_TEXT_FILE="defenvs/en7523-tplink-ex530v_v1_env"
+@@ -54,7 +49,6 @@ CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
+ CONFIG_IPV6=y
+ CONFIG_NET_RANDOM_ETHADDR=y
+ CONFIG_SYS_RX_ETH_BUFFER=8
+-CONFIG_REGMAP=y
+ CONFIG_BUTTON=y
+ CONFIG_BUTTON_GPIO=y
+ CONFIG_CLK=y
+@@ -70,7 +64,6 @@ CONFIG_MTD=y
+ CONFIG_DM_MTD=y
+ CONFIG_MTD_SPI_NAND=y
+ CONFIG_UBI_BLOCK=y
+-CONFIG_DM_MDIO=y
+ CONFIG_AIROHA_ETH=y
+ CONFIG_PHY=y
+ CONFIG_PINCTRL=y
+@@ -81,7 +74,6 @@ CONFIG_SYS_NS16550=y
+ CONFIG_SPI=y
+ CONFIG_DM_SPI=y
+ CONFIG_AIROHA_SNFI_SPI=y
+-# CONFIG_UBIFS_SILENCE_MSG is not set
+ CONFIG_FS_SQUASHFS=y
+ CONFIG_SHA512=y
+ CONFIG_LZMA=y
+diff --git a/configs/en7523-tplink_xx230v_v1_defconfig b/configs/en7523-tplink_xx230v_v1_defconfig
+index 35bd7f78..070c9735 100644
+--- a/configs/en7523-tplink_xx230v_v1_defconfig
++++ b/configs/en7523-tplink_xx230v_v1_defconfig
+@@ -25,8 +25,8 @@ CONFIG_CMD_BOOTZ=y
+ CONFIG_CMD_BOOTMENU=y
+ # CONFIG_CMD_ELF is not set
+ # CONFIG_CMD_XIMG is not set
+-CONFIG_CMD_BIND=y
+ CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_BIND=y
+ CONFIG_CMD_GPIO=y
+ CONFIG_CMD_MTD=y
+ CONFIG_CMD_PART=y
+@@ -42,11 +42,6 @@ CONFIG_CMD_UBI=y
+ CONFIG_OF_UPSTREAM=y
+ CONFIG_ENV_OVERWRITE=y
+ # CONFIG_ENV_IS_IN_MTD is not set
+-CONFIG_ENV_IS_IN_UBI=y
+-CONFIG_ENV_REDUNDANT=y
+-CONFIG_ENV_UBI_PART="ubi"
+-CONFIG_ENV_UBI_VOLUME="ubootenv"
+-CONFIG_ENV_UBI_VOLUME_REDUND="ubootenv2"
+ CONFIG_ENV_RELOC_GD_ENV_ADDR=y
+ CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE=y
+ CONFIG_ENV_DEFAULT_ENV_TEXT_FILE="defenvs/en7523-tplink-xx230v_v1_env"
+@@ -54,7 +49,6 @@ CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
+ CONFIG_IPV6=y
+ CONFIG_NET_RANDOM_ETHADDR=y
+ CONFIG_SYS_RX_ETH_BUFFER=8
+-CONFIG_REGMAP=y
+ CONFIG_BUTTON=y
+ CONFIG_BUTTON_GPIO=y
+ CONFIG_CLK=y
+@@ -70,7 +64,6 @@ CONFIG_MTD=y
+ CONFIG_DM_MTD=y
+ CONFIG_MTD_SPI_NAND=y
+ CONFIG_UBI_BLOCK=y
+-CONFIG_DM_MDIO=y
+ CONFIG_AIROHA_ETH=y
+ CONFIG_PHY=y
+ CONFIG_PINCTRL=y
+@@ -81,7 +74,6 @@ CONFIG_SYS_NS16550=y
+ CONFIG_SPI=y
+ CONFIG_DM_SPI=y
+ CONFIG_AIROHA_SNFI_SPI=y
+-# CONFIG_UBIFS_SILENCE_MSG is not set
+ CONFIG_FS_SQUASHFS=y
+ CONFIG_SHA512=y
+ CONFIG_LZMA=y
+diff --git a/defenvs/en751221_nokia_g240g-e b/defenvs/en751221_nokia_g240g-e
+index 3d408644..318d9d73 100644
+--- a/defenvs/en751221_nokia_g240g-e
++++ b/defenvs/en751221_nokia_g240g-e
+@@ -5,12 +5,12 @@ bootled_pwr=green:status-6
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en751221-nokia_g240g-e-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en751221-nokia_g240g-e-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en751221-nokia_g240g-e-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ 
+-boot_openwrt=led $bootled_pwr blink 255; ( run ubi_read_openwrt || echo Install openwrt ; run boot_tftp ) && bootm $loadaddr#$bootconf ; led $bootled_pwr on
++boot_openwrt=led $bootled_pwr blink 255; run ubi_read_openwrt && bootm $loadaddr#$bootconf; echo Install openwrt ; run boot_tftp ; led $bootled_pwr on
+ boot_ubi=ubi part ubi && run boot_openwrt
+ 
+ upgrade_uboot=\
+diff --git a/defenvs/en751221_tplink_archer-xr500v-v1 b/defenvs/en751221_tplink_archer-xr500v-v1
+index 816bc02b..f04fe911 100644
+--- a/defenvs/en751221_tplink_archer-xr500v-v1
++++ b/defenvs/en751221_tplink_archer-xr500v-v1
+@@ -5,7 +5,7 @@ bootled=green:power
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en751221-tplink_archer-xr500v-v1-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en751221-tplink_archer-xr500v-v1-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en751221-tplink_archer-xr500v-v1-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+ ubi_read_openwrt=ubi read $loadaddr fit
+diff --git a/defenvs/en7523-askey-rtf8225vw_env b/defenvs/en7523-askey-rtf8225vw_env
+index 162acad3..1da686fb 100644
+--- a/defenvs/en7523-askey-rtf8225vw_env
++++ b/defenvs/en7523-askey-rtf8225vw_env
+@@ -5,12 +5,12 @@ bootled_pwr=blue:wan-online-8
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en7523-askey_rtf8225vw-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en7523-askey_rtf8225vw-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en7523-askey_rtf8225vw-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ 
+-boot_openwrt=led $bootled_pwr blink 255; ( run ubi_read_openwrt || echo Install openwrt ; run boot_tftp ) && bootm $loadaddr#$bootconf ; led $bootled_pwr on
++boot_openwrt=led $bootled_pwr blink 255; run ubi_read_openwrt && bootm $loadaddr#$bootconf; echo Install openwrt ; run boot_tftp ; led $bootled_pwr on
+ boot_ubi=ubi part ubi && run boot_openwrt
+ 
+ upgrade_uboot=\
+@@ -18,6 +18,7 @@ upgrade_uboot=\
+   mtd erase u-boot && mtd write u-boot 0x896C0000
+ 
+ format_ubi_part=\
++  ubi detach; \
+   mtd read spi-nand0 0x89400000 0x50c0000 0x040000 && \
+   mtd read spi-nand0 0x89440000 0x5100000 0x040000 && \
+   mtd read spi-nand0 0x89480000 0x6dc0000 0x240000 && \
+@@ -26,7 +27,7 @@ format_ubi_part=\
+   ubi create ubootenv 0x40000 && \
+   ubi create ubootenv2 0x40000 && \
+   ubi create art 0x400000 && ubi write 0x89480000 art 0x400000 && \
+-  (env import -b 0x89400000 0x040000 ethaddr asp_gpon_sn asp_gpon_pw || env import -b 0x89440000 0x040000 ethaddr asp_gpon_sn asp_gpon_pw) && \
++  env import -b 0x89400000 0x040000 ethaddr asp_gpon_sn asp_gpon_pw || env import -b 0x89440000 0x040000 ethaddr asp_gpon_sn asp_gpon_pw; \
+   saveenv && saveenv && run upgrade_uboot
+ 
+ bootcmd=run boot_ubi
+@@ -37,6 +38,6 @@ bootmenu_delay=3
+ bootmenu_title=      34m( ( ( mOpenWrt34m ) ) )
+ bootmenu_0=Run default boot command.=run boot_openwrt
+ bootmenu_1=Boot system via TFTP.=run boot_tftp ; run bootmenu_confirm_return
+-bootmenu_2=Format UBI partition and install openwrt u-boot.=ubi info ubi && (echo not require format again) || (run format_ubi_part && echo now install openwrt with initramfs)
++bootmenu_2=Format UBI partition and install openwrt u-boot.=ubi info ubi && echo not require format again || run format_ubi_part && echo now install openwrt with initramfs
+ bootmenu_3=Upgrade u-boot.=run upgrade_uboot
+ bootmenu_5=Reboot.=reset
+diff --git a/defenvs/en7523-genexis_pixly_r1_env b/defenvs/en7523-genexis_pixly_r1_env
+index 6052afe6..eec76249 100644
+--- a/defenvs/en7523-genexis_pixly_r1_env
++++ b/defenvs/en7523-genexis_pixly_r1_env
+@@ -4,7 +4,7 @@ serverip=192.168.1.10
+ bootfile=openwrt-airoha-en7523-genexis_pixly_r1-initramfs-kernel.bin
+ firfile=openwrt-airoha-en7523-genexis_pixly_r1-squashfs-sysupgrade.bin
+ bootled_pwr=green:power
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ boot_openwrt=led $bootled_pwr blink 155 ; run ubi_read_openwrt && bootm $loadaddr#$bootconf ; led $bootled_pwr off
+ boot_ubi=ubi part ubi && run boot_openwrt
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+diff --git a/defenvs/en7523-mitrastar_gpt_2742gx4x5v6_env b/defenvs/en7523-mitrastar_gpt_2742gx4x5v6_env
+index 5465dd6b..87f11f68 100644
+--- a/defenvs/en7523-mitrastar_gpt_2742gx4x5v6_env
++++ b/defenvs/en7523-mitrastar_gpt_2742gx4x5v6_env
+@@ -5,12 +5,12 @@ bootled_pwr=blue:wan-online-10
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en7523-mitrastar_gpt-2742gx4x5v6-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en7523-mitrastar_gpt-2742gx4x5v6-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en7523-mitrastar_gpt-2742gx4x5v6-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ 
+-boot_openwrt=led $bootled_pwr blink 255; ( run ubi_read_openwrt || echo Install openwrt ; run boot_tftp ) && bootm $loadaddr#$bootconf ; led $bootled_pwr on
++boot_openwrt=led $bootled_pwr blink 255; run ubi_read_openwrt && bootm $loadaddr#$bootconf || echo Install openwrt ; run boot_tftp; led $bootled_pwr on
+ boot_ubi=ubi part ubi && run boot_openwrt
+ 
+ upgrade_uboot=\
+@@ -18,6 +18,7 @@ upgrade_uboot=\
+   mtd erase u-boot && mtd write u-boot 0x8964044e
+ 
+ format_ubi_part=\
++  ubi detach; \
+   mtd read spi-nand0 0x89400000 0xeb80000 0x240000 && \
+   mtd read spi-nand0 0x89640000 0x005f800 0x00044e && \
+   \
+@@ -36,6 +37,6 @@ bootmenu_delay=3
+ bootmenu_title=      34m( ( ( mOpenWrt34m ) ) )
+ bootmenu_0=Run default boot command.=run boot_openwrt
+ bootmenu_1=Boot system via TFTP.=run boot_tftp ; run bootmenu_confirm_return
+-bootmenu_2=Format UBI partition and install openwrt u-boot.=ubi info ubi && (echo not require format again) || (run format_ubi_part && echo now install openwrt with initramfs)
++bootmenu_2=Format UBI partition and install openwrt u-boot.=ubi info ubi && echo not require format again || run format_ubi_part && echo now install openwrt with initramfs
+ bootmenu_3=Upgrade u-boot.=run upgrade_uboot
+ bootmenu_5=Reboot.=reset
+diff --git a/defenvs/en7523-tplink-ex530v_v1_env b/defenvs/en7523-tplink-ex530v_v1_env
+index 7103993e..86e94cd5 100644
+--- a/defenvs/en7523-tplink-ex530v_v1_env
++++ b/defenvs/en7523-tplink-ex530v_v1_env
+@@ -5,12 +5,12 @@ bootled_pwr=green:power
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en7523-tplink_ex530v-v1-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en7523-tplink_ex530v-v1-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en7523-tplink_ex530v-v1-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ 
+-boot_openwrt=led $bootled_pwr blink 255; ( run ubi_read_openwrt || echo Install openwrt ; run boot_tftp ) && bootm $loadaddr#$bootconf ; led $bootled_pwr on
++boot_openwrt=led $bootled_pwr blink 255; run ubi_read_openwrt && bootm $loadaddr#$bootconf || echo Install openwrt ; run boot_tftp ; led $bootled_pwr on
+ boot_ubi=ubi part ubi && run boot_openwrt
+ 
+ upgrade_uboot=\
+@@ -18,9 +18,9 @@ upgrade_uboot=\
+   mtd erase u-boot && mtd write u-boot 0x89800000
+ 
+ format_ubi_part=\
++  ubi detach; \
+   mtd read spi-nand0 0x89400000 0xa0000 0x400000 && \
+   mtd erase ubi && ubi part ubi && \
+-  ubi create ubootenv 0x1f000 && ubi create ubootenv2 0x1f000 && \
+   ubi create art 0x400000 && ubi write 0x89400000 art 0x400000
+ 
+ bootcmd=run boot_ubi
+diff --git a/defenvs/en7523-tplink-xx230v_v1_env b/defenvs/en7523-tplink-xx230v_v1_env
+index ec45c70f..ecc531c0 100644
+--- a/defenvs/en7523-tplink-xx230v_v1_env
++++ b/defenvs/en7523-tplink-xx230v_v1_env
+@@ -5,12 +5,12 @@ bootled_pwr=green:power
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en7523-tplink_xx230v-v1-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en7523-tplink_xx230v-v1-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en7523-tplink_xx230v-v1-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ 
+-boot_openwrt=led $bootled_pwr blink 255; ( run ubi_read_openwrt || echo Install openwrt ; run boot_tftp ) && bootm $loadaddr#$bootconf ; led $bootled_pwr on
++boot_openwrt=led $bootled_pwr blink 255; run ubi_read_openwrt && bootm $loadaddr#$bootconf || echo Install openwrt ; run boot_tftp ; led $bootled_pwr on
+ boot_ubi=ubi part ubi && run boot_openwrt
+ 
+ upgrade_uboot=\
+@@ -18,10 +18,9 @@ upgrade_uboot=\
+   mtd erase u-boot && mtd write u-boot 0x89600000
+ 
+ format_ubi_part=\
++  ubi detach; \
+   mtd read spi-nand0 0x89400000 0xa0000 $art_size && \
+   mtd erase ubi && ubi part ubi && \
+-  ubi create ubootenv 0x1f000 && \
+-  ubi create ubootenv2 0x1f000 && \
+   ubi create art $art_size && ubi write 0x89400000 art $art_size && \
+   run upgrade_uboot
+ 
+diff --git a/defenvs/en7528_xc220_g3v_env b/defenvs/en7528_xc220_g3v_env
+index b1921172..9a6d86db 100644
+--- a/defenvs/en7528_xc220_g3v_env
++++ b/defenvs/en7528_xc220_g3v_env
+@@ -5,10 +5,10 @@ bootled_pwr=green:power-36
+ 
+ bootconf=config-1
+ bootfile=openwrt-airoha-en7528-tplink_xc220-g3v-initramfs-kernel.bin
+-bootloaderfile=openwrt-airoha-en7528-tplink_xc220-g3v-uboot-bootloader.bin
++bootloaderfile=openwrt-airoha-en7528-tplink_xc220-g3v-tcboot.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-nor_read_openwrt=mtd read firmware $loadaddr 0x0 0x800000 && iminfo $loadaddr
++nor_read_openwrt=mtd read firmware $loadaddr 0x0 0x800000
+ 
+ boot_openwrt=led $bootled_pwr blink 255; run nor_read_openwrt && bootm $loadaddr#$bootconf; echo Install openwrt ; run boot_tftp ; led $bootled_pwr on
+ 
+-- 
+2.56.1
+

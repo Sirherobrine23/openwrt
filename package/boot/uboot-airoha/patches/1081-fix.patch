@@ -1,0 +1,68 @@
+From 313e98fd9eb7e5e06fbf165a03ee582becdca630 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Tue, 27 Oct 2026 14:27:26 -0300
+Subject: [PATCH 1081/1083] fix
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/mips/Kconfig                    | 1 +
+ arch/mips/mach-econet/Kconfig        | 2 +-
+ configs/en751627_reference_defconfig | 1 -
+ include/configs/en751627.h           | 8 ++++++++
+ 4 files changed, 10 insertions(+), 2 deletions(-)
+ create mode 100644 include/configs/en751627.h
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index 855c5eb6..7e1a684f 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -65,6 +65,7 @@ config ARCH_BMIPS
+ 
+ config ARCH_ECONET
+ 	bool "Support Airoha MIPS platforms"
++	depends on !CONFIG_BOARD_LATE_INIT
+ 	select HAS_FIXED_TIMER_FREQUENCY
+ 	select CLK
+ 	select DM
+diff --git a/arch/mips/mach-econet/Kconfig b/arch/mips/mach-econet/Kconfig
+index 74113603..c6cc4413 100644
+--- a/arch/mips/mach-econet/Kconfig
++++ b/arch/mips/mach-econet/Kconfig
+@@ -54,7 +54,7 @@ config SYS_SOC
+ 
+ config SYS_BOARD
+ 	default "en7512" if TARGET_EN751221
+-	default "en751627" if TARGET_EN751627
++	default "en7528" if TARGET_EN751627
+ 	default "en7528" if TARGET_EN7528
+ 	default "en7580" if TARGET_EN7580
+ 
+diff --git a/configs/en751627_reference_defconfig b/configs/en751627_reference_defconfig
+index 72043cfe..90a22b63 100644
+--- a/configs/en751627_reference_defconfig
++++ b/configs/en751627_reference_defconfig
+@@ -24,7 +24,6 @@ CONFIG_SYS_PBSIZE=1049
+ CONFIG_SYS_CONSOLE_IS_IN_ENV=y
+ CONFIG_DISPLAY_CPUINFO=y
+ # CONFIG_DISPLAY_BOARDINFO is not set
+-CONFIG_BOARD_LATE_INIT=y
+ CONFIG_HUSH_PARSER=y
+ CONFIG_SYS_PROMPT="EN751627 U-Boot> "
+ CONFIG_SYS_MAXARGS=16
+diff --git a/include/configs/en751627.h b/include/configs/en751627.h
+new file mode 100644
+index 00000000..f9dc65b4
+--- /dev/null
++++ b/include/configs/en751627.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef __CONFIG_EN751627_H
++#define __CONFIG_EN751627_H
++
++#define CFG_SYS_SDRAM_BASE		0x80000000
++#define CFG_SYS_INIT_SP_OFFSET	0x00800000
++
++#endif
+-- 
+2.56.1
+
