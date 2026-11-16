@@ -238,7 +238,7 @@ New Maping:
 	#address-cells = <3>;
 	#size-cells = <2>;
 
-	mt7915@0,0 {
+	mt7916@0,0 {
 		reg = <0x0000 0 0 0 0>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -261,6 +261,14 @@ New Maping:
 			nvmem-cell-names = "mac-address";
 		};
 	};
+};
+
+&npu {
+	status = "okay";
+
+	firmware-names = "rv32", "data";
+	firmware-name = "airoha/en7523_mt7916_npu_rv32.bin",
+                  "airoha/en7523_mt7916_npu_data.bin";
 };
 
 &eth {

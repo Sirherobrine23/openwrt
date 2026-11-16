@@ -15,8 +15,8 @@ define Device/askey_rtf8225vw
   DEVICE_VENDOR := Askey
   DEVICE_MODEL := RTF8225VW
   DEVICE_PACKAGES += hostapd-mbedtls wpa-supplicant-mbedtls \
-                     kmod-mt7915e kmod-mt7915-firmware kmod-mt7916-firmware \
-                     airoha-en7571-firmware
+                     kmod-mt7915e kmod-mt7915-firmware kmod-mt7915-firmware \
+                     airoha-en7571-firmware airoha-en7523-mt7915-npu-firmware
 endef
 TARGET_DEVICES += askey_rtf8225vw
 
@@ -29,7 +29,7 @@ define Device/genexis_arcee
   DEVICE_ALT1_VENDOR := Genexis
   DEVICE_ALT1_MODEL := Arcee
   DEVICE_PACKAGES += hostapd-mbedtls wpa-supplicant-mbedtls \
-                     kmod-mt7915e kmod-mt7916-firmware
+                     kmod-mt7915e kmod-mt7916-firmware airoha-en7523-mt7916-npu-firmware
 endef
 TARGET_DEVICES += genexis_arcee
 
@@ -52,7 +52,7 @@ define Device/genexis_laxy
   DEVICE_ALT0_MODEL := Laxy
   DEVICE_PACKAGES += kmod-usb-ohci kmod-usb2 \
                      hostapd-mbedtls wpa-supplicant-mbedtls \
-                     kmod-mt7915e kmod-mt7916-firmware
+                     kmod-mt7915e kmod-mt7916-firmware airoha-en7523-mt7916-npu-firmware
 endef
 TARGET_DEVICES += genexis_laxy
 
@@ -65,7 +65,7 @@ define Device/genexis_pixly_r1
   DEVICE_ALT1_VENDOR := Heimgard
   DEVICE_ALT1_MODEL := Pixly R1
   DEVICE_PACKAGES += hostapd-mbedtls wpa-supplicant-mbedtls \
-                     kmod-mt7915e kmod-mt7916-firmware
+                     kmod-mt7915e kmod-mt7916-firmware airoha-en7523-mt7916-npu-firmware
 endef
 TARGET_DEVICES += genexis_pixly_r1
 
@@ -129,7 +129,7 @@ define Device/mitrastar_gpt-2742gx4x5v6
   DEVICE_VENDOR := MitraStar
   DEVICE_MODEL := GPT-2742GX4X5v6
   DEVICE_PACKAGES += hostapd-mbedtls wpa-supplicant-mbedtls \
-                     kmod-mt7915e kmod-mt7915-firmware kmod-mt7916-firmware \
+                     kmod-mt7915e kmod-mt7915-firmware airoha-en7523-mt7915-npu-firmware \
                      airoha-en7571-firmware
 endef
 TARGET_DEVICES += mitrastar_gpt-2742gx4x5v6
@@ -141,7 +141,7 @@ define Device/tplink_ex530v-v1
   DEVICE_VARIANT := v1
   DEVICE_PACKAGES += kmod-usb-ohci kmod-usb3 \
                      hostapd-mbedtls wpa-supplicant-mbedtls \
-                     kmod-mt7915e kmod-mt7916-firmware
+                     kmod-mt7915e kmod-mt7916-firmware  airoha-en7523-mt7916-npu-firmware
 endef
 TARGET_DEVICES += tplink_ex530v-v1
 
@@ -156,6 +156,6 @@ define Device/tplink_xx230v-v1
   DEVICE_PACKAGES += kmod-usb-ohci kmod-usb2 \
                      hostapd-mbedtls wpa-supplicant-mbedtls \
                      kmod-mt7915e kmod-mt7915-firmware kmod-mt7916-firmware \
-                     airoha-en7571-firmware
+                     airoha-en7571-firmware airoha-en7523-mt7916-npu-firmware
 endef
 TARGET_DEVICES += tplink_xx230v-v1

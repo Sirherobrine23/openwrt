@@ -982,6 +982,9 @@
 		airoha,scu = <&scuclk>;
 		memory-region = <&npu_binary>, <&npu_pkt>;
 		memory-region-names = "binary", "pkt";
+
+		airoha,enable_npu_tx_uart;
+		status = "disabled";
 	};
 
 	wed0: wed@1fa02000 {

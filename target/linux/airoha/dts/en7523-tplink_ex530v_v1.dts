@@ -197,36 +197,40 @@ New Maping:
 
 &pcie1 {
 	status = "okay";
+};
 
-	pcie@1,0 {
-		reg = <0x00000800 0 0 0 0>;
-		#address-cells = <3>;
-		#size-cells = <2>;
+&pcie1_slot1 {
+	mt7915@0,0 {
+		reg = <0x0000 0 0 0 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		nvmem-cells = <&eeprom0>;
+		nvmem-cell-names = "eeprom";
+		airoha,npu = <&npu>;
+		airoha,eth = <&eth>;
 
-		mt7915@0,0 {
-			reg = <0x0000 0 0 0 0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			nvmem-cells = <&eeprom0>;
-			nvmem-cell-names = "eeprom";
-			airoha,npu = <&npu>;
-			airoha,eth = <&eth>;
+		/* 2.4 GHz */
+		band@0 {
+			reg = <0>;
+			nvmem-cells = <&macaddr 0>;
+			nvmem-cell-names = "mac-address";
+		};
 
-			/* 2.4 GHz */
-			band@0 {
-				reg = <0>;
-				nvmem-cells = <&macaddr 0>;
-				nvmem-cell-names = "mac-address";
-			};
-
-			/* 5 GHz */
-			band@1 {
-				reg = <1>;
-				nvmem-cells = <&macaddr 2>;
-				nvmem-cell-names = "mac-address";
-			};
+		/* 5 GHz */
+		band@1 {
+			reg = <1>;
+			nvmem-cells = <&macaddr 2>;
+			nvmem-cell-names = "mac-address";
 		};
 	};
+};
+
+&npu {
+	status = "okay";
+
+	firmware-names = "rv32", "data";
+	firmware-name = "airoha/en7523_mt7916_npu_rv32.bin",
+                  "airoha/en7523_mt7916_npu_data.bin";
 };
 
 &usb0 {

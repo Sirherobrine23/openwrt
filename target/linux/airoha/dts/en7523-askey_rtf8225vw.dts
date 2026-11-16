@@ -136,6 +136,7 @@ New Maping:
 						volname = "ubootenv";
 						nvmem-layout {
 							compatible = "u-boot,env-redundant-bool";
+							env-size = <0x4000>;
 						};
 					};
 
@@ -143,6 +144,7 @@ New Maping:
 						volname = "ubootenv2";
 						nvmem-layout {
 							compatible = "u-boot,env-redundant-bool";
+							env-size = <0x4000>;
 
 							macaddr: ethaddr {
 								#nvmem-cell-cells = <1>;
@@ -225,56 +227,56 @@ New Maping:
 
 &pcie0 {
 	status = "okay";
-
-	pcie@0,0 {
-		reg = <0x00000000 0 0 0 0>;
-		#address-cells = <3>;
-		#size-cells = <2>;
-
-		mt7915@0,0 {
-			reg = <0x0000 0 0 0 0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			nvmem-cells = <&mt76_eeprom_2g>;
-			nvmem-cell-names = "eeprom";
-			airoha,npu = <&npu>;
-			airoha,eth = <&eth>;
-
-			/* 2.4Ghz */
-			band@0 {
-				reg = <0>;
-				nvmem-cells = <&macaddr 0>;
-				nvmem-cell-names = "mac-address";
-			};
-		};
-	};
 };
 
 &pcie1 {
 	status = "okay";
+};
 
-	pcie@1,0 {
-		reg = <0x00000800 0 0 0 0>;
-		#address-cells = <3>;
-		#size-cells = <2>;
+&pcie0_slot0 {
+	mt7915@0,0 {
+		reg = <0x0000 0 0 0 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		nvmem-cells = <&mt76_eeprom_2g>;
+		nvmem-cell-names = "eeprom";
+		airoha,npu = <&npu>;
+		airoha,eth = <&eth>;
 
-		/* 5Ghz */
-		mt7915@0,0 {
-			reg = <0x0000 0 0 0 0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			nvmem-cells = <&mt76_eeprom_5g>, <&mt76_precal_5g>;
-			nvmem-cell-names = "eeprom", "precal";
-			airoha,npu = <&npu>;
-			airoha,eth = <&eth>;
-
-			band@0 {
-				reg = <0>;
-				nvmem-cells = <&macaddr 2>;
-				nvmem-cell-names = "mac-address";
-			};
+		/* 2.4Ghz */
+		band@0 {
+			reg = <0>;
+			nvmem-cells = <&macaddr 0>;
+			nvmem-cell-names = "mac-address";
 		};
 	};
+};
+
+&pcie1_slot1 {
+	/* 5Ghz */
+	mt7915@0,0 {
+		reg = <0x0000 0 0 0 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		nvmem-cells = <&mt76_eeprom_5g>, <&mt76_precal_5g>;
+		nvmem-cell-names = "eeprom", "precal";
+		airoha,npu = <&npu>;
+		airoha,eth = <&eth>;
+
+		band@0 {
+			reg = <0>;
+			nvmem-cells = <&macaddr 2>;
+			nvmem-cell-names = "mac-address";
+		};
+	};
+};
+
+&npu {
+	status = "okay";
+
+	firmware-names = "rv32", "data";
+	firmware-name = "airoha/en7523_mt7915_npu_rv32.bin",
+                  "airoha/en7523_mt7915_npu_data.bin";
 };
 
 &eth {
