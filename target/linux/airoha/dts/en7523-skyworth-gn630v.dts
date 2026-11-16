@@ -1,0 +1,445 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/dts-v1/;
+
+/*
+ * Skyworth GN630V: GPON ONT, AX3000, 4x GbE.
+ * Airoha AN7529CT (EN7523 family, 2x Cortex-A53 in AArch32), 512 MB DDR,
+ * 256 MiB FORESEE F35SQB002G SPI-NAND, MT7916 Wi-Fi on PCIe, EN7571 GPON
+ * optics. Facts from the stock UART boot log (stock kernel 4.4.115, U-Boot
+ * 2014.04 Skyworth build) and the stock flash.
+ */
+/memreserve/ 0x80000000 0x200000;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/input/input.h>
+#include "en7523.dtsi"
+
+/ {
+	model = "Skyworth GN630V";
+	compatible = "skyworth,gn630v", "airoha,en7523";
+
+	aliases {
+		serial0 = &uart1;
+		led-boot = &led_power;
+		led-failsafe = &led_power;
+		led-upgrade = &led_power;
+		led-running = &led_power;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200 earlycon";
+		/* root= comes from the vendor U-Boot: /dev/mtdblock3 when it boots
+		 * bank A, /dev/mtdblock6 for bank B (see the partition order) */
+		bootargs-append = " rootfstype=squashfs";
+		stdout-path = "serial0:115200n8";
+		linux,usable-memory-range = <0x80200000 0x1fe00000>;
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x20000000>;
+	};
+
+	/*
+	 * LEDs as found by blinking each pin on the board; the
+	 * stock U-Boot env (dsl_gpio=0a) and vendor LED table do not match this
+	 * board's wiring, and neither does env gpio_active_high: the polarities
+	 * below were confirmed on the panel too. LAN LEDs (GPIO22-25) are the MT7530 PHYs' LED0
+	 * outputs. GPIO5 is not a panel LED (it disturbed LAN4's LED). The Wi-Fi
+	 * LED is not on a SoC GPIO: it is the MT7916's own LED (see &wifi).
+	 */
+	leds {
+		compatible = "gpio-leds";
+
+		led_power: led-power {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_POWER;
+			function-enumerator = <11>;
+			/* active-high: checked on 0.2.4, brightness 1 left it dark */
+			gpios = <&pinctrl 11 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		led-pon {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <6>;
+			gpios = <&pinctrl 6 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-los {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_ALARM;
+			function-enumerator = <10>;
+			gpios = <&pinctrl 10 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-internet {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN_ONLINE;
+			function-enumerator = <1>;
+			gpios = <&pinctrl 1 GPIO_ACTIVE_LOW>;
+		};
+
+		led-usb {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_USB;
+			function-enumerator = <2>;
+			gpios = <&pinctrl 2 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-voip {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_INDICATOR;
+			function-enumerator = <3>;
+			gpios = <&pinctrl 3 GPIO_ACTIVE_LOW>;
+		};
+
+		led-tel {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_INDICATOR;
+			function-enumerator = <4>;
+			gpios = <&pinctrl 4 GPIO_ACTIVE_LOW>;
+		};
+
+		led-wps {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WPS;
+			function-enumerator = <26>;
+			gpios = <&pinctrl 26 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	/* found by watching the pins while pressing each button */
+	keys {
+		compatible = "gpio-keys";
+
+		key-reset {
+			label = "reset";
+			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+
+		key-wps {
+			label = "wps";
+			gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+		};
+	};
+};
+
+&spi0 {
+	flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			/*
+			 * Dual image. The U-Boot bootflag (ASCII '0'/'1' at 0xdfc0000)
+			 * selects bank A (0xc0000) or bank B (0x20c0000), 32 MiB each.
+			 * AlphaWRT runs from either bank: the stock web upgrade writes the
+			 * inactive one. Each bank:
+			 *   +0      HDR2 header + FIT (fdt@1/kernel@1/filesystem@1), 6 MiB
+			 *   +6 MiB  squashfs root, 16 MiB
+			 *   +22 MiB UBI overlay (rootfs_data), 10 MiB
+			 * The partition order is fixed so that the root= the vendor U-Boot
+			 * passes (mtdblock3 for A, mtdblock6 for B) is the right squashfs.
+			 * Software only writes the bank it runs from; the other bank keeps
+			 * stock as fallback. 0x6dc0000-0xddc0000 is unused (verified erased).
+			 */
+			partition@0 {
+				label = "bootloader";
+				reg = <0x00000000 0x00080000>;
+				read-only;
+
+				/* U-Boot env at 0x7c000 (16 KiB, CRC32 + key=value). Never
+				 * write it: it shares an erase block with U-Boot code. */
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					/* value of "ethaddr=" in the env, "xx:xx:xx:xx:xx:xx" */
+					macaddr_uboot: macaddr@7c34e {
+						compatible = "mac-base";
+						reg = <0x7c34e 0x11>;
+						#nvmem-cell-cells = <1>;
+					};
+				};
+			};
+
+			partition@80000 {
+				label = "romfile";
+				reg = <0x00080000 0x00040000>;
+				read-only;
+			};
+
+			/* bank A (stock "tclinux") */
+			partition@c0000 {
+				label = "kernel";
+				reg = <0x000c0000 0x00600000>;
+			};
+
+			partition@6c0000 {
+				label = "alphawrt_rootfs";	/* mtd3 */
+				reg = <0x006c0000 0x01000000>;
+			};
+
+			partition@16c0000 {
+				/* not "ubi"/"data", so no UBI auto-attach: preinit attaches
+				 * the data partition of the bank it booted from */
+				label = "alphawrt_data";
+				reg = <0x016c0000 0x00a00000>;
+			};
+
+			/* bank B (stock "tclinux_slave") */
+			partition@20c0000 {
+				label = "kernel_b";
+				reg = <0x020c0000 0x00600000>;
+			};
+
+			partition@26c0000 {
+				label = "alphawrt_rootfs_b";	/* mtd6 */
+				reg = <0x026c0000 0x01000000>;
+			};
+
+			partition@36c0000 {
+				label = "alphawrt_data_b";
+				reg = <0x036c0000 0x00a00000>;
+			};
+
+			partition@40c0000 {
+				label = "config";
+				reg = <0x040c0000 0x00800000>;
+				read-only;
+			};
+
+			partition@48c0000 {
+				label = "ubifs";
+				reg = <0x048c0000 0x02000000>;
+				read-only;
+			};
+
+			partition@68c0000 {
+				label = "teapot";
+				reg = <0x068c0000 0x00500000>;
+				read-only;
+			};
+
+			partition@ddc0000 {
+				label = "reservearea";
+				reg = <0x0ddc0000 0x00200000>;
+				read-only;
+
+				nvmem-layout {
+					compatible = "fixed-layout";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					/* MT7916 calibration, as stock ("5G" at 0x4c000) */
+					mt7916_eeprom_factory: eeprom@4c000 {
+						reg = <0x4c000 0x1000>;
+					};
+
+					/* EN7571 laser calibration (BOB): magic 0x07050701
+					 * at +0x94 */
+					en7571_bob: bob@140477 {
+						reg = <0x140477 0x200>;
+					};
+				};
+			};
+
+			/* the stock reservearea continues here: its 128 KiB block
+			 * holding only the U-Boot bootflag (see alphawrt-bootbank) */
+			partition@dfc0000 {
+				label = "bootflag";
+				reg = <0x0dfc0000 0x00020000>;
+			};
+
+			partition@dfe0000 {
+				label = "reservearea_tail";
+				reg = <0x0dfe0000 0x00020000>;
+				read-only;
+			};
+		};
+	};
+};
+
+/*
+ * The EN7523 pinctrl rejects the dtsi's open-drain setting on the PCIe reset
+ * pins ("pin_config_set op failed for pin 41"), which stops both PCIe
+ * controllers from probing. The reset works without it, as on the stock
+ * kernel.
+ */
+&pcie0 {
+	status = "okay";
+
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+};
+
+&pcie1 {
+	status = "okay";
+
+	/delete-property/ pinctrl-names;
+	/delete-property/ pinctrl-0;
+
+	pcie@1,0 {
+		reg = <0x0800 0 0 0 0>;
+		#address-cells = <3>;
+		#size-cells = <2>;
+
+		wifi: wifi@0,0 {
+			compatible = "mediatek,mt76";
+			reg = <0x0000 0 0 0 0>;
+
+			nvmem-cells = <&mt7916_eeprom_factory>, <&macaddr_uboot 4>;
+			nvmem-cell-names = "eeprom", "mac-address";
+			airoha,npu = <&npu>;
+			airoha,eth = <&eth>;
+
+			/* MT7916 LED controller: with DBDC, mt76 muxes GPIO14 to the
+			 * 2.4 GHz LED and GPIO15 to the 5 GHz one whatever the pin
+			 * number (non-zero only matters without DBDC); the polarity
+			 * applies to both. */
+			led {
+				led-sources = <2>;
+				led-active-low;
+			};
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+
+	en7571: lddla@70 {
+		compatible = "airoha,en7571";
+		reg = <0x70>;
+
+		nvmem-cells = <&en7571_bob>;
+		nvmem-cell-names = "calibration";
+
+		#optical-frontend-cells = <0>;
+	};
+};
+
+&xpon_phy {
+	status = "okay";
+};
+
+/* GPON identity is not set here: it is the ISP's, and goes in the OMCI
+ * agent configuration (quick setup). */
+&xpon {
+	status = "okay";
+	omci-vendor-id = "SKYW";
+
+	optical-frontends = <&en7571>;
+	optical-frontend-names = "pon";
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+
+	nvmem-cells = <&macaddr_uboot 0>;
+	nvmem-cell-names = "mac-address";
+};
+
+&gdm2 {
+	status = "okay";
+	phy-mode = "internal";
+
+	nvmem-cells = <&macaddr_uboot 1>;
+	nvmem-cell-names = "mac-address";
+
+	/delete-property/ pcs-handle;
+
+	airoha,xpon-managed;
+	openwrt,netdev-name = "pon0";
+};
+
+&switch {
+	status = "okay";
+};
+
+&gsw_port1 {
+	label = "lan1";
+	status = "okay";
+};
+
+&gsw_port2 {
+	label = "lan2";
+	status = "okay";
+};
+
+&gsw_port3 {
+	label = "lan3";
+	status = "okay";
+};
+
+&gsw_port4 {
+	label = "lan4";
+	status = "okay";
+};
+
+&gsw_phy1 {
+	/* one LAN LED per port: LED0 only, GPIO4-7 stay free */
+	pinctrl-0 = <&swp1_led0>;
+	status = "okay";
+};
+
+&gsw_phy1_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	status = "okay";
+};
+
+&gsw_phy2 {
+	/* one LAN LED per port: LED0 only, GPIO4-7 stay free */
+	pinctrl-0 = <&swp2_led0>;
+	status = "okay";
+};
+
+&gsw_phy2_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	status = "okay";
+};
+
+&gsw_phy3 {
+	/* one LAN LED per port: LED0 only, GPIO4-7 stay free */
+	pinctrl-0 = <&swp3_led0>;
+	status = "okay";
+};
+
+&gsw_phy3_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	status = "okay";
+};
+
+&gsw_phy4 {
+	/* one LAN LED per port: LED0 only, GPIO4-7 stay free */
+	pinctrl-0 = <&swp4_led0>;
+	status = "okay";
+};
+
+&gsw_phy4_led0 {
+	color = <LED_COLOR_ID_GREEN>;
+	status = "okay";
+};
+
+&npu {
+	status = "okay";
+
+	firmware-names = "rv32", "data";
+	firmware-name = "airoha/en7523_kite_npu_rv32.bin",
+			"airoha/en7523_kite_npu_data.bin";
+};

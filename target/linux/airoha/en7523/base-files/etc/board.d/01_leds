@@ -68,6 +68,13 @@ case "$board" in
     ucidef_set_led_usbdev "usb" "usb" "blue:usb-4" "1-1"
     ucidef_set_led_default "wan_err" "wan_err" "red:wan-10" "default-off"
     ;;
+  skyworth,gn630v)
+    ucidef_set_led_default "power" "power" "green:power-11" "1"
+    ucidef_set_led_netdev "lan1" "lan1" "mt7530-0:09:green:lan" "lan1" "link tx rx"
+    ucidef_set_led_netdev "lan2" "lan2" "mt7530-0:0a:green:lan" "lan2" "link tx rx"
+    ucidef_set_led_netdev "lan3" "lan3" "mt7530-0:0b:green:lan" "lan3" "link tx rx"
+    ucidef_set_led_netdev "lan4" "lan4" "mt7530-0:0c:green:lan" "lan4" "link tx rx"
+    ;;
   tplink,xx230v-v1)
     ucidef_set_led_netdev "lan1" "lan1" "mt7530-0:09:green:lan" "lan1" "link tx rx"
     ucidef_set_led_netdev "lan2" "lan2" "mt7530-0:0a:green:lan" "lan2" "link tx rx"
