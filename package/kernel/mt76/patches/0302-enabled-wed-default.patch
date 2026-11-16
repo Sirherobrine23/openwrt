@@ -1,0 +1,13 @@
+diff --git a/mt7915/mmio.c b/mt7915/mmio.c
+index 383859be..508df9e5 100644
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -13,7 +13,7 @@
+ #include "../trace.h"
+ #include "../dma.h"
+ 
+-static bool wed_enable;
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ MODULE_PARM_DESC(wed_enable, "Enable Wireless Ethernet Dispatch support");
+ 
