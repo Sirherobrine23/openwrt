@@ -229,8 +229,8 @@ New Maping:
 	status = "okay";
 
 	firmware-names = "rv32", "data";
-	firmware-name = "airoha/en7523_mt7916_npu_rv32.bin",
-                  "airoha/en7523_mt7916_npu_data.bin";
+	firmware-name = "airoha/en7523_kite_npu_rv32.bin",
+                  "airoha/en7523_kite_npu_data.bin";
 };
 
 &usb0 {

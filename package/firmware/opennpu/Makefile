@@ -8,10 +8,9 @@ PKG_RELEASE:=2
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://sirherobrine23.com.br/airoha/OpenNPU.git
 PKG_SOURCE_DATE:=2026-11-15
-PKG_SOURCE_VERSION:=83e43f8ba22984cb1bf0401d369737f1099b713d
+PKG_SOURCE_VERSION:=7d2e33b7795106561066906ac3e299ab6791ff1b
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.xz
-PKG_MIRROR_HASH:=a57102ad9a186aa60ff140f71fd32d65b8e101c49d4d5ecf34c66c3817fc6922
 
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=LICENSE
@@ -83,7 +82,7 @@ endef
 define Build/Configure
 	test -f "$(PKG_BUILD_DIR)/configs/$(OPENNPU_PRESET)"
 	$(CP) "$(PKG_BUILD_DIR)/configs/$(OPENNPU_PRESET)" "$(PKG_BUILD_DIR)/.config"
-	$(if $(and $(filter EN7523_MT7915,$(BUILD_VARIANT)),$(filter y,$(CONFIG_OPENNPU_RX_PROFILE))),printf '%s\n' 'CONFIG_RX_PROFILE=y' >> "$(PKG_BUILD_DIR)/.config")
+	$(if $(and $(filter EN7523_KITE,$(BUILD_VARIANT)),$(filter y,$(CONFIG_OPENNPU_RX_PROFILE))),printf '%s\n' 'CONFIG_RX_PROFILE=y' >> "$(PKG_BUILD_DIR)/.config")
 	+$(MAKE) -C "$(PKG_BUILD_DIR)" $(OPENNPU_MAKE_FLAGS) olddefconfig
 endef
 
@@ -104,7 +103,8 @@ define Firmware/Variant
 
   define Package/$(call opennpu_package,$(1)_$(2))/description
 OpenNPU bare-metal RV32 firmware for $(1) with $(2).
-The EN7523/MT7915 variant uses the native wireless RX backend.
+The EN7523/KITE variant shares one native RX backend between MT7915,
+MT7915 DBDC and MT7916, configured by the Linux mailbox.
 Other variants retain the imported Clanker platform implementations.
   endef
 
@@ -119,7 +119,7 @@ Other variants retain the imported Clanker platform implementations.
   $$(eval $$(call BuildPackage,$(call opennpu_package,$(1)_$(2))))
 endef
 
-define Package/airoha-en7523-mt7915-npu-firmware/config
+define Package/airoha-en7523-kite-npu-firmware/config
   config OPENNPU_RX_PROFILE
     bool "Sample EN7523 RX stage timings"
     default n
@@ -129,7 +129,7 @@ define Package/airoha-en7523-mt7915-npu-firmware/config
 endef
 
 # Same presets as OpenNPU/configs/.
-$(foreach wifi,NOWIFI MT7915 MT7916,$(eval $(call Firmware/Variant,EN7523,$(wifi))))
+$(foreach wifi,NOWIFI KITE,$(eval $(call Firmware/Variant,EN7523,$(wifi))))
 $(foreach wifi,NOWIFI MT7916 MT7991 MT7993,$(eval $(call Firmware/Variant,AN7552,$(wifi))))
 $(foreach wifi,NOWIFI MT7916 MT7992 MT7996,$(eval $(call Firmware/Variant,AN7581,$(wifi))))
 $(foreach wifi,NOWIFI MT7916 MT7992 MT7993 MT7996,$(eval $(call Firmware/Variant,AN7583,$(wifi))))
