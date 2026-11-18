@@ -138,7 +138,6 @@ define Device/skyworth_gn630v
   $(Device/FitImage)
   DEVICE_VENDOR := Skyworth
   DEVICE_MODEL := GN630V
-  DEVICE_DTS := en7523-skyworth-gn630v
   DEVICE_PACKAGES += hostapd-mbedtls wpa-supplicant-mbedtls \
                      kmod-mt7915e kmod-mt7916-firmware airoha-en7523-kite-npu-firmware
 endef
