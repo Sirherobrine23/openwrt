@@ -17,6 +17,26 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		qdma0_buf: qdma0-buf {
+			size = <0x00080000>;
+			alignment = <0x00010000>;
+			alloc-ranges = <0x00200000 0x0fe00000>;
+			no-map;
+		};
+
+		qdma1_buf: qdma1-buf {
+			size = <0x00080000>;
+			alignment = <0x00010000>;
+			alloc-ranges = <0x00200000 0x0fe00000>;
+			no-map;
+		};
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -524,10 +544,8 @@
 			reset-names = "mac";
 			phys = <&xpon_phy>;
 			phy-names = "xpon";
-			ethernet = <&gdm2>;
 			airoha,scu = <&scuclk>;
 
-			status = "disabled";
 		};
 
 		xdsl: dsl@1f900000 {
@@ -543,7 +561,7 @@
 				 <&scuclk EN751627_PTM_MAC_RST>;
 			reset-names = "dmt", "ptm";
 
-			ethernet = <&gdm2>;
+			ethernet = <&gdm2_xdsl>;
 			airoha,scu = <&scuclk>;
 
 			status = "disabled";
@@ -590,6 +608,9 @@
 			      <0x1fa40000 0x8000>;
 			reg-names = "fe", "qdma0", "qdma1", "gdmp";
 
+			memory-region = <&qdma0_buf>, <&qdma1_buf>;
+			memory-region-names = "qdma0-buf", "qdma1-buf";
+
 			resets = <&scuclk EN751627_FE_RST>,
 				 <&scuclk EN751627_FE_QDMA1_RST>,
 				 <&scuclk EN751627_FE_QDMA2_RST>,
@@ -611,7 +632,7 @@
 			#size-cells = <0>;
 
 			gdm1: ethernet@1 {
-				compatible = "econet,eth-mac";
+				compatible = "airoha,eth-mac";
 				reg = <1>;
 				phy-mode = "internal";
 				status = "disabled";
@@ -623,12 +644,27 @@
 				};
 			};
 
-			gdm2: ethernet@2 {
-				compatible = "econet,eth-mac";
+			ethernet@2 {
+				compatible = "airoha,eth-mac";
 				reg = <2>;
-				phy-mode = "internal";
 
-				status = "disabled";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				gdm2_pon: ethernet-port@0 {
+					compatible = "airoha,eth-pon";
+					reg = <0>;
+					airoha,xpon = <&xpon>;
+					phy-mode = "internal";
+					status = "disabled";
+				};
+
+				gdm2_xdsl: ethernet-port@1 {
+					compatible = "airoha,eth-xdsl";
+					reg = <1>;
+					phy-mode = "internal";
+					status = "disabled";
+				};
 			};
 		};
 

@@ -896,10 +896,8 @@
 		phys = <&xpon_phy>;
 		phy-names = "xpon";
 
-		ethernet = <&gdm2>;
 		airoha,scu = <&scuclk>;
 
-		status = "disabled";
 	};
 
 	pon_pcs: pcs@1fa08000 {
@@ -1072,12 +1070,27 @@
 			};
 		};
 
-		gdm2: ethernet@2 {
+		ethernet@2 {
 			compatible = "airoha,eth-mac";
 			reg = <2>;
-			pcs-handle = <&pon_pcs>;
 
-			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gdm2_pon: ethernet-port@0 {
+				compatible = "airoha,eth-pon";
+				reg = <0>;
+				airoha,xpon = <&xpon>;
+				phy-mode = "internal";
+				status = "disabled";
+			};
+
+			gdm2_eth: ethernet-port@1 {
+				compatible = "airoha,eth-port";
+				reg = <1>;
+				pcs-handle = <&pon_pcs>;
+				status = "disabled";
+			};
 		};
 
 		mac3: ethernet@3 {

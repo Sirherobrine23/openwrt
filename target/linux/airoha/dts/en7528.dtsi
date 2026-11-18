@@ -17,6 +17,26 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		qdma0_buf: qdma0-buf {
+			size = <0x00080000>;
+			alignment = <0x00010000>;
+			alloc-ranges = <0x00200000 0x0fe00000>;
+			no-map;
+		};
+
+		qdma1_buf: qdma1-buf {
+			size = <0x00080000>;
+			alignment = <0x00010000>;
+			alloc-ranges = <0x00200000 0x0fe00000>;
+			no-map;
+		};
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -734,7 +754,6 @@
 			ethernet = <&gdm2>;
 			airoha,scu = <&scuclk>;
 
-			status = "disabled";
 		};
 
 		wed0: wed@1fa02000 {
@@ -778,6 +797,9 @@
 			      <0x1fa40000 0x8000>;
 			reg-names = "fe", "qdma0", "qdma1", "gdmp";
 
+			memory-region = <&qdma0_buf>, <&qdma1_buf>;
+			memory-region-names = "qdma0-buf", "qdma1-buf";
+
 			resets = <&scuclk EN7528_FE_RST>,
 			         <&scuclk EN7528_FE_QDMA1_RST>,
 			         <&scuclk EN7528_FE_QDMA2_RST>,
@@ -799,7 +821,7 @@
 			#size-cells = <0>;
 
 			gdm1: ethernet@1 {
-				compatible = "econet,eth-mac";
+				compatible = "airoha,eth-mac";
 				reg = <1>;
 				phy-mode = "internal";
 				status = "disabled";
@@ -811,11 +833,11 @@
 				};
 			};
 
-			gdm2: ethernet@2 {
-				compatible = "econet,eth-mac";
+			gdm2_pon: ethernet@2 {
+				compatible = "airoha,eth-pon", "airoha,eth-mac";
 				reg = <2>;
+				airoha,xpon = <&xpon>;
 				phy-mode = "internal";
-
 				status = "disabled";
 			};
 		};
