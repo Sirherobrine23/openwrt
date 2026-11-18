@@ -220,7 +220,7 @@
 
 /* WAN: Realtek RTL8221B-VB-CG 2.5G PHY (MDIO addr 7 on the bitbang bus),
  * attached to GDM2. */
-&gdm2 {
+&gdm2_eth {
 	status = "okay";
 
 	phy-mode = "2500base-x";

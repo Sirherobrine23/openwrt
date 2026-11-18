@@ -117,7 +117,7 @@
 	status = "okay";
 };
 
-&gdm2 {
+&gdm2_eth {
 	status = "okay";
 
 	nvmem-cells = <&macaddr_hard 5>;

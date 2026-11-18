@@ -192,18 +192,17 @@
 	optical-frontend-names = "pon";
 };
 
-&gdm2 {
+&gdm2_pon {
 	status = "okay";
-	phy-mode = "internal";
-	airoha,xpon-managed;
+
 	openwrt,netdev-name = "pon0";
-	mac-address = [78 17 35 c2 80 31];
 };
 
 /* LAN switch disabled for the GPON bring-up test (MDIO probe suspected hang). */
-&switch0 { status = "disabled"; };
-&switch1 { status = "disabled"; };
+&switch0 {
+	status = "okay";
+};
 
-&pcie0 {
-	status = "disabled";
+&switch1 {
+	status = "okay";
 };

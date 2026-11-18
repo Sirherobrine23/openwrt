@@ -349,10 +349,8 @@
 	optical-frontend-names = "pon";
 };
 
-&gdm2 {
+&gdm2_pon {
 	status = "okay";
-	phy-mode = "internal";
-	airoha,xpon-managed;
 
 	nvmem-cells = <&macaddr_misc_f100 1>;
 	nvmem-cell-names = "mac-address";

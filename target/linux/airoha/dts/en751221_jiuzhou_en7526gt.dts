@@ -143,11 +143,11 @@
 	optical-frontend-names = "pon";
 };
 
-&gdm2 {
+&gdm2_pon {
 	status = "okay";
-	phy-mode = "internal";
-	airoha,xpon-managed;
+
 	openwrt,netdev-name = "pon0";
+
 	nvmem-cells = <&macaddr_bootloader_ff48 1>;
 	nvmem-cell-names = "mac-address";
 };

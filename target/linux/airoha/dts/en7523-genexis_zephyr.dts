@@ -183,7 +183,7 @@
 	status = "okay";
 };
 
-&gdm2 {
+&gdm2_eth {
 	status = "okay";
 
 	phy-mode = "2500base-x";

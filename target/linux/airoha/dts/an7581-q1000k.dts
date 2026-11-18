@@ -210,7 +210,7 @@
 	status = "disabled";
 };
 
-&gdm2 {
+&gdm2_eth {
 	status = "disabled";
 };
 

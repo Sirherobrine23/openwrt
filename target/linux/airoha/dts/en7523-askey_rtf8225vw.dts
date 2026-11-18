@@ -311,16 +311,12 @@ New Maping:
 	optical-frontend-names = "pon";
 };
 
-&gdm2 {
+&gdm2_pon {
 	status = "okay";
-	phy-mode = "internal";
 
 	nvmem-cells = <&macaddr 0>;
 	nvmem-cell-names = "mac-address";
 
-	/delete-property/ pcs-handle;
-
-	airoha,xpon-managed;
 	openwrt,netdev-name = "pon0";
 };
 

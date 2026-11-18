@@ -296,14 +296,12 @@
 	nvmem-cell-names = "mac-address";
 };
 
-&gdm2 {
+&gdm2_pon {
 	status = "okay";
-	phy-mode = "internal";
 
 	nvmem-cells = <&macaddr_ri_3e 0>;
 	nvmem-cell-names = "mac-address";
 
-	airoha,xpon-managed;
 	openwrt,netdev-name = "pon0";
 };
 
