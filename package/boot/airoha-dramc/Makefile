@@ -4,13 +4,13 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=airoha-dramc
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://sirherobrine23.com.br/airoha/airoha_mips_dramc.git
+PKG_SOURCE_URL:=https://sirherobrine23.com.br/airoha/mips_dramc.git
 
 PKG_SOURCE_DATE:=2026-09-29
-PKG_SOURCE_VERSION:=1fb0feaabab39299623cd2a035433a9126593fc1
+PKG_SOURCE_VERSION:=7fb6110dec3a9beb59b6c1399e5b1f90ab0ee768
 PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DEPENDS:=airoha-dramc/host

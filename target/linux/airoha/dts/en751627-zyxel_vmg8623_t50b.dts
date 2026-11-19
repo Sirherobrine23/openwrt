@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+#include "en751627.dtsi"
+
+/ {
+	model = "Zyxel VMG8623-T50B";
+	compatible = "zyxel,vmg8623-t50b", "econet,en751627";
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x10000000>;
+	};
+
+	chosen {
+		stdout-path = "/serial@1fbf0000:115200";
+	};
+};
+
+/*
+0x00000000-0x00040000 : "bootloader"
+0x00040000-0x00080000 : "romfile"
+0x00080000-0x02880000 : "tclinux"
+0x02880000-0x04f20000 : "tclinux_slave"
+0x04f20000-0x05020000 : "wwan"
+0x05020000-0x05420000 : "data"
+0x05420000-0x05520000 : "rom-d"
+0x05520000-0x07520000 : "misc"
+0x07520000-0x075e0000 : "reservearea"
+*/
+&spi0 {
+	nand: flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		spi-rx-bus-width = <2>;
+		spi-tx-bus-width = <1>;
+		nand-ecc-engine = <&nand>;
+		econet,bmt;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "allflash";
+				reg = <0x0 0x0>;
+				read-only;
+			};
+		};
+	};
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&pcie0_slot0 {
+	status = "okay";
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+};
+
+// &xdsl {
+// 	status = "okay";
+// };
+
+// &gdm2_xdsl {
+// 	status = "okay";
+// };
+
+&switch {
+	status = "okay";
+};
+
+&gsw_port0 {
+	status = "okay";
+};
+
+&gsw_port1 {
+	status = "okay";
+};
+
+&gsw_port2 {
+	status = "okay";
+};
+
+&gsw_port3 {
+	status = "okay";
+};
+
+&gsw_port4 {
+	status = "okay";
+
+	label = "wan";
+};
+
+&gsw_phy0 {
+	status = "okay";
+};
+
+&gsw_phy1 {
+	status = "okay";
+};
+
+&gsw_phy2 {
+	status = "okay";
+};
+
+&gsw_phy3 {
+	status = "okay";
+};
+
+&gsw_phy4 {
+	status = "okay";
+};
