@@ -1,7 +1,7 @@
 From e8362845ef775b6084adff8627924208edac6510 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Mon, 10 Aug 2026 20:27:47 -0300
-Subject: [PATCH 1020/1083] update defconfig
+Subject: [PATCH] update defconfig
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

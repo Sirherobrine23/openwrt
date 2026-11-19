@@ -1,7 +1,7 @@
 From 2ad7a91fbc103740adac8bdc8e700e46a78b0eaa Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Sun, 26 Jul 2026 20:24:02 -0300
-Subject: [PATCH 1015/1083] Update env to add u-boot replace/update
+Subject: [PATCH] Update env to add u-boot replace/update
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

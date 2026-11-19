@@ -1,7 +1,7 @@
 From c8c76312e1054e6cb9e7330a087131576cc1cf6b Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Thu, 1 Oct 2026 22:56:22 -0300
-Subject: [PATCH 1071/1083] add quantum c6500xk
+Subject: [PATCH] add quantum c6500xk
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

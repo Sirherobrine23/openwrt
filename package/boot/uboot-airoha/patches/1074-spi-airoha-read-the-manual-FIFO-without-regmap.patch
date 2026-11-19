@@ -1,7 +1,7 @@
 From 141d33038294e6fec50d768e3214697681afc8e6 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Mon, 28 Sep 2026 00:18:12 -0300
-Subject: [PATCH 1074/1083] spi: airoha: read the manual FIFO without regmap
+Subject: [PATCH] spi: airoha: read the manual FIFO without regmap
 
 EN751221 has no NFI2SPI engine, so every SPI-NAND page read goes through
 the manual FIFO one byte at a time: wait for DFIFO_EMPTY to clear, read

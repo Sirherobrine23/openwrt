@@ -1,8 +1,8 @@
 From cd61f0f879bc43788d307779b54727d000423ba7 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Fri, 2 Oct 2026 02:43:22 -0300
-Subject: [PATCH 1073/1083] airoha: en751221: xr500v: initialize the
- environment on first boot
+Subject: [PATCH] airoha: en751221: xr500v: initialize the environment on first
+ boot
 
 The migration helper creates empty ubootenv and ubootenv2 volumes.
 Until U-Boot saves its board environment, Linux fw_env has no valid

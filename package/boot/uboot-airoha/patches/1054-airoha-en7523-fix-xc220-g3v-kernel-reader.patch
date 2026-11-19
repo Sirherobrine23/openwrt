@@ -1,7 +1,7 @@
 From a1d071c73573022aecbedf5405e1e4eda52e09a2 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Thu, 17 Sep 2026 14:38:50 -0300
-Subject: [PATCH 1054/1083] airoha: en7523: fix xc220-g3v kernel reader
+Subject: [PATCH] airoha: en7523: fix xc220-g3v kernel reader
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

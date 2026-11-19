@@ -1,7 +1,7 @@
 From fdfee194326b8fc6e562328fbb43310e07ef356c Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Thu, 1 Oct 2026 22:00:34 -0300
-Subject: [PATCH 1070/1083] en7580: limt highmem for 448mb
+Subject: [PATCH] en7580: limt highmem for 448mb
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

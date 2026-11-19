@@ -1,8 +1,7 @@
 From 084c438a874e4043e03708324cef8cea73fdd0dd Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Wed, 29 Jul 2026 22:50:23 -0300
-Subject: [PATCH 1018/1083] net: airoha: reclaim EN751221 synchronous TX
- completions
+Subject: [PATCH] net: airoha: reclaim EN751221 synchronous TX completions
 
 The legacy EN751221 QDMA consumes one hardware-forward context for
 every CPU TX. Descriptor writeback alone does not return that context

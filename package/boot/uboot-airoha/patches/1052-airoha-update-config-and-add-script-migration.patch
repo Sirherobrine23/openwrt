@@ -1,7 +1,7 @@
 From 0c32b7d8d10623d128995b06d3e03eb48775f5c7 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 16 Sep 2026 19:38:52 -0300
-Subject: [PATCH 1052/1083] airoha: update config and add script migration
+Subject: [PATCH] airoha: update config and add script migration
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

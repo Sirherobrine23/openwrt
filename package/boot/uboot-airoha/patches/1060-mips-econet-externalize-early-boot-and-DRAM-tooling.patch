@@ -1,8 +1,7 @@
 From cc706c324bfbf9121f0a76d9a0cc10e548edf06c Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Sun, 20 Sep 2026 10:59:45 -0300
-Subject: [PATCH 1060/1083] mips: econet: externalize early boot and DRAM
- tooling
+Subject: [PATCH] mips: econet: externalize early boot and DRAM tooling
 
 Move the EcoNet/Airoha MIPS early-boot implementation out of the U-Boot tree.
 

@@ -1,7 +1,7 @@
 From 743a484a104a26cfee44df73f744e537911a1c72 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 9 Sep 2026 18:36:00 -0300
-Subject: [PATCH 1040/1083] mips: airoha: clean kconfigs
+Subject: [PATCH] mips: airoha: clean kconfigs
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

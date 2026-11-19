@@ -1,7 +1,7 @@
 From 9fa6f48dff4078e339b247aef68152b00a0401af Mon Sep 17 00:00:00 2001
 From: hdfla <aceboy50@gmail.com>
 Date: Sat, 10 Oct 2026 21:17:28 +0700
-Subject: [PATCH 1078/1083] mtd: spinand: heyangtek: add HYF1GQ4UDACAE support
+Subject: [PATCH] mtd: spinand: heyangtek: add HYF1GQ4UDACAE support
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

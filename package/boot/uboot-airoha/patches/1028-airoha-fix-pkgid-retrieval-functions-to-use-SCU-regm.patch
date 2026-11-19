@@ -1,8 +1,7 @@
 From c31aaa0ecc839d77af2f53da126f02ccec9406a0 Mon Sep 17 00:00:00 2001
 From: Yuzhii0718 <yuzhii0718@outlook.com>
 Date: Fri, 28 Aug 2026 22:33:04 +0800
-Subject: [PATCH 1028/1083] airoha: fix pkgid retrieval functions to use SCU
- regmap
+Subject: [PATCH] airoha: fix pkgid retrieval functions to use SCU regmap
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

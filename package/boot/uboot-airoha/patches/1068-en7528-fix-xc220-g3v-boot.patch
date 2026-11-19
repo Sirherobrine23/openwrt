@@ -1,7 +1,7 @@
 From 33f641394ca459d8e652f9c2cf67e84af0268946 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Mon, 21 Sep 2026 14:16:47 -0300
-Subject: [PATCH 1068/1083] en7528: fix xc220-g3v boot
+Subject: [PATCH] en7528: fix xc220-g3v boot
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

@@ -1,8 +1,7 @@
 From 2f6230eb051ef5cf5dbb97847f83f6e98d73b9b4 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Fri, 18 Sep 2026 22:16:12 +0000
-Subject: [PATCH 1055/1083] net: airoha: keep legacy QDMA control rings
- uncached
+Subject: [PATCH] net: airoha: keep legacy QDMA control rings uncached
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

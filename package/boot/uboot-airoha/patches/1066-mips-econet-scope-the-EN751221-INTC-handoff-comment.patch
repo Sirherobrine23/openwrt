@@ -1,8 +1,7 @@
 From ed37b6483ec6f9075392ef4cb1d8958dbb330d32 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Sun, 20 Sep 2026 20:51:17 -0300
-Subject: [PATCH 1066/1083] mips: econet: scope the EN751221 INTC handoff
- comment
+Subject: [PATCH] mips: econet: scope the EN751221 INTC handoff comment
 
 Describe the table as observed on the XR500v BootROM recovery path without attributing an unverified write to the OEM bootloader. Scope the dependency on bootloader initialization to older kernels; newer kernels initialize the table themselves. No executable change.
 

@@ -1,7 +1,7 @@
 From ac87b8002d1bf0e10b146c002db89bd65d718a5b Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 9 Sep 2026 14:39:43 -0300
-Subject: [PATCH 1039/1083] en7528: fix cold-boot
+Subject: [PATCH] en7528: fix cold-boot
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

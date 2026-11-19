@@ -1,7 +1,7 @@
 From 1999a16d29d808c2828453903d3d43c7009e9f57 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 23 Jun 2026 22:06:51 -0300
-Subject: [PATCH 1005/1083] Fix mem overwrite on boot firmwares
+Subject: [PATCH] Fix mem overwrite on boot firmwares
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

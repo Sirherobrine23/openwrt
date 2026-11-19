@@ -1,7 +1,7 @@
 From a6e0455bd35bd72fec4580d51dde1c8121dc08ec Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Fri, 2 Oct 2026 00:49:07 -0300
-Subject: [PATCH 1075/1083] spi: airoha: sync SNFI MMIO access with Linux
+Subject: [PATCH] spi: airoha: sync SNFI MMIO access with Linux
 
 Follow the controller-access conversion in airoha/kernel commit
 038dd35b0 ("spi: airoha: remove regmap"). Replace the remaining CTRL

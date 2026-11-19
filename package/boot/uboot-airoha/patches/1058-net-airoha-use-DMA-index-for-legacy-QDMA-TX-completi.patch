@@ -1,8 +1,7 @@
 From fa6accc08c37815b6bf1db363f4bb4aedc354885 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Fri, 18 Sep 2026 21:30:30 -0300
-Subject: [PATCH 1058/1083] net: airoha: use DMA index for legacy QDMA TX
- completion
+Subject: [PATCH] net: airoha: use DMA index for legacy QDMA TX completion
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

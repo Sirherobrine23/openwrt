@@ -1,8 +1,7 @@
 From 3e095fd9a10128692935cba27d23b9da08fa20c6 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 9 Sep 2026 23:25:04 -0300
-Subject: [PATCH 1041/1083] mips: econet: add readable EN751221 and EN7528 DDR
- sources
+Subject: [PATCH] mips: econet: add readable EN751221 and EN7528 DDR sources
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

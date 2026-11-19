@@ -1,7 +1,7 @@
 From 4e08b91f4652ed39571a0419de2e3a5a73c72049 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 9 Sep 2026 14:23:04 -0300
-Subject: [PATCH 1038/1083] en7528: fix dram regs
+Subject: [PATCH] en7528: fix dram regs
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

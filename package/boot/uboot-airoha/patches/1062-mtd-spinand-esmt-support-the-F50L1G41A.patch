@@ -1,7 +1,7 @@
 From a4255dd3405c077b275b8c3456d80b4cc01141c2 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Sun, 20 Sep 2026 13:41:06 -0300
-Subject: [PATCH 1062/1083] mtd: spinand: esmt: support the F50L1G41A
+Subject: [PATCH] mtd: spinand: esmt: support the F50L1G41A
 
 The TP-Link Archer XR500v carries an ESMT F50L1G41A. With READ-ID 9f
 followed by address 00 it answers c8:21:7f:7f:7f; the vendor bootloader

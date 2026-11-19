@@ -1,7 +1,7 @@
 From 0505a6085cabed00f1e9172b74e92701189872c0 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Sun, 23 Aug 2026 15:30:16 -0300
-Subject: [PATCH 1022/1083] add XM25QH128C for spi nor flashs
+Subject: [PATCH] add XM25QH128C for spi nor flashs
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

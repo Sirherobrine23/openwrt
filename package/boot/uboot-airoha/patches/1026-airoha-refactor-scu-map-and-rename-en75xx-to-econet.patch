@@ -1,8 +1,7 @@
 From 43cedf8381d02dad6641c2434cad13b58fcbc136 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 26 Aug 2026 21:27:18 -0300
-Subject: [PATCH 1026/1083] airoha: refactor scu map and rename en75xx to
- econet
+Subject: [PATCH] airoha: refactor scu map and rename en75xx to econet
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 OpenWrt: omit deletion of the obsolete DDR blob, which is not shipped in

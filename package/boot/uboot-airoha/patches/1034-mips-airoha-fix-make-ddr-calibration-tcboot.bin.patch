@@ -1,7 +1,7 @@
 From a666cdf6f3fd7177a87156a070dc5063f839d024 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 8 Sep 2026 18:24:21 -0300
-Subject: [PATCH 1034/1083] mips: airoha: fix make ddr calibration tcboot.bin
+Subject: [PATCH] mips: airoha: fix make ddr calibration tcboot.bin
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

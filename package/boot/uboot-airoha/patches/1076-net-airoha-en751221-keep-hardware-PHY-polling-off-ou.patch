@@ -1,8 +1,8 @@
 From fac3543ab33ac0a24163d8a6df758394817d88a1 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Sat, 26 Sep 2026 03:42:17 -0300
-Subject: [PATCH 1076/1083] net: airoha: en751221: keep hardware PHY polling
- off outside network use
+Subject: [PATCH] net: airoha: en751221: keep hardware PHY polling off outside
+ network use
 
 The EN751221 switch setup writes 0x7f7f8c08 to the PHY polling register
 (0x7018), which turns on hardware PHY polling (PHY_AP_EN) for PHY

@@ -1,8 +1,7 @@
 From 141f898ee5131baf33cd1ff1cd28a708a0346b09 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 01:31:13 -0300
-Subject: [PATCH 1064/1083] mips: econet: en751221: program the interrupt
- priority table
+Subject: [PATCH] mips: econet: en751221: program the interrupt priority table
 
 The EN751221 interrupt controller routes a source to the CPU through the
 priority table at 0x1fb40010..0x1fb4002c, one byte per slot naming a

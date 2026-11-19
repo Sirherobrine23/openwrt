@@ -1,7 +1,7 @@
 From 632dcf67fa77bb0cf33f42ed8125ac7791229572 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 29 Jul 2026 14:52:32 -0300
-Subject: [PATCH 1017/1083] spi + ethernet
+Subject: [PATCH] spi + ethernet
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

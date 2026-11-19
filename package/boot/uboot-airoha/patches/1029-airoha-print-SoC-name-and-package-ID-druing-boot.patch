@@ -1,7 +1,7 @@
 From d23f9473ae095a576530b5de9de41562e6965f26 Mon Sep 17 00:00:00 2001
 From: Yuzhii0718 <yuzhii0718@outlook.com>
 Date: Fri, 28 Aug 2026 21:41:22 +0800
-Subject: [PATCH 1029/1083] airoha: print SoC name and package ID druing boot
+Subject: [PATCH] airoha: print SoC name and package ID druing boot
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

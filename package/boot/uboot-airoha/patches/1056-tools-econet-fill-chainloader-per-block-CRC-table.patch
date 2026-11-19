@@ -1,7 +1,7 @@
 From 14d7d558d8b8568b546f3b812e55d89c28e4aecd Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Fri, 18 Sep 2026 22:16:22 +0000
-Subject: [PATCH 1056/1083] tools: econet: fill chainloader per-block CRC table
+Subject: [PATCH] tools: econet: fill chainloader per-block CRC table
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

@@ -1,7 +1,7 @@
 From b055cda37574bd6432d728bcba536f20fef992db Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 8 Jul 2026 13:01:16 -0300
-Subject: [PATCH 1011/1083] fix mitrastar gpt-2742gx4x5v6 openwrt firmware file
+Subject: [PATCH] fix mitrastar gpt-2742gx4x5v6 openwrt firmware file
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

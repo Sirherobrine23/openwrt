@@ -1,7 +1,7 @@
 From fda7df3073522d65d39b8a240ebf1a4e6fbf348e Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 23 Jun 2026 14:13:52 -0300
-Subject: [PATCH 1001/1083] add tplink xx230v/xx530v v1
+Subject: [PATCH] add tplink xx230v/xx530v v1
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

@@ -1,7 +1,7 @@
 From 26a2556574977e15c96084e109283b8bbcab6cd1 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 8 Sep 2026 19:09:54 -0300
-Subject: [PATCH 1035/1083] mips: airoha: add tpl+spl build for en7528 and move
+Subject: [PATCH] mips: airoha: add tpl+spl build for en7528 and move
  print_cpuinfo to cpu.c
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>

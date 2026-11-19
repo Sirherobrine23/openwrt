@@ -1,7 +1,7 @@
 From 20462336ddc6aa1f24937425ebe149373df481d6 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 16 Sep 2026 13:56:25 -0300
-Subject: [PATCH 1050/1083] airoha: en751221: fix cold-boot ethernet
+Subject: [PATCH] airoha: en751221: fix cold-boot ethernet
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

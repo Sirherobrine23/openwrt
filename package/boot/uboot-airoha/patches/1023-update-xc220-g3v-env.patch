@@ -1,7 +1,7 @@
 From cfedaaa711ca5898ada21f0e34c8d60928a7298e Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Sun, 23 Aug 2026 15:30:29 -0300
-Subject: [PATCH 1023/1083] update xc220-g3v env
+Subject: [PATCH] update xc220-g3v env
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

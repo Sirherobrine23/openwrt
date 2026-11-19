@@ -1,7 +1,7 @@
 From 722c4297e3c924afe851076d73e929d162a62f70 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Wed, 15 Jul 2026 13:49:20 -0300
-Subject: [PATCH 1013/1083] remove fixed memory values
+Subject: [PATCH] remove fixed memory values
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

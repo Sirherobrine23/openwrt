@@ -1,7 +1,7 @@
 From 1c6039956a13ce44bfb8dddf12c45cedeead0494 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Thu, 24 Sep 2026 19:09:20 -0300
-Subject: [PATCH 1069/1083] mips: airoha: allow 64mb for bootm and sync configs
+Subject: [PATCH] mips: airoha: allow 64mb for bootm and sync configs
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

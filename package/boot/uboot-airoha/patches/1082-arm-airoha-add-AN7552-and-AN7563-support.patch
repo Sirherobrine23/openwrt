@@ -1,7 +1,7 @@
 From 7688dc815dfe58c39103b48e23a83dacef5c10f9 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 27 Oct 2026 06:46:03 -0300
-Subject: [PATCH 1082/1083] arm: airoha: add AN7552 and AN7563 support
+Subject: [PATCH] arm: airoha: add AN7552 and AN7563 support
 
 Add an AArch32 U-Boot proper target for the Cortex-A53 AN7552 family,
 including AN7563 evaluation board defaults. Follow the supplied A7552

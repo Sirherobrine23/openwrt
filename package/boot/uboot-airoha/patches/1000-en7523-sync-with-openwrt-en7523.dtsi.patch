@@ -1,7 +1,7 @@
 From 92744ac8439d9f169745882d1f2b01253b2a8c04 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 23 Jun 2026 13:53:15 -0300
-Subject: [PATCH 1000/1083] en7523: sync with openwrt en7523.dtsi
+Subject: [PATCH] en7523: sync with openwrt en7523.dtsi
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

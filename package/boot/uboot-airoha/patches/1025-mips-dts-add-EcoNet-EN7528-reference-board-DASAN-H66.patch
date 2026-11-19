@@ -1,8 +1,7 @@
 From 9902c1d3cffa57c86a4a57af3a2e418af9bd2cc6 Mon Sep 17 00:00:00 2001
 From: AK Sharma <maskachoska@yahoo.com>
 Date: Wed, 26 Aug 2026 21:30:33 +0530
-Subject: [PATCH 1025/1083] mips: dts: add EcoNet EN7528 reference board (DASAN
- H660GM-A)
+Subject: [PATCH] mips: dts: add EcoNet EN7528 reference board (DASAN H660GM-A)
 
 Add a board target for the EcoNet EN7528 reference board as found on the
 DASAN H660GM-A.  It reuses the existing EN7528 SoC support (the

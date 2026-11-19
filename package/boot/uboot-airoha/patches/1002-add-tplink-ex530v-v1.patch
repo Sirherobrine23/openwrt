@@ -1,7 +1,7 @@
 From c25c4c2dad8d21b7f7e5b49be689e09a45077d61 Mon Sep 17 00:00:00 2001
 From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 Date: Tue, 23 Jun 2026 14:22:05 -0300
-Subject: [PATCH 1002/1083] add tplink ex530v v1
+Subject: [PATCH] add tplink ex530v v1
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

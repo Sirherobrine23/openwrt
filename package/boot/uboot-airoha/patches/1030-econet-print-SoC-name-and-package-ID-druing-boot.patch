@@ -1,7 +1,7 @@
 From 2003a0b340dfa90448386b4f0d971497ee50b7dc Mon Sep 17 00:00:00 2001
 From: Yuzhii0718 <yuzhii0718@outlook.com>
 Date: Fri, 28 Aug 2026 22:12:10 +0800
-Subject: [PATCH 1030/1083] econet: print SoC name and package ID druing boot
+Subject: [PATCH] econet: print SoC name and package ID druing boot
 
 Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 ---

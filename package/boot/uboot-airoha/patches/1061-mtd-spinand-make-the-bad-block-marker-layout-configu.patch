@@ -1,8 +1,7 @@
 From 1c88e177d621be353cc8b3317f43fe70ab4e0490 Mon Sep 17 00:00:00 2001
 From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
 Date: Fri, 18 Sep 2026 23:17:17 -0300
-Subject: [PATCH 1061/1083] mtd: spinand: make the bad-block marker layout
- configurable
+Subject: [PATCH] mtd: spinand: make the bad-block marker layout configurable
 
 The SPI-NAND core assumes a two-byte bad-block marker in the first page
 of an eraseblock. Some devices use a one-byte marker instead and may
