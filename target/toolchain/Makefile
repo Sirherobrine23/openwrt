@@ -30,7 +30,7 @@ $(BIN_DIR)/$(TOOLCHAIN_NAME).tar.zst: clean
 	mkdir -p $(TOOLCHAIN_BUILD_DIR)
 	$(TAR) -cf - -C $(TOPDIR)/staging_dir/  \
 	       $(foreach exclude,$(EXCLUDE_DIRS),--exclude="$(exclude)") \
-	       toolchain-$(ARCH)$(ARCH_SUFFIX)_gcc-$(GCCV)$(DIR_SUFFIX) | \
+	       $(TOOLCHAIN_DIR_NAME) | \
 	       $(TAR) -xf - -C $(TOOLCHAIN_BUILD_DIR)
 
 	$(CP) \

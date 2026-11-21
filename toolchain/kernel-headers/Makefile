@@ -6,6 +6,16 @@
 #
 include $(TOPDIR)/rules.mk
 
+# Firmware kernels remain per-subtarget. The shared libc sysroot uses the
+# versioned OpenWrt header source, independently of external or Git kernels.
+ifneq ($(OPENWRT_MULTI_CONTEXT),)
+  override CONFIG_EXTERNAL_KERNEL_TREE:=""
+  override CONFIG_KERNEL_GIT_CLONE_URI:=""
+  override CONFIG_KERNEL_GIT_REF:=""
+  override CONFIG_KERNEL_GIT_MIRROR_HASH:=""
+  override CONFIG_KERNEL_CFLAGS:=""
+endif
+
 KERNEL_BUILD_DIR := $(BUILD_DIR_TOOLCHAIN)
 BUILD_DIR := $(KERNEL_BUILD_DIR)
 

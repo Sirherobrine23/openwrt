@@ -14,10 +14,16 @@ $(if $(findstring $(space),$(TOPDIR)),$(error ERROR: The path to the OpenWrt dir
 
 world:
 
+include $(TOPDIR)/include/build-context.mk
+
+ifeq ($(strip $(OPENWRT_MULTI_CONTEXT)$(filter 1,$(OPENWRT_BUILD) $(OPENWRT_MULTI_INTERNAL) $(SDK) $(IB))),)
+  include $(TOPDIR)/include/multi-target.mk
+else
+
 DISTRO_PKG_CONFIG:=$(shell $(TOPDIR)/scripts/command_all.sh pkg-config | grep -e '/usr' -e '/nix/store' -m 1)
 
 export ORIG_PATH:=$(if $(ORIG_PATH),$(ORIG_PATH),$(PATH))
-export PATH:=$(if $(STAGING_DIR),$(abspath $(STAGING_DIR)/../host/bin),$(TOPDIR)/staging_dir/host/bin):$(PATH)
+export PATH:=$(TOPDIR)/staging_dir/$(OPENWRT_HOST_NAME)/bin:$(PATH)
 
 ifneq ($(OPENWRT_BUILD),1)
   _SINGLE=export MAKEFLAGS=$(space);
@@ -56,18 +62,23 @@ printdb:
 prepare: $(target/stamp-compile)
 
 _clean: FORCE
-	rm -rf $(BUILD_DIR) $(STAGING_DIR) $(BIN_DIR) $(OUTPUT_DIR)/packages/$(ARCH_PACKAGES) $(TOPDIR)/staging_dir/packages
+	rm -rf $(BUILD_DIR) $(STAGING_DIR) $(BIN_DIR) $(PACKAGE_REPO_DIR) $(if $(OPENWRT_MULTI_CONTEXT),$(PACKAGE_DIR_ALL) $(PACKAGE_DIR_ALL).list,$(TOPDIR)/staging_dir/packages)
 
 clean: _clean
 	rm -rf $(BUILD_LOG_DIR)
 
 targetclean: _clean
-	rm -rf $(TOOLCHAIN_DIR) $(BUILD_DIR_BASE)/hostpkg $(BUILD_DIR_TOOLCHAIN)
+ifneq ($(OPENWRT_MULTI_CONTEXT),)
+	+@set -e; for profile in $$(sed -n 's/^ifeq (\$$(PTC_PROFILE),\([a-zA-Z0-9_.+-]*\))$$/\1/p' $(TMP_DIR)/.package-toolchains.mk); do \
+		$(SUBMAKE) "toolchain/package-toolchain/$$profile/clean"; \
+	done
+endif
+	rm -rf $(TOOLCHAIN_DIR) $(BUILD_DIR_BASE)/$(OPENWRT_HOSTPKG_NAME) $(BUILD_DIR_TOOLCHAIN)
 
 dirclean: targetclean clean
-	rm -rf $(STAGING_DIR_HOST) $(STAGING_DIR_HOSTPKG) $(BUILD_DIR_BASE)/host
+	rm -rf $(STAGING_DIR_HOST) $(STAGING_DIR_HOSTPKG) $(BUILD_DIR_BASE)/$(OPENWRT_HOST_NAME)
 	rm -rf $(TMP_DIR)
-	$(MAKE) -C $(TOPDIR)/scripts/config clean
+	$(if $(OPENWRT_MULTI_CONTEXT),:,$(MAKE) -C $(TOPDIR)/scripts/config clean)
 
 toolchain_rebuild_check:
 	$(SCRIPT_DIR)/check-toolchain-clean.sh
@@ -82,7 +93,7 @@ $(BUILD_DIR)/.prepared: Makefile
 	@mkdir -p $$(dirname $@)
 	@touch $@
 
-tmp/.prereq_packages: .config
+$(TMP_DIR)/.prereq_packages: $(OPENWRT_CONFIG)
 	unset ERROR; \
 	for package in $(sort $(prereq-y) $(prereq-m)); do \
 		$(_SINGLE)$(NO_TRACE_MAKE) -s -r -C package/$$package prereq || ERROR=1; \
@@ -95,7 +106,7 @@ tmp/.prereq_packages: .config
 endif
 
 # check prerequisites before starting to build
-prereq: $(target/stamp-prereq) tmp/.prereq_packages
+prereq: $(target/stamp-prereq) $(TMP_DIR)/.prereq_packages
 	@if [ ! -f "$(INCLUDE_DIR)/site/$(ARCH)" ]; then \
 		echo 'ERROR: Missing site config for architecture "$(ARCH)" !'; \
 		echo '       The missing file will cause configure scripts to fail during compilation.'; \
@@ -130,7 +141,7 @@ feedsversion: FORCE
 # two seconds of every build. Skip it while neither .config nor a Kconfig file
 # is newer than the file it wrote last time. include/toplevel.mk guards the
 # sync check of .config the same way.
-DIFFCONFIG_FILES:=.config Config.in config target toolchain package feeds \
+DIFFCONFIG_FILES:=$(OPENWRT_CONFIG) Config.in config target toolchain package feeds \
 	tmp/.config-package.in tmp/.config-target.in tmp/.config-feeds.in scripts/config/conf
 
 diffconfig: FORCE
@@ -144,7 +155,7 @@ diffconfig: FORCE
 buildinfo: FORCE
 	$(_SINGLE)$(SUBMAKE) -r diffconfig buildversion feedsversion
 
-prepare: .config $(tools/stamp-compile) $(toolchain/stamp-compile)
+prepare: $(OPENWRT_CONFIG) $(tools/stamp-compile) $(toolchain/stamp-compile)
 	$(_SINGLE)$(SUBMAKE) -r buildinfo
 
 world: prepare $(target/stamp-compile) $(package/stamp-compile) $(package/stamp-install) $(target/stamp-install) FORCE
@@ -156,3 +167,5 @@ endif
 .PHONY: clean dirclean prereq prepare world package/symlinks package/symlinks-install package/symlinks-clean
 
 endif
+
+endif # native build context

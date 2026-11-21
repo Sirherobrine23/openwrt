@@ -48,7 +48,7 @@ endif
 
 ifndef DUMP_TARGET_DB
 ifneq ($(ARCH),)
-  $(TOOLCHAIN_DIR)/info.mk: .config
+  $(TOOLCHAIN_DIR)/info.mk: $(OPENWRT_CONFIG)
 	@for dir in $(TOOLCHAIN_DIR); do ( \
 		$(if $(QUIET),,set -x;) \
 		mkdir -p "$$dir"; \
@@ -77,7 +77,7 @@ endif
 endif
 
 # prerequisites for the individual targets
-$(curdir)/ := .config prereq
+$(curdir)/ := $(OPENWRT_CONFIG) prereq
 $(curdir)//compile = $(STAGING_DIR)/.prepared $(TOOLCHAIN_DIR)/info.mk $(tools/stamp-compile)
 
 ifndef DUMP_TARGET_DB
@@ -88,13 +88,13 @@ endif
 # build. A package source requests one through Build-Package-Toolchain;
 # package-metadata.pl adds the dependency to that package only.
 $(curdir)/package-toolchain/%/compile: $(tools/stamp-compile)
-	+$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" compile
+	+$(call shared_locked,$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" compile,package-toolchain-$*)
 
 $(curdir)/package-toolchain/%/download:
 	+$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" download
 
 $(curdir)/package-toolchain/%/clean:
-	+$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" clean
+	+$(call shared_locked,$(SUBMAKE) -C toolchain/package-toolchain PTC_PROFILE="$*" clean,package-toolchain-$*)
 
 $(curdir)/install: $(curdir)/compile
 

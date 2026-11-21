@@ -109,7 +109,7 @@ ifeq ($(HOST_OS),Darwin)
   define Host/Install
 	$(Host/Install/Default)
 	$(INSTALL_DIR) $(STAGING_DIR_HOSTPKG)/lib
-	cd "$(STAGING_DIR_HOSTPKG)/lib" && ln -sf ../../host/lib/libubox.* .
+	cd "$(STAGING_DIR_HOSTPKG)/lib" && ln -sf ../../$(OPENWRT_HOST_NAME)/lib/libubox.* .
   endef
 endif
 

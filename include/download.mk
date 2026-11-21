@@ -363,7 +363,7 @@ define Download
 
   $(DL_DIR)/$(FILE):
 	mkdir -p $(DL_DIR)
-	$(call locked, \
+	$(call shared_locked, \
 		$(if $(DownloadMethod/$(call dl_method,$(URL),$(PROTO))), \
 			$(call DownloadMethod/$(call dl_method,$(URL),$(PROTO)),check,$(if $(filter default,$(1)),PKG_,Download/$(1):)), \
 			$(DownloadMethod/unknown) \

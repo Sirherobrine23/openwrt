@@ -126,12 +126,12 @@ $(eval $(call SetupHostCommand,diff,Please install GNU diffutils, \
 	diff --version 2>&1 | grep GNU))
 
 $(eval $(call SetupHostCommand,cp,Please install GNU fileutils, \
-	$(TOPDIR)/staging_dir/host/bin/gcp --help 2>&1 | grep 'Copy SOURCE', \
+	$(STAGING_DIR_HOST)/bin/gcp --help 2>&1 | grep 'Copy SOURCE', \
 	gcp --help 2>&1 | grep 'Copy SOURCE', \
 	cp --help 2>&1 | grep 'Copy SOURCE'))
 
 $(eval $(call SetupHostCommand,seq,Please install seq, \
-	$(TOPDIR)/staging_dir/host/bin/gseq --version, \
+	$(STAGING_DIR_HOST)/bin/gseq --version, \
 	gseq --version, \
 	seq --version 2>&1 | grep seq))
 
@@ -155,12 +155,12 @@ $(eval $(call SetupHostCommand,getopt, \
 	/opt/local/bin/getopt -o t --long test -- --test | grep '^ *--test *--'))
 
 $(eval $(call SetupHostCommand,realpath,Please install a 'realpath' utility, \
-	$(TOPDIR)/staging_dir/host/bin/grealpath /, \
+	$(STAGING_DIR_HOST)/bin/grealpath /, \
 	grealpath /, \
 	realpath /))
 
 $(eval $(call SetupHostCommand,stat,Cannot find a file stat utility, \
-	$(TOPDIR)/staging_dir/host/bin/gstat -c%s $(TOPDIR)/Makefile, \
+	$(STAGING_DIR_HOST)/bin/gstat -c%s $(TOPDIR)/Makefile, \
 	gnustat -c%s $(TOPDIR)/Makefile, \
 	gstat -c%s $(TOPDIR)/Makefile, \
 	stat -c%s $(TOPDIR)/Makefile))
@@ -179,7 +179,7 @@ $(eval $(call SetupHostCommand,wget,Please install GNU 'wget', \
 	wget --version | grep GNU))
 
 $(eval $(call SetupHostCommand,install,Please install 'install', \
-	$(TOPDIR)/staging_dir/host/bin/ginstall --version | grep GNU, \
+	$(STAGING_DIR_HOST)/bin/ginstall --version | grep GNU, \
 	install --version | grep 'GNU\|uutils', \
 	ginstall --version | grep GNU))
 

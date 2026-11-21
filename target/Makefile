@@ -21,7 +21,7 @@ $(curdir)/imagebuilder/install:=$(curdir)/linux/install
 
 $(curdir)//compile = $(STAGING_DIR)/.prepared $(BIN_DIR)
 
-$(eval $(call stampfile,$(curdir),target,prereq,.config))
+$(eval $(call stampfile,$(curdir),target,prereq,$(OPENWRT_CONFIG)))
 $(eval $(call stampfile,$(curdir),target,compile,$(TMP_DIR)/.build))
 $(eval $(call stampfile,$(curdir),target,install,$(TMP_DIR)/.build))
 

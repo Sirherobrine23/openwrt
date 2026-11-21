@@ -497,7 +497,7 @@ define Build/install-dtb
 	$(call locked, \
 		$(foreach dts,$(DEVICE_DTS), \
 			$(CP) \
-				$(DTS_DIR)/$(dts).dtb \
+				$(if $(LINUX_EXTERNAL_BUILD),$(DTS_BUILD_DIR),$(DTS_DIR))/$(dts).dtb \
 				$(BIN_DIR)/$(IMG_PREFIX)-$(dts).dtb; \
 		), \
 		install-dtb-$(IMG_PREFIX) \

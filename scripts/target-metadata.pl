@@ -5,6 +5,8 @@ use strict;
 use metadata;
 use Getopt::Long;
 
+my $context;
+
 sub target_config_features(@) {
 	my $ret;
 
@@ -110,6 +112,9 @@ config TARGET_$target->{conf}
 	bool "$target->{name}"
 EOF
 	}
+	if ($context) {
+		$confstr =~ s/\tbool "[^"\n]*"/\tbool\n\tdefault y/;
+	}
 	if ($target->{subtarget}) {
 		$confstr .= "\tdepends on TARGET_$target->{boardconf}\n";
 	}
@@ -163,6 +168,15 @@ sub gen_target_config() {
 	my $file = shift @ARGV;
 	my @target = parse_target_metadata($file);
 	my %defaults;
+	if ($context) {
+		my ($leaf) = grep { $_->{id} eq $context } @target;
+		die "Unknown build context '$context'\n" unless $leaf;
+		die "Build context '$context' is not a leaf\n" if @{$leaf->{subtargets}};
+		@target = grep { $_ == $leaf || ($leaf->{parent} && $_ == $leaf->{parent}) } @target;
+		$leaf->{parent}->{subtargets} = [ (split /\//, $context)[1] ] if $leaf->{parent};
+	}
+	my ($leaf) = grep { !@{$_->{subtargets}} } @target;
+	my $multi = $context && $leaf->{has_devices};
 
 	my @target_sort = sort {
 		target_name($a) cmp target_name($b);
@@ -181,7 +195,7 @@ EOF
 		}
 	}
 
-	print <<EOF;
+	print <<EOF unless $context;
 choice
 	prompt "Target System"
 	default TARGET_mediatek
@@ -194,14 +208,14 @@ EOF
 		print_target($target);
 	}
 
-	print <<EOF;
+	print <<EOF unless $context;
 endchoice
 
 choice
 	prompt "Subtarget" if HAS_SUBTARGETS
 EOF
 	foreach my $target (@target) {
-		next unless $target->{def_subtarget};
+		next if $context || !$target->{def_subtarget};
 		print <<EOF;
 	default TARGET_$target->{conf}_$target->{def_subtarget} if TARGET_$target->{conf}
 EOF
@@ -214,9 +228,8 @@ EOF
 		print_target($target);
 	}
 
-print <<EOF;
-endchoice
-
+print "endchoice\n\n" unless $context;
+print <<EOF unless $multi;
 choice
 	prompt "Target Profile"
 	default TARGET_MULTI_PROFILE if BUILDBOT
@@ -232,13 +245,19 @@ EOF
 			$profile = $p;
 			last;
 		}
+		next if $multi;
 		$profile or next;
 		print <<EOF;
 	default TARGET_$target->{conf}_$profile->{id} if TARGET_$target->{conf} && !BUILDBOT
 EOF
 	}
 
-	print <<EOF;
+	print <<EOF if $multi;
+config TARGET_MULTI_PROFILE
+	def_bool y
+
+EOF
+	print <<EOF unless $multi;
 
 config TARGET_MULTI_PROFILE
 	bool "Multiple devices"
@@ -252,6 +271,7 @@ EOF
 	foreach my $target (@target) {
 		my $profiles = $target->{profiles};
 		foreach my $profile (@{$target->{profiles}}) {
+			next if $multi;
 			print <<EOF;
 config TARGET_$target->{conf}_$profile->{id}
 	bool "$profile->{name}"
@@ -274,9 +294,8 @@ EOF
 		}
 	}
 
+	print "endchoice\n\n" unless $multi;
 	print <<EOF;
-endchoice
-
 menu "Target Devices"
 	depends on TARGET_MULTI_PROFILE
 
@@ -460,11 +479,12 @@ sub gen_profile_mk() {
 }
 
 sub parse_command() {
-	GetOptions("ignore=s", \@ignore);
+	GetOptions("ignore=s", \@ignore, "context=s", \$context);
 	my $cmd = shift @ARGV;
 	for ($cmd) {
 		/^config$/ and return gen_target_config();
 		/^profile_mk$/ and return gen_profile_mk();
+		/^multi_config$/ and do { require target_config; return target_config::run(@ARGV); };
 	}
 	die <<EOF
 Available Commands:

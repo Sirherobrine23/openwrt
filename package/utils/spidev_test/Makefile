@@ -34,7 +34,7 @@ endef
 define Build/Prepare
 	# For SDK: Sources are copied by target/sdk/Makefile's
 	# USERSPACE_UTILS(_FILES)
-	$(CP) $(LINUX_DIR)/tools/spi/* $(PKG_BUILD_DIR)/
+	$(CP) $(LINUX_SRC_DIR)/tools/spi/* $(PKG_BUILD_DIR)/
 endef
 
 MAKE_FLAGS = \

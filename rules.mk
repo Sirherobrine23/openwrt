@@ -6,8 +6,10 @@
 ifneq ($(__rules_inc),1)
 __rules_inc=1
 
+include $(TOPDIR)/include/build-context.mk
+
 ifeq ($(DUMP),)
-  -include $(TOPDIR)/.config
+  -include $(OPENWRT_CONFIG)
 endif
 include $(TOPDIR)/include/debug.mk
 include $(TOPDIR)/include/verbose.mk
@@ -17,7 +19,7 @@ CHECK:=1
 DUMP:=1
 endif
 
-export TMP_DIR:=$(TOPDIR)/tmp
+export TMP_DIR:=$(OPENWRT_TMP_DIR)
 export TMPDIR:=$(TMP_DIR)
 
 ##@
@@ -150,9 +152,12 @@ $(foreach t,$(DEFAULT_SUBDIR_TARGETS) $(1),
 )
 endef
 
-DL_DIR=$(if $(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(TOPDIR)/dl)$(if $(DL_SUBDIR),/$(DL_SUBDIR))
+DL_DIR=$(or $(OPENWRT_MULTI_DOWNLOAD),$(call qstrip,$(CONFIG_DOWNLOAD_FOLDER)),$(TOPDIR)/dl)$(if $(DL_SUBDIR),/$(DL_SUBDIR))
 OUTPUT_DIR:=$(if $(call qstrip,$(CONFIG_BINARY_FOLDER)),$(call qstrip,$(CONFIG_BINARY_FOLDER)),$(TOPDIR)/bin)
 BIN_DIR:=$(OUTPUT_DIR)/targets/$(BOARD)/$(SUBTARGET)
+# A target-specific repository prevents collisions between equal architectures.
+# Image paths remain the native bin/targets/<board>/<subtarget> paths.
+PACKAGE_REPO_DIR = $(OUTPUT_DIR)/packages/$(ARCH_PACKAGES)$(if $(OPENWRT_MULTI_CONTEXT),/$(BOARD)/$(SUBTARGET))
 INCLUDE_DIR:=$(TOPDIR)/include
 SCRIPT_DIR:=$(TOPDIR)/scripts
 BUILD_DIR_BASE:=$(TOPDIR)/build_dir
@@ -177,6 +182,10 @@ else
   TOOLCHAIN_DIR_NAME:=toolchain-$(GNU_TARGET_NAME)
 endif
 
+# Metadata may be contextual; resource names always use the stock layout.
+TARGET_DIR_NAME_NATIVE := $(TARGET_DIR_NAME)
+TOOLCHAIN_DIR_NAME_NATIVE := $(TOOLCHAIN_DIR_NAME)
+
 ifeq ($(or $(CONFIG_EXTERNAL_TOOLCHAIN),$(CONFIG_TARGET_uml)),)
   iremap = -f$(if $(CONFIG_REPRODUCIBLE_DEBUG_INFO),file,macro)-prefix-map=$(1)=$(2)
 endif
@@ -199,7 +208,7 @@ IREMAP_STAGING_DIR = $(call remap_staging_dir,iremap)
 IREMAP_TOOLCHAIN_DIR = $(call iremap,$(TOOLCHAIN_DIR),staging_dir/$(notdir $(TOOLCHAIN_DIR)))
 
 PACKAGE_DIR?=$(BIN_DIR)/packages
-PACKAGE_DIR_ALL?=$(TOPDIR)/staging_dir/packages/$(BOARD)
+PACKAGE_DIR_ALL?=$(TOPDIR)/staging_dir/packages/$(BOARD)$(if $(OPENWRT_MULTI_CONTEXT),/$(SUBTARGET))
 BUILD_DIR:=$(BUILD_DIR_BASE)/$(TARGET_DIR_NAME)
 STAGING_DIR:=$(TOPDIR)/staging_dir/$(TARGET_DIR_NAME)
 BUILD_DIR_TOOLCHAIN:=$(BUILD_DIR_BASE)/$(TOOLCHAIN_DIR_NAME)
@@ -210,7 +219,7 @@ TARGET_ROOTFS_DIR?=$(if $(call qstrip,$(CONFIG_TARGET_ROOTFS_DIR)),$(call qstrip
 TARGET_DIR:=$(TARGET_ROOTFS_DIR)/root-$(BOARD)
 STAGING_DIR_ROOT:=$(STAGING_DIR)/root-$(BOARD)
 STAGING_DIR_IMAGE:=$(STAGING_DIR)/image
-BUILD_LOG_DIR:=$(if $(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(TOPDIR)/logs)
+BUILD_LOG_DIR:=$(if $(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(call qstrip,$(CONFIG_BUILD_LOG_DIR)),$(TOPDIR)/logs$(if $(OPENWRT_MULTI_CONTEXT),/$(OPENWRT_MULTI_CONTEXT)))
 PKG_INFO_DIR := $(STAGING_DIR)/pkginfo
 
 # Set BUILD_TIME_LOG=<file> in the environment to record a begin and an end
@@ -250,9 +259,9 @@ ifneq ($(CONFIGURE_CACHE_DIR),)
   strhash=$(shell printf '%s' '$(subst ','\'',$(1))' | $(MKHASH) md5)
 endif
 
-BUILD_DIR_HOST:=$(if $(IS_PACKAGE_BUILD),$(BUILD_DIR_BASE)/hostpkg,$(BUILD_DIR_BASE)/host)
-STAGING_DIR_HOST:=$(abspath $(STAGING_DIR)/../host)
-STAGING_DIR_HOSTPKG:=$(abspath $(STAGING_DIR)/../hostpkg)
+BUILD_DIR_HOST:=$(BUILD_DIR_BASE)/$(if $(IS_PACKAGE_BUILD),$(OPENWRT_HOSTPKG_NAME),$(OPENWRT_HOST_NAME))
+STAGING_DIR_HOST:=$(TOPDIR)/staging_dir/$(OPENWRT_HOST_NAME)
+STAGING_DIR_HOSTPKG:=$(TOPDIR)/staging_dir/$(OPENWRT_HOSTPKG_NAME)
 
 TARGET_PATH:=$(subst $(space),:,$(filter-out .,$(filter-out ./,$(subst :,$(space),$(PATH)))))
 TARGET_INIT_PATH:=$(call qstrip,$(CONFIG_TARGET_INIT_PATH))
@@ -529,6 +538,16 @@ ifneq ($(wildcard $(STAGING_DIR_HOST)/bin/flock),)
   endef
 else
   locked=$(1)
+endif
+
+# Downloads and signing keys are shared across contexts. Use a host lock even
+# before tools/flock has been built. Other locks remain local to the worker.
+ifneq ($(OPENWRT_MULTI_CONTEXT),)
+  define shared_locked
+	SHELL= flock $(TOPDIR)/tmp/.$(strip $(2)).flock -c '$(subst ','\'',$(1))'
+  endef
+else
+  shared_locked=$(call locked,$(1),$(2))
 endif
 
 

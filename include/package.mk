@@ -129,6 +129,18 @@ ifneq ($(PREV_STAMP_PREPARED),)
 else
   STAMP_PREPARED=$(PKG_BUILD_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(PKG_FILES_MD5)_$(call confvar,CONFIG_AUTOREMOVE $(PKG_PREPARED_DEPENDS)))
 endif
+# Compatible packages retain their native source/build directories. When
+# declared package options, compiler flags or kernel inputs differ, prepare
+# that package again rather than reusing objects from a different context.
+ifneq ($(OPENWRT_MULTI_CONTEXT),)
+ifeq ($(PREV_STAMP_PREPARED),)
+  multi_package_context = $(if $(filter nonshared,$(PKG_FLAGS)),$(OPENWRT_MULTI_CONTEXT))
+  multi_package_inputs = $(TARGET_CFLAGS) $(TARGET_CXXFLAGS) $(TARGET_CPPFLAGS) $(TARGET_LDFLAGS) $(LINUX_DIR) $(multi_package_context)
+  multi_package_key = $(call confvar,$(PKG_CONFIG_DEPENDS) multi_package_inputs)
+  multi_native_prepared = $(PKG_BUILD_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(PKG_FILES_MD5)_$(call confvar,CONFIG_AUTOREMOVE $(PKG_PREPARED_DEPENDS)))
+  STAMP_PREPARED = $(multi_native_prepared)$(if $(DUMP)$(QUILT),,_$(multi_package_key))
+endif
+endif
 STAMP_CONFIGURED=$(PKG_BUILD_DIR)/.configured$(if $(DUMP),,_$(call confvar,$(PKG_CONFIG_DEPENDS)))
 STAMP_CONFIGURED_WILDCARD=$(PKG_BUILD_DIR)/.configured_*
 STAMP_BUILT:=$(PKG_BUILD_DIR)/.built

@@ -464,7 +464,7 @@ sub gen_package_toolchains() {
 		my $profile = $src->{package_toolchain} or next;
 		$profile =~ /^[a-zA-Z0-9_.+-]+$/ or die "Invalid package toolchain profile '$profile'\n";
 		my $config = $src->{package_toolchain_config} || {};
-		my @scan_deps = ('$(TOPDIR)/.config');
+		my @scan_deps = ('$(OPENWRT_CONFIG)');
 		foreach my $component (qw(GCC BINUTILS)) {
 			my $dir = $config->{"${component}_PATCH_DIR"} or next;
 			File::Find::find({ no_chdir => 1, wanted => sub { push @scan_deps, $File::Find::name } }, $dir);

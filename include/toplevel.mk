@@ -4,6 +4,9 @@
 
 PREP_MK= OPENWRT_BUILD= QUIET=0
 
+# SDK frontends include this file before rules.mk.
+include $(TOPDIR)/include/build-context.mk
+
 export IS_TTY=$(if $(MAKE_TERMOUT),1,0)
 
 include $(TOPDIR)/include/verbose.mk
@@ -57,11 +60,12 @@ path:=$(filter-out .%,$(path))
 path:=$(subst $(space),:,$(path))
 export ORIG_PATH:=$(if $(ORIG_PATH),$(ORIG_PATH),$(PATH))
 export PATH:=$(path)
-export STAGING_DIR_HOST:=$(if $(STAGING_DIR),$(abspath $(STAGING_DIR)/../host),$(TOPDIR)/staging_dir/host)
+export STAGING_DIR_HOST:=$(TOPDIR)/staging_dir/$(OPENWRT_HOST_NAME)
+export TMP_DIR:=$(OPENWRT_TMP_DIR)
 
 unexport TAR_OPTIONS
 
-ifeq ($(FORCE),)
+ifeq ($(FORCE)$(OPENWRT_MULTI_CONTEXT),)
   .config scripts/config/conf scripts/config/mconf: $(STAGING_DIR_HOST)/.prereq-build
 endif
 
@@ -85,53 +89,71 @@ _ignore = $(foreach p,$(IGNORE_PACKAGES),--ignore $(p))
 # Resolved package toolchain patch dependencies are emitted by the metadata generator.
 # prepare-tmpinfo creates this cache. Do not let %:: try to remake a missing
 # include during startup: that would recursively invoke make prereq.
--include $(wildcard $(TOPDIR)/tmp/.package-toolchains.mk)
+-include $(wildcard $(OPENWRT_TMP_DIR)/.package-toolchains.mk)
 SCAN_DEPS_packageinfo:=target/linux/*/modules.mk target/linux/feeds/*/modules.mk \
   include/package-toolchain.mk toolchain/gcc/source.mk toolchain/binutils/source.mk \
   toolchain/package-toolchain/*.mk toolchain/package-toolchain/*/Makefile $(PACKAGE_TOOLCHAIN_SCAN_DEPS)
 
 # $(1): scan target, $(2): scan directory, $(3): scan depth
-SCAN_STAMP=tmp/info/.scan-$(1).stamp
+SCAN_STAMP=$(TMP_DIR)/info/.scan-$(1).stamp
 scan_unchanged=[ -f $(SCAN_STAMP) ] && \
 	[ -z "$$(find -L $(2) -maxdepth $(3) \( -type d -o -name Makefile -o -name '*.mk' \) \
 		-newer $(SCAN_STAMP) -print -quit 2>/dev/null)" ] && \
-	[ -z "$$(find include rules.mk .config $(SCAN_DEPS_$(1)) -maxdepth 1 \
+	[ -z "$$(find include rules.mk $(OPENWRT_CONFIG) $(SCAN_DEPS_$(1)) -maxdepth 1 \
 		\( -name '*.mk' -o -name .config \) \
 		-newer $(SCAN_STAMP) -print -quit 2>/dev/null)" ]
 
 # $(1): output file, $(2): package-metadata.pl command
-tmpinfo_gen=[ $(1) -nt tmp/.packageinfo ] && [ $(1) -nt scripts/package-metadata.pl ] && \
+tmpinfo_gen=[ $(1) -nt $(TMP_DIR)/.packageinfo ] && [ $(1) -nt scripts/package-metadata.pl ] && \
 	[ $(1) -nt scripts/metadata.pm ] || \
-	./scripts/package-metadata.pl $(2) tmp/.packageinfo > $(1) || { rm -f $(1); false; }
+	./scripts/package-metadata.pl $(2) $(TMP_DIR)/.packageinfo > $(1) || { rm -f $(1); false; }
 
 prepare-tmpinfo: FORCE
 	@+$(MAKE) -r -s $(STAGING_DIR_HOST)/.prereq-build $(PREP_MK)
-	mkdir -p tmp/info feeds
-	[ -e $(TOPDIR)/feeds/base ] || ln -sf ../package $(TOPDIR)/feeds/base
+	mkdir -p $(TMP_DIR)/info feeds
+	$(if $(OPENWRT_MULTI_CONTEXT),:,[ -e $(TOPDIR)/feeds/base ] || ln -sf ../package $(TOPDIR)/feeds/base)
 	+$(call scan_unchanged,packageinfo,package,5) || { \
 		$(_SINGLE)$(NO_TRACE_MAKE) -j1 -r -s -f include/scan.mk SCAN_TARGET="packageinfo" SCAN_DIR="package" SCAN_NAME="package" SCAN_DEPTH=5 SCAN_EXTRA="" && \
 		touch $(call SCAN_STAMP,packageinfo); }
+ifeq ($(OPENWRT_MULTI_CONTEXT),)
 	+$(call scan_unchanged,targetinfo,target/linux,3) || { \
 		$(_SINGLE)$(NO_TRACE_MAKE) -j1 -r -s -f include/scan.mk SCAN_TARGET="targetinfo" SCAN_DIR="target/linux" SCAN_NAME="target" SCAN_DEPTH=3 SCAN_EXTRA="" SCAN_MAKEOPTS="TARGET_BUILD=1" && \
 		touch $(call SCAN_STAMP,targetinfo); }
-	for type in package target; do \
-		f=tmp/.$${type}info; t=tmp/.config-$${type}.in; \
+endif
+	for type in package $(if $(OPENWRT_MULTI_CONTEXT),,target); do \
+		f=$(TMP_DIR)/.$${type}info; t=$(TMP_DIR)/.config-$${type}.in; \
 		[ "$$t" -nt "$$f" ] || ./scripts/$${type}-metadata.pl $(_ignore) config "$$f" > "$$t" || { rm -f "$$t"; echo "Failed to build $$t"; false; break; }; \
 	done
-	./scripts/feeds feed_config > tmp/.config-feeds.in.new
-	cmp -s tmp/.config-feeds.in.new tmp/.config-feeds.in && rm -f tmp/.config-feeds.in.new || \
-		mv tmp/.config-feeds.in.new tmp/.config-feeds.in
-	$(call tmpinfo_gen,tmp/.package-toolchains.mk,toolchains)
-	$(call tmpinfo_gen,tmp/.packagedeps,mk)
-	$(call tmpinfo_gen,tmp/.packageauxvars,pkgaux)
-	$(call tmpinfo_gen,tmp/.packageusergroup,usergroup)
-	touch $(TOPDIR)/tmp/.build
+ifeq ($(OPENWRT_MULTI_CONTEXT),)
+	./scripts/feeds feed_config > $(TMP_DIR)/.config-feeds.in.new
+	cmp -s $(TMP_DIR)/.config-feeds.in.new $(TMP_DIR)/.config-feeds.in && rm -f $(TMP_DIR)/.config-feeds.in.new || \
+		mv $(TMP_DIR)/.config-feeds.in.new $(TMP_DIR)/.config-feeds.in
+endif
+	$(call tmpinfo_gen,$(TMP_DIR)/.package-toolchains.mk,toolchains)
+	$(call tmpinfo_gen,$(TMP_DIR)/.packagedeps,mk)
+	$(call tmpinfo_gen,$(TMP_DIR)/.packageauxvars,pkgaux)
+	$(call tmpinfo_gen,$(TMP_DIR)/.packageusergroup,usergroup)
+	$(if $(OPENWRT_MULTI_CONTEXT),[ -e $(TMP_DIR)/.build ] && [ $(TMP_DIR)/.build -nt $(TMP_DIR)/.packageinfo ] && [ $(TMP_DIR)/.build -nt $(OPENWRT_CONFIG) ] && [ $(TMP_DIR)/.build -nt $(TOPDIR)/tmp/.targetinfo ] && [ $(TMP_DIR)/.build -nt $(TMP_DIR)/.packagedeps ] && [ $(TMP_DIR)/.build -nt $(TMP_DIR)/.package-toolchains.mk ] && [ $(TMP_DIR)/.build -nt $(TMP_DIR)/.config-feeds.in ] || ,)touch $(TMP_DIR)/.build
 
+ifeq ($(OPENWRT_MULTI_CONTEXT),)
+ifneq ($(OPENWRT_CONFIG),.config)
+$(OPENWRT_CONFIG): .config
+endif
 .config: ./scripts/config/conf $(if $(CONFIG_HAVE_DOT_CONFIG),,prepare-tmpinfo)
 	@+if [ \! -e .config ] || ! grep CONFIG_HAVE_DOT_CONFIG .config >/dev/null; then \
 		[ -e $(HOME)/.openwrt/defconfig ] && cp $(HOME)/.openwrt/defconfig .config; \
 		$(_SINGLE)$(NO_TRACE_MAKE) menuconfig $(PREP_MK); \
 	fi
+
+endif
+
+# Configuration frontends use the aggregate Kconfig only in the root tree.
+# A worker continues to use the original, single-target Kconfig.
+ifneq ($(strip $(OPENWRT_MULTI_CONTEXT)$(filter 1,$(SDK) $(IB))),)
+  KCONFIG_RUN = $(1) $(2) Config.in
+else
+  KCONFIG_RUN = $(MAKE) -f include/multi-target-config.mk FRONTEND="$(1)" FRONTEND_FLAGS="$(2)" configure
+endif
 
 ifeq ($(RECURSIVE_DEP_IS_ERROR),1)
   KCONF_FLAGS=--fatalrecursive
@@ -140,15 +162,17 @@ ifneq ($(DISTRO_PKG_CONFIG),)
 scripts/config/%onf: export PATH:=$(dir $(DISTRO_PKG_CONFIG)):$(PATH)
 endif
 scripts/config/%onf: CFLAGS+= -O2
+ifeq ($(OPENWRT_MULTI_CONTEXT),)
 scripts/config/%onf: FORCE
 	@$(_SINGLE)$(SUBMAKE) $(if $(findstring s,$(OPENWRT_VERBOSE)),,-s) \
 		-C scripts/config $(notdir $@)
 
 $(eval $(call rdep,scripts/config,scripts/config/mconf))
+endif
 
 config: scripts/config/conf prepare-tmpinfo FORCE
-	[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
-		$< $(KCONF_FLAGS) Config.in
+	+[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
+		$(call KCONFIG_RUN,$<,$(KCONF_FLAGS))
 
 config-clean: FORCE
 	$(_SINGLE)$(NO_TRACE_MAKE) -C scripts/config clean
@@ -156,8 +180,8 @@ config-clean: FORCE
 defconfig: scripts/config/conf prepare-tmpinfo FORCE
 	touch .config
 	@if [ ! -s .config -a -e $(HOME)/.openwrt/defconfig ]; then cp $(HOME)/.openwrt/defconfig .config; fi
-	[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
-		$< $(KCONF_FLAGS) --defconfig=.config Config.in
+	+[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
+		$(call KCONFIG_RUN,$<,$(KCONF_FLAGS) --defconfig=.config)
 
 confdefault-y=allyes
 confdefault-m=allmod
@@ -165,30 +189,30 @@ confdefault-n=allno
 confdefault:=$(confdefault-$(CONFDEFAULT))
 
 oldconfig: scripts/config/conf prepare-tmpinfo FORCE
-	[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
-		$< $(KCONF_FLAGS) --$(if $(confdefault),$(confdefault),old)config Config.in
+	+[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
+		$(call KCONFIG_RUN,$<,$(KCONF_FLAGS) --$(if $(confdefault),$(confdefault),old)config)
 
-menuconfig: scripts/config/mconf prepare-tmpinfo FORCE
+menuconfig: scripts/config/mconf scripts/config/conf prepare-tmpinfo FORCE
 	if [ \! -e .config -a -e $(HOME)/.openwrt/defconfig ]; then \
 		cp $(HOME)/.openwrt/defconfig .config; \
 	fi
-	[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
-		$< Config.in
+	+[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
+		$(call KCONFIG_RUN,$<)
 
-nconfig: scripts/config/nconf prepare-tmpinfo FORCE
+nconfig: scripts/config/nconf scripts/config/conf prepare-tmpinfo FORCE
 	if [ \! -e .config -a -e $(HOME)/.openwrt/defconfig ]; then \
 		cp $(HOME)/.openwrt/defconfig .config; \
 	fi
-	[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
-		$< Config.in
+	+[ -L .config ] && export KCONFIG_OVERWRITECONFIG=1; \
+		$(call KCONFIG_RUN,$<)
 
-xconfig: scripts/config/qconf prepare-tmpinfo FORCE
+xconfig: scripts/config/qconf scripts/config/conf prepare-tmpinfo FORCE
 	if [ \! -e .config -a -e $(HOME)/.openwrt/defconfig ]; then \
 		cp $(HOME)/.openwrt/defconfig .config; \
 	fi
-	$< Config.in
+	+$(call KCONFIG_RUN,$<)
 
-prepare_kernel_conf: .config toolchain/install FORCE
+prepare_kernel_conf: $(OPENWRT_CONFIG) toolchain/install FORCE
 
 ifeq ($(wildcard $(STAGING_DIR_HOST)/bin/quilt),)
   prepare_kernel_conf:
@@ -215,7 +239,8 @@ kernel_xconfig: prepare_kernel_conf
 	$(_SINGLE)$(NO_TRACE_MAKE) -C target/linux xconfig
 
 $(STAGING_DIR_HOST)/.prereq-build: include/prereq-build.mk
-	mkdir -p tmp
+ifeq ($(if $(OPENWRT_MULTI_CONTEXT),$(OPENWRT_HOST_PREREQ_LOCKED),1),1)
+	mkdir -p $(TMP_DIR) $(STAGING_DIR_HOST)
 	@$(_SINGLE)$(NO_TRACE_MAKE) -j1 -r -s -f $(TOPDIR)/include/prereq-build.mk prereq 2>/dev/null || { \
 		echo "Prerequisite check failed. Use FORCE=1 to override."; \
 		false; \
@@ -227,6 +252,11 @@ $(STAGING_DIR_HOST)/.prereq-build: include/prereq-build.mk
 	}
   endif
 	touch $@
+else
+	mkdir -p $(TOPDIR)/tmp $(TMP_DIR) $(STAGING_DIR_HOST)
+	+@SHELL= flock $(TOPDIR)/tmp/.host-prereq-$(OPENWRT_HOST_NAME).flock -c \
+		'test "$@" -nt include/prereq-build.mk || $(NO_TRACE_MAKE) OPENWRT_HOST_PREREQ_LOCKED=1 "$@" $(PREP_MK)'
+endif
 
 printdb: FORCE
 	@$(_SINGLE)$(NO_TRACE_MAKE) -p $@ V=99 DUMP_TARGET_DB=1 2>&1
@@ -237,16 +267,16 @@ else
   DOWNLOAD_DIRS = package/download
 endif
 
-download: .config FORCE $(if $(wildcard $(STAGING_DIR_HOST)/bin/flock),,tools/flock/compile) $(if $(wildcard $(STAGING_DIR_HOST)/bin/zstd),,tools/zstd/compile)
+download: $(OPENWRT_CONFIG) FORCE $(if $(wildcard $(STAGING_DIR_HOST)/bin/flock),,tools/flock/compile) $(if $(wildcard $(STAGING_DIR_HOST)/bin/zstd),,tools/zstd/compile)
 	@+$(foreach dir,$(DOWNLOAD_DIRS),$(SUBMAKE) $(dir);)
 
-clean dirclean: .config
+clean dirclean: $(OPENWRT_CONFIG)
 	@+$(SUBMAKE) -r $@
 
-prereq:: prepare-tmpinfo .config
+prereq:: prepare-tmpinfo $(OPENWRT_CONFIG)
 	@+$(NO_TRACE_MAKE) -r -s $@
 
-check: .config FORCE
+check: $(OPENWRT_CONFIG) FORCE
 	@+$(NO_TRACE_MAKE) -r -s $@ QUIET= V=s
 
 val.% var.%: FORCE
@@ -265,12 +295,13 @@ else
 
 # The check if .config is in sync takes about a second. Skip it if the last
 # check passed, and neither .config nor a Kconfig file changed since then.
-CONFIG_CHECK_STAMP:=tmp/.config-check
-CONFIG_CHECK_FILES:=.config Config.in config target toolchain package feeds \
+CONFIG_CHECK_STAMP:=$(TMP_DIR)/.config-check
+CONFIG_CHECK_FILES:=$(OPENWRT_CONFIG) Config.in config target toolchain package feeds \
 	tmp/.config-package.in tmp/.config-target.in tmp/.config-feeds.in scripts/config/conf
 
 %::
 	@+$(PREP_MK) $(NO_TRACE_MAKE) -r -s prereq
+ifeq ($(OPENWRT_MULTI_CONTEXT),)
 	@( \
 		[ -f $(CONFIG_CHECK_STAMP) ] && [ -z "$$(find $(CONFIG_CHECK_FILES) -newer $(CONFIG_CHECK_STAMP) \
 			\( -name .config -o -name conf -o -name '*.in' -o -name 'Config.*' \) -print -quit 2>/dev/null)" ] && exit 0; \
@@ -284,6 +315,7 @@ CONFIG_CHECK_FILES:=.config Config.in config target toolchain package feeds \
 			mv $(CONFIG_CHECK_STAMP).new $(CONFIG_CHECK_STAMP); \
 		fi \
 	)
+endif
 	@+$(ULIMIT_FIX) $(SUBMAKE) -r $@ $(if $(WARN_PARALLEL_ERROR), || { \
 		printf "$(_R)Build failed - please re-run with -j1 to see the real error message$(_N)\n" >&2; \
 		false; \

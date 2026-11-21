@@ -36,6 +36,16 @@ include $(INCLUDE_DIR)/quilt.mk
 
 BUILD_TYPES += host
 HOST_STAMP_PREPARED=$(HOST_BUILD_DIR)/.prepared$(if $(HOST_QUILT)$(DUMP),,$(PKG_FILES_MD5)_$(call confvar,CONFIG_AUTOREMOVE $(HOST_PREPARED_DEPENDS)))
+# Keep one hostpkg prefix across architectures. Stamp the effective inputs
+# so target-dependent host recipes are rebuilt in place when needed.
+ifneq ($(OPENWRT_MULTI_CONTEXT),)
+  multi_host_inputs_raw = $(HOST_CFLAGS) $(HOST_CXXFLAGS) $(HOST_CPPFLAGS) $(HOST_LDFLAGS) $(HOST_CONFIGURE_ARGS) $(HOST_CONFIGURE_VARS)
+  # Normalize the launcher without changing the commands used by the recipe.
+  multi_host_compilers = $(subst ccache $(HOSTCC_NOCACHE),$(HOSTCC_NOCACHE),$(subst ccache $(HOSTCXX_NOCACHE),$(HOSTCXX_NOCACHE),$(multi_host_inputs_raw)))
+  multi_host_inputs = $(if $(MAKE_JOBSERVER),$(subst $(MAKE_JOBSERVER),jobserver,$(multi_host_compilers)),$(multi_host_compilers))
+  multi_host_key = $(call confvar,$(HOST_CONFIG_DEPENDS) $(PKG_CONFIG_DEPENDS) multi_host_inputs)
+  HOST_STAMP_PREPARED = $(HOST_BUILD_DIR)/.prepared$(if $(HOST_QUILT)$(DUMP),,$(PKG_FILES_MD5)_$(call confvar,CONFIG_AUTOREMOVE $(HOST_PREPARED_DEPENDS))_$(multi_host_key))
+endif
 HOST_STAMP_CONFIGURED:=$(HOST_BUILD_DIR)/.configured
 HOST_STAMP_BUILT:=$(HOST_BUILD_DIR)/.built
 HOST_BUILD_PREFIX?=$(if $(IS_PACKAGE_BUILD),$(STAGING_DIR_HOSTPKG),$(STAGING_DIR_HOST))

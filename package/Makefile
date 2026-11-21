@@ -75,10 +75,10 @@ $(curdir)/merge:
 	fi
 
 $(BUILD_KEY_APK_SEC):
-	$(STAGING_DIR_HOST)/bin/openssl ecparam -name prime256v1 -genkey -noout -out $(BUILD_KEY_APK_SEC)
+	$(call shared_locked,[ -s "$@" ] || { umask 077; $(STAGING_DIR_HOST)/bin/openssl ecparam -name prime256v1 -genkey -noout -out "$@.new" && mv "$@.new" "$@"; },signing-keys)
 
 $(BUILD_KEY_APK_PUB): $(BUILD_KEY_APK_SEC)
-	$(STAGING_DIR_HOST)/bin/openssl ec -in $(BUILD_KEY_APK_SEC) -pubout > $(BUILD_KEY_APK_PUB)
+	$(call shared_locked,$(STAGING_DIR_HOST)/bin/openssl ec -in $(BUILD_KEY_APK_SEC) -pubout > "$@.new" && mv "$@.new" "$@",signing-keys)
 
 $(curdir)/merge-index: $(curdir)/merge
 ifneq ($(CONFIG_USE_APK),)
@@ -119,7 +119,7 @@ define rootfs_cache_key
 $(shell ( \
 	echo '$(subst ','\'',$(1))'; \
 	echo $(SOURCE_DATE_EPOCH); \
-	cat $(PACKAGE_DIR_ALL)/packages.adb $(TOPDIR)/.config $(STAGING_DIR_HOST)/bin/apk \
+	cat $(PACKAGE_DIR_ALL)/packages.adb $(OPENWRT_CONFIG) $(STAGING_DIR_HOST)/bin/apk \
 		$(STAGING_DIR_HOST)/bin/tar $(STAGING_DIR_HOST)/bin/gzip \
 		$(if $(CONFIG_USE_MKLIBS),$(SCRIPT_DIR)/rstrip.sh) \
 		$(INCLUDE_DIR)/rootfs.mk $(TOPDIR)/package/Makefile; \
@@ -242,12 +242,12 @@ ifdef CONFIG_JSON_CYCLONEDX_SBOM
 	); done
 endif
 endif
-	$(call sha256sums,$(OUTPUT_DIR)/packages/$(ARCH_PACKAGES),1)
+	$(call sha256sums,$(PACKAGE_REPO_DIR),1)
 
 $(curdir)/flags-install:= -j1
 
-$(eval $(call stampfile,$(curdir),package,prereq,.config))
-$(eval $(call stampfile,$(curdir),package,cleanup,.config $(TMP_DIR)/.packageinfo))
+$(eval $(call stampfile,$(curdir),package,prereq,$(OPENWRT_CONFIG)))
+$(eval $(call stampfile,$(curdir),package,cleanup,$(OPENWRT_CONFIG) $(TMP_DIR)/.packageinfo))
 $(eval $(call stampfile,$(curdir),package,compile,$(TMP_DIR)/.build))
 $(eval $(call stampfile,$(curdir),package,install,$(TMP_DIR)/.build))
 $(eval $(call stampfile,$(curdir),package,check,$(TMP_DIR)/.build))

@@ -231,11 +231,19 @@ $(curdir)//prepare = $(STAGING_DIR)/.prepared $(STAGING_DIR_HOST)/.prepared $(BI
 $(curdir)//compile = $(STAGING_DIR)/.prepared $(STAGING_DIR_HOST)/.prepared $(BIN_DIR)
 
 # prerequisites for the individual targets
-$(curdir)/ := .config prereq
+$(curdir)/ := $(OPENWRT_CONFIG) prereq
 
 $(curdir)/install: $(curdir)/compile
 
 tools_enabled = $(foreach tool,$(sort $(tools-y) $(tools-)),$(if $(filter $(tool),$(tools-y)),y,n))
 $(eval $(call stampfile,$(curdir),tools,compile,,_$(subst $(space),,$(tools_enabled)),$(STAGING_DIR_HOST)))
 $(eval $(call stampfile,$(curdir),tools,check,$(TMP_DIR)/.build,,$(STAGING_DIR_HOST)))
+# Host tools contain configured absolute paths. Share a stable prefix and
+# protect the whole dependency graph, including autoremove and installation.
+# The recursive make rechecks stamps after acquiring the lock.
+ifeq ($(if $(OPENWRT_MULTI_CONTEXT),$(OPENWRT_HOST_TOOLS_LOCKED),1),1)
 $(eval $(call subdir,$(curdir)))
+else
+$(curdir)/%:
+	+$(call shared_locked,$(SUBMAKE) OPENWRT_HOST_TOOLS_LOCKED=1 tools/$*,host-tools-$(OPENWRT_HOST_NAME))
+endif

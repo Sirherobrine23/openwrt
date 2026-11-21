@@ -38,10 +38,10 @@ define Package/intel-microcode
 endef
 
 define Build/Compile
-	IUCODE_TOOL=$(STAGING_DIR)/../host/bin/iucode_tool $(MAKE) -C $(PKG_BUILD_DIR)
+	IUCODE_TOOL=$(STAGING_DIR_HOST)/bin/iucode_tool $(MAKE) -C $(PKG_BUILD_DIR)
 	rm -rf $(PKG_BUILD_DIR)/intel-ucode-ipkg
 	mkdir -p $(PKG_BUILD_DIR)/intel-ucode-ipkg
-	$(STAGING_DIR)/../host/bin/iucode_tool -q \
+	$(STAGING_DIR_HOST)/bin/iucode_tool -q \
 		--write-firmware=$(PKG_BUILD_DIR)/intel-ucode-ipkg $(PKG_BUILD_DIR)/$(MICROCODE).bin
 endef
 

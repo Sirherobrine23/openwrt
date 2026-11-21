@@ -36,16 +36,26 @@ MAKE_FLAGS = \
 	CFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS)" \
 	LDFLAGS="$(TARGET_LDFLAGS)"
 
+TMON_BUILD_DIR=$(if $(LINUX_EXTERNAL_BUILD),$(PKG_BUILD_DIR)/tools/thermal/tmon,$(LINUX_DIR)/tools/thermal/tmon)
+
+ifeq ($(LINUX_EXTERNAL_BUILD),1)
+  define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)/tools/thermal $(PKG_BUILD_DIR)/tools/build
+	$(CP) $(LINUX_SRC_DIR)/tools/thermal/tmon $(PKG_BUILD_DIR)/tools/thermal/
+	$(CP) $(LINUX_SRC_DIR)/tools/build/Build.include $(PKG_BUILD_DIR)/tools/build/
+  endef
+endif
+
 define Build/Compile
 	-$(MAKE) clean \
-		-C $(LINUX_DIR)/tools/thermal/tmon
+		-C $(TMON_BUILD_DIR)
 	+$(MAKE_FLAGS) $(MAKE) \
-		-C $(LINUX_DIR)/tools/thermal/tmon
+		-C $(TMON_BUILD_DIR)
 endef
 
 define Package/tmon/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(LINUX_DIR)/tools/thermal/tmon/tmon \
+	$(INSTALL_BIN) $(TMON_BUILD_DIR)/tmon \
 		$(1)/usr/bin/
 endef
 

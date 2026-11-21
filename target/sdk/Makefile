@@ -16,7 +16,7 @@ override MAKEFLAGS=
 SDK_NAME:=$(VERSION_DIST_SANITIZED)-sdk-$(if $(CONFIG_VERSION_FILENAMES),$(VERSION_NUMBER)-)$(BOARD)$(if $(SUBTARGET),-$(SUBTARGET))$(if $(GCCV),_gcc-$(GCCV))$(DIR_SUFFIX).$(HOST_OS)-$(HOST_ARCH)
 SDK_BUILD_DIR:=$(BUILD_DIR)/$(SDK_NAME)
 
-STAGING_SUBDIR_HOST := staging_dir/host
+STAGING_SUBDIR_HOST := staging_dir/$(OPENWRT_HOST_NAME)
 STAGING_SUBDIR_TARGET := staging_dir/$(TARGET_DIR_NAME)
 STAGING_SUBDIR_TOOLCHAIN := staging_dir/$(TOOLCHAIN_DIR_NAME)
 
@@ -105,8 +105,8 @@ $(BIN_DIR)/$(SDK_NAME).tar.zst: clean
 	mkdir -p \
 		$(SDK_BUILD_DIR)/dl \
 		$(SDK_BUILD_DIR)/package \
-		$(SDK_BUILD_DIR)/$(STAGING_SUBDIR_TARGET)/include \
-		$(SDK_BUILD_DIR)/$(STAGING_SUBDIR_TARGET)/usr/include
+		$(SDK_BUILD_DIR)/staging_dir/$(TARGET_DIR_NAME_NATIVE)/include \
+		$(SDK_BUILD_DIR)/staging_dir/$(TARGET_DIR_NAME_NATIVE)/usr/include
 
 	$(CP) -L $(INCLUDE_DIR) $(SCRIPT_DIR) $(SDK_BUILD_DIR)/
 	$(TAR) -cf - -C $(TOPDIR) \
@@ -148,7 +148,7 @@ $(BIN_DIR)/$(SDK_NAME).tar.zst: clean
 	rm -rf \
 		$(SDK_BUILD_DIR)/target/linux/*/files* \
 		$(SDK_BUILD_DIR)/target/linux/*/patches*
-	./convert-config.pl $(TOPDIR)/.config > $(SDK_BUILD_DIR)/Config-build.in
+	./convert-config.pl $(OPENWRT_CONFIG) > $(SDK_BUILD_DIR)/Config-build.in
 	$(CP) -L \
 		$(TOPDIR)/LICENSES \
 		$(TOPDIR)/COPYING \

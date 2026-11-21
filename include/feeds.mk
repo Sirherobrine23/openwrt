@@ -10,8 +10,8 @@ FEEDS_AVAILABLE=$(eval FEEDS_AVAILABLE:=$(sort $(FEEDS_INSTALLED) $(shell $(SCRI
 
 PACKAGE_SUBDIRS=$(PACKAGE_DIR)
 ifneq ($(CONFIG_PER_FEED_REPO),)
-  PACKAGE_SUBDIRS += $(OUTPUT_DIR)/packages/$(ARCH_PACKAGES)/base
-  PACKAGE_SUBDIRS += $(foreach FEED,$(FEEDS_AVAILABLE),$(OUTPUT_DIR)/packages/$(ARCH_PACKAGES)/$(FEED))
+  PACKAGE_SUBDIRS += $(PACKAGE_REPO_DIR)/base
+  PACKAGE_SUBDIRS += $(foreach FEED,$(FEEDS_AVAILABLE),$(PACKAGE_REPO_DIR)/$(FEED))
 endif
 
 opkg_package_files = $(wildcard \
@@ -26,22 +26,25 @@ apk_package_files = $(wildcard \
 define FeedPackageDir
 $(strip $(if $(CONFIG_PER_FEED_REPO), \
   $(if $(Package/$(1)/subdir), \
-    $(abspath $(OUTPUT_DIR)/packages/$(ARCH_PACKAGES)/$(Package/$(1)/subdir)), \
+    $(abspath $(PACKAGE_REPO_DIR)/$(Package/$(1)/subdir)), \
     $(PACKAGE_DIR)), \
   $(PACKAGE_DIR)))
 endef
+
+# Match the context-specific repository layout used by rules.mk.
+FEED_REPO_PATH = %U/packages/%A$(if $(OPENWRT_MULTI_CONTEXT),/%S)
 
 # 1: destination file
 define FeedSourcesAppendOPKG
 ( \
   echo 'src/gz %d_core %U/targets/%S/packages'; \
   $(strip $(if $(CONFIG_PER_FEED_REPO), \
-	echo 'src/gz %d_base %U/packages/%A/base'; \
+	echo 'src/gz %d_base $(FEED_REPO_PATH)/base'; \
 	$(if $(CONFIG_BUILDBOT), \
 		echo 'src/gz %d_kmods %U/targets/%S/kmods/$(LINUX_VERSION)-$(LINUX_RELEASE)-$(LINUX_VERMAGIC)';) \
 	$(foreach feed,$(FEEDS_AVAILABLE), \
 		$(if $(CONFIG_FEED_$(feed)), \
-			echo '$(if $(filter m,$(CONFIG_FEED_$(feed))),# )src/gz %d_$(feed) %U/packages/%A/$(feed)';)))) \
+			echo '$(if $(filter m,$(CONFIG_FEED_$(feed))),# )src/gz %d_$(feed) $(FEED_REPO_PATH)/$(feed)';)))) \
 ) >> $(1)
 endef
 
@@ -52,12 +55,12 @@ define FeedSourcesAppendAPK
   echo '# Add your custom feeds to /etc/apk/repositories.d/customfeeds.list'; \
   echo '%U/targets/%S/packages/packages.adb'; \
   $(strip $(if $(CONFIG_PER_FEED_REPO), \
-	echo '%U/packages/%A/base/packages.adb'; \
+	echo '$(FEED_REPO_PATH)/base/packages.adb'; \
 	$(if $(CONFIG_BUILDBOT), \
 		echo '%U/targets/%S/kmods/$(LINUX_VERSION)-$(LINUX_RELEASE)-$(LINUX_VERMAGIC)/packages.adb';) \
 	$(foreach feed,$(FEEDS_AVAILABLE), \
 		$(if $(CONFIG_FEED_$(feed)), \
-			echo '$(if $(filter m,$(CONFIG_FEED_$(feed))),# )%U/packages/%A/$(feed)/packages.adb';)))) \
+			echo '$(if $(filter m,$(CONFIG_FEED_$(feed))),# )$(FEED_REPO_PATH)/$(feed)/packages.adb';)))) \
 ) >> $(1)
 endef
 

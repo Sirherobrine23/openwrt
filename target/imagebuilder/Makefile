@@ -14,10 +14,10 @@ override MAKEFLAGS=
 
 IB_NAME:=$(VERSION_DIST_SANITIZED)-imagebuilder-$(if $(CONFIG_VERSION_FILENAMES),$(VERSION_NUMBER)-)$(BOARD)-$(SUBTARGET).$(HOST_OS)-$(HOST_ARCH)
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(IB_NAME)
-IB_KDIR:=$(patsubst $(TOPDIR)/%,$(PKG_BUILD_DIR)/%,$(KERNEL_BUILD_DIR))
-IB_LDIR:=$(patsubst $(TOPDIR)/%,$(PKG_BUILD_DIR)/%,$(LINUX_DIR))
-IB_DTSDIR:=$(patsubst $(TOPDIR)/%,$(PKG_BUILD_DIR)/%,$(LINUX_DIR))/arch/$(LINUX_KARCH)/boot/dts/
-IB_IDIR:=$(patsubst $(TOPDIR)/%,$(PKG_BUILD_DIR)/%,$(STAGING_DIR_IMAGE))
+IB_KDIR:=$(patsubst $(BUILD_DIR)/%,$(PKG_BUILD_DIR)/build_dir/$(TARGET_DIR_NAME_NATIVE)/%,$(KERNEL_BUILD_DIR))
+IB_LDIR:=$(patsubst $(BUILD_DIR)/%,$(PKG_BUILD_DIR)/build_dir/$(TARGET_DIR_NAME_NATIVE)/%,$(LINUX_DIR))
+IB_DTSDIR:=$(patsubst $(BUILD_DIR)/%,$(PKG_BUILD_DIR)/build_dir/$(TARGET_DIR_NAME_NATIVE)/%,$(LINUX_DIR))/arch/$(LINUX_KARCH)/boot/dts/
+IB_IDIR:=$(PKG_BUILD_DIR)/staging_dir/$(TARGET_DIR_NAME_NATIVE)/image
 
 BUNDLER_PATH := $(subst $(space),:,$(filter-out $(TOPDIR)/%,$(subst :,$(space),$(PATH))))
 BUNDLER_COMMAND := PATH=$(BUNDLER_PATH) $(XARGS) $(SCRIPT_DIR)/bundle-libraries.sh $(PKG_BUILD_DIR)/staging_dir/host
@@ -31,7 +31,7 @@ $(BIN_DIR)/$(IB_NAME).tar.zst: clean
 	rm -rf $(PKG_BUILD_DIR)
 	mkdir -p $(IB_KDIR) $(IB_LDIR) $(PKG_BUILD_DIR)/staging_dir/host/lib \
 		$(PKG_BUILD_DIR)/target/linux $(PKG_BUILD_DIR)/scripts $(IB_DTSDIR)
-	-cp $(TOPDIR)/.config $(PKG_BUILD_DIR)/.config
+	-cp $(OPENWRT_CONFIG) $(PKG_BUILD_DIR)/.config
 	$(SED) 's/^CONFIG_BINARY_FOLDER=.*/# CONFIG_BINARY_FOLDER is not set/' $(PKG_BUILD_DIR)/.config
 	$(SED) 's/^CONFIG_DOWNLOAD_FOLDER=.*/# CONFIG_DOWNLOAD_FOLDER is not set/' $(PKG_BUILD_DIR)/.config
 	$(CP) -L \
@@ -102,8 +102,8 @@ endif
 	else \
 		$(CP) -L $(TOPDIR)/target/linux/$(BOARD) $(PKG_BUILD_DIR)/target/linux; \
 	fi
-	if [ -d $(TOPDIR)/staging_dir/host/lib/grub ]; then \
-		$(CP) $(TOPDIR)/staging_dir/host/lib/grub/ $(PKG_BUILD_DIR)/staging_dir/host/lib; \
+	if [ -d $(STAGING_DIR_HOST)/lib/grub ]; then \
+		$(CP) $(STAGING_DIR_HOST)/lib/grub/ $(PKG_BUILD_DIR)/staging_dir/host/lib; \
 	fi
 	rm -rf \
 		$(PKG_BUILD_DIR)/target/linux/*/files{,-*} \
@@ -138,7 +138,7 @@ endif
 	$(CP) $(STAGING_DIR_HOST)/bin/* $(PKG_BUILD_DIR)/staging_dir/host/bin/
 	(cd $(PKG_BUILD_DIR); find staging_dir/host/bin/ $(IB_LDIR)/scripts/dtc/ -type f | \
 		$(BUNDLER_COMMAND))
-	$(CP) $(TOPDIR)/staging_dir/host/lib/libfakeroot* $(PKG_BUILD_DIR)/staging_dir/host/lib
+	$(CP) $(STAGING_DIR_HOST)/lib/libfakeroot* $(PKG_BUILD_DIR)/staging_dir/host/lib
 	STRIP=$(STAGING_DIR_HOST)/bin/sstrip $(SCRIPT_DIR)/rstrip.sh $(PKG_BUILD_DIR)/staging_dir/host/bin/
 
 	(cd $(BUILD_DIR); \

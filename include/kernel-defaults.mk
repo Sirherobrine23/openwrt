@@ -33,6 +33,11 @@ ifeq ($(strip $(CONFIG_EXTERNAL_KERNEL_TREE)),"")
 	$(LINUX_CAT) $(DL_DIR)/$(LINUX_SOURCE) | $(TAR) -C $(KERNEL_BUILD_DIR) $(TAR_OPTIONS)
     endef
   endif
+else ifeq ($(LINUX_EXTERNAL_BUILD),1)
+  define Kernel/Prepare/Default
+	mkdir -p $(LINUX_DIR)
+	+$(MAKE) -C $(LINUX_SRC_DIR) O=$(LINUX_DIR) $(KERNEL_MAKE_FLAGS) outputmakefile
+  endef
 else
   define Kernel/Prepare/Default
 	mkdir -p $(KERNEL_BUILD_DIR)
@@ -116,11 +121,11 @@ define Kernel/Configure/Default
 	rm -f $(LINUX_DIR)/localversion
 	$(LINUX_CONF_CMD) > $(LINUX_DIR)/.config.target
 # copy CONFIG_KERNEL_* settings over to .config.target
-	awk '/^(#[[:space:]]+)?CONFIG_KERNEL/{sub("CONFIG_KERNEL_","CONFIG_");print}' $(TOPDIR)/.config >> $(LINUX_DIR)/.config.target
+	awk '/^(#[[:space:]]+)?CONFIG_KERNEL/{sub("CONFIG_KERNEL_","CONFIG_");print}' $(OPENWRT_CONFIG) >> $(LINUX_DIR)/.config.target
 	echo "# CONFIG_KALLSYMS_EXTRA_PASS is not set" >> $(LINUX_DIR)/.config.target
 	echo "# CONFIG_KALLSYMS_ALL is not set" >> $(LINUX_DIR)/.config.target
 	echo "CONFIG_KALLSYMS_UNCOMPRESSED=y" >> $(LINUX_DIR)/.config.target
-	$(SCRIPT_DIR)/package-metadata.pl kconfig $(TMP_DIR)/.packageinfo $(TOPDIR)/.config $(KERNEL_PATCHVER) > $(LINUX_DIR)/.config.override
+	$(SCRIPT_DIR)/package-metadata.pl kconfig $(TMP_DIR)/.packageinfo $(OPENWRT_CONFIG) $(KERNEL_PATCHVER) > $(LINUX_DIR)/.config.override
 	$(SCRIPT_DIR)/kconfig.pl 'm+' '+' $(LINUX_DIR)/.config.target /dev/null $(LINUX_DIR)/.config.override > $(LINUX_DIR)/.config.set
 	$(call Kernel/SetNoInitramfs)
 	rm -rf $(KERNEL_BUILD_DIR)/modules
@@ -146,14 +151,18 @@ KERNEL_MAKE_DEPENDS_image := $(if $(CONFIG_STRIP_KERNEL_EXPORTS),$(KERNEL_BUILD_
 # per build. Skip it if the command line did not change since its last
 # successful run, and no file in the kernel tree or the toolchain is newer.
 # The build system files at the top of the kernel tree are not inputs of
-# kbuild, apart from .config.
+# kbuild, apart from .config. External sources always use native kbuild
+# dependency tracking so local edits and deletions cannot be hidden by a stamp.
+KERNEL_SOURCE_DEPENDS = $(if $(LINUX_EXTERNAL_BUILD),$(LINUX_SRC_DIR))
+
 define Kernel/Make
 	{ \
 		stamp=$(LINUX_DIR)/.kbuild_$(1); \
 		key="$$$$(printf '%s' '$(subst ','\'',$(KERNEL_MAKE) $(2))' | $(MKHASH) md5)"; \
-		[ "$$$$(cat $$$$stamp 2>/dev/null)" = "$$$$key" ] && [ -z "$$$$(find $(LINUX_DIR) $(TOOLCHAIN_DIR)/bin \
+		[ "$(LINUX_EXTERNAL_BUILD)" != 1 ] && \
+		[ "$$$$(cat $$$$stamp 2>/dev/null)" = "$$$$key" ] && [ -z "$$$$(find $(LINUX_DIR) $(KERNEL_SOURCE_DEPENDS) $(TOOLCHAIN_DIR)/bin \
 			$(KERNEL_MAKE_DEPENDS_$(1)) \
-			\( -path '$(LINUX_DIR)/.*' ! -path '$(LINUX_DIR)/.config' \) -prune -o \
+			\( -path '$(LINUX_DIR)/.*' ! -path '$(LINUX_DIR)/.config' $(if $(LINUX_EXTERNAL_BUILD),-o -path '$(LINUX_SRC_DIR)/.git') \) -prune -o \
 			! -type d -newer $$$$stamp -print -quit)" ] || { \
 			rm -f $$$$stamp; \
 			$(3) \
@@ -164,7 +173,8 @@ endef
 
 define Kernel/CompileModules/Default
 	+$(call Kernel/Make,modules,$(if $(KERNELNAME),$(KERNELNAME),all) modules, \
-		rm -f $(LINUX_DIR)/vmlinux $(LINUX_DIR)/System.map;)
+		$(if $(LINUX_EXTERNAL_BUILD),,rm -f $(LINUX_DIR)/vmlinux $(LINUX_DIR)/System.map;))
+	$(if $(LINUX_EXTERNAL_BUILD),+$(KERNEL_MAKE) INSTALL_HDR_PATH=$(LINUX_DIR)/user_headers headers_install)
 	# If .config did not change, use the previous timestamp to avoid package rebuilds
 	cmp -s $(LINUX_DIR)/.config $(LINUX_DIR)/.config.modules.save && \
 		mv $(LINUX_DIR)/.config.modules.save $(LINUX_DIR)/.config; \
@@ -202,6 +212,7 @@ define Kernel/PrepareConfigPerRootfs
 	{ \
 		[ ! -d "$(1)" ] || rm -rf $(1); \
 		mkdir $(1) && $(CP) -T $(LINUX_DIR) $(1); \
+		$(if $(LINUX_EXTERNAL_BUILD),$(MAKE) -C $(LINUX_SRC_DIR) O=$(1) $(KERNEL_MAKE_FLAGS) outputmakefile &&) \
 		touch $(1)/.config; \
 	}
 endef

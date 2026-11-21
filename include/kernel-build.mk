@@ -11,6 +11,9 @@ endif
 
 KERNEL_FILE_DEPENDS=$(GENERIC_BACKPORT_DIR) $(GENERIC_PATCH_DIR) $(GENERIC_HACK_DIR) $(PATCH_DIR) $(GENERIC_FILES_DIR) $(FILES_DIR)
 STAMP_PREPARED=$(LINUX_DIR)/.prepared$(if $(QUILT)$(DUMP),,_$(shell $(call $(if $(CONFIG_AUTOREMOVE),find_md5_reproducible,find_md5),$(KERNEL_FILE_DEPENDS),)))
+ifeq ($(LINUX_EXTERNAL_BUILD),1)
+  STAMP_PREPARED=$(LINUX_DIR)/.prepared_external_$(call confvar,LINUX_SRC_DIR)
+endif
 STAMP_CONFIGURED:=$(LINUX_DIR)/.configured
 include $(INCLUDE_DIR)/download.mk
 include $(INCLUDE_DIR)/quilt.mk
@@ -72,7 +75,7 @@ ifdef CONFIG_COLLECT_KERNEL_DEBUG
   endef
 endif
 
-ifeq ($(DUMP)$(filter prereq clean refresh update,$(MAKECMDGOALS)),)
+ifeq ($(DUMP)$(LINUX_EXTERNAL_BUILD)$(filter prereq clean refresh update,$(MAKECMDGOALS)),)
   ifneq ($(if $(QUILT),,$(CONFIG_AUTOREBUILD)),)
     define Kernel/Autoclean
       $(PKG_BUILD_DIR)/.dep_files: $(STAMP_PREPARED)
@@ -82,14 +85,14 @@ ifeq ($(DUMP)$(filter prereq clean refresh update,$(MAKECMDGOALS)),)
 endif
 
 KERNEL_CONFIG_CHECK:=$(LINUX_DIR)/.configured-check
-KERNEL_CONFIG_DEPENDS:=$(LINUX_KCONFIG_LIST) $(TOPDIR)/.config $(TMP_DIR)/.packageinfo \
+KERNEL_CONFIG_DEPENDS:=$(LINUX_KCONFIG_LIST) $(OPENWRT_CONFIG) $(TMP_DIR)/.packageinfo \
 	$(SCRIPT_DIR)/kconfig.pl $(SCRIPT_DIR)/package-metadata.pl $(SCRIPT_DIR)/metadata.pm \
 	$(INCLUDE_DIR)/kernel-defaults.mk $(INCLUDE_DIR)/kernel-build.mk $(CURDIR)
 
 IMAGE_INSTALL_STAMP:=$(KERNEL_BUILD_DIR)/.image_install
-IMAGE_INSTALL_INPUTS:=$(LINUX_DIR) $(STAGING_DIR)/image \
-	$(STAGING_DIR_HOST)/bin $(CURDIR) $(INCLUDE_DIR) $(SCRIPT_DIR) $(TOPDIR)/.config
-IMAGE_INSTALL_PRUNE:=\( -path '$(LINUX_DIR)/.*' ! -path '$(LINUX_DIR)/.config' \)
+IMAGE_INSTALL_INPUTS:=$(LINUX_DIR) $(KERNEL_SOURCE_DEPENDS) $(STAGING_DIR)/image \
+	$(STAGING_DIR_HOST)/bin $(CURDIR) $(INCLUDE_DIR) $(SCRIPT_DIR) $(OPENWRT_CONFIG)
+IMAGE_INSTALL_PRUNE:=\( -path '$(LINUX_DIR)/.*' ! -path '$(LINUX_DIR)/.config' $(if $(LINUX_EXTERNAL_BUILD),-o -path '$(LINUX_SRC_DIR)/.git') \)
 image_install_state = ( \
 		cd $(TARGET_DIR) && \
 		find . -printf '%P %y %m %U %G %s %l\n' | LC_ALL=C sort && \
@@ -103,7 +106,7 @@ image_install_state = ( \
 image_install_newer = \
 	find $(KERNEL_BUILD_DIR) -maxdepth 1 ! -type d \
 		-newer $(IMAGE_INSTALL_STAMP) -print -quit 2>/dev/null; \
-	find $(IMAGE_INSTALL_INPUTS) $(IMAGE_INSTALL_PRUNE) -prune -o \
+	find -H $(IMAGE_INSTALL_INPUTS) $(IMAGE_INSTALL_PRUNE) -prune -o \
 		! -type d -newer $(IMAGE_INSTALL_STAMP) -print -quit 2>/dev/null
 
 define BuildKernel
@@ -116,6 +119,7 @@ define BuildKernel
   $(Kernel/Autoclean)
   $(STAMP_PREPARED): $(if $(LINUX_SITE),$(DL_DIR)/$(LINUX_SOURCE))
 	$(call BuildTimeLog,begin,prepare)
+	$(if $(LINUX_EXTERNAL_BUILD),$(SCRIPT_DIR)/check-external-kernel.sh $(LINUX_SRC_DIR) $(KERNEL_BUILD_DIR) $(LINUX_KARCH))
 	-rm -rf $(KERNEL_BUILD_DIR)
 	-mkdir -p $(KERNEL_BUILD_DIR)
 	$(Kernel/Prepare)
@@ -154,7 +158,7 @@ define BuildKernel
 	) > $$@
 	$(call BuildTimeLog,end,compile)
 
-  $(KERNEL_CONFIG_CHECK): $(STAMP_PREPARED) $(LINUX_KCONFIG_LIST) $(TOPDIR)/.config FORCE
+  $(KERNEL_CONFIG_CHECK): $(STAMP_PREPARED) $(LINUX_KCONFIG_LIST) $(OPENWRT_CONFIG) FORCE
 	@mkdir -p $(LINUX_DIR)
 	@[ -f $(STAMP_CONFIGURED) ] && [ -d $(LINUX_DIR)/user_headers ] && \
 		[ -f $(LINUX_DIR)/.config.prev ] && \
@@ -229,6 +233,8 @@ define BuildKernel
 
   clean: FORCE
 ifeq ($(strip $(CONFIG_EXTERNAL_KERNEL_TREE)),"")
+	rm -rf $(KERNEL_BUILD_DIR)
+else ifeq ($(LINUX_EXTERNAL_BUILD),1)
 	rm -rf $(KERNEL_BUILD_DIR)
 else
 	rm -f $(CONFIG_EXTERNAL_KERNEL_TREE)/.configured

@@ -58,7 +58,7 @@ MAKE_FLAGS:= \
 
 define Build/Compile
 	+$(MAKE_VARS) \
-	$(MAKE) $(PKG_JOBS) -C $(LINUX_DIR)/$(MAKE_PATH) \
+	$(MAKE) $(PKG_JOBS) -C $(LINUX_SRC_DIR)/$(MAKE_PATH) \
 		$(MAKE_FLAGS) $(EXE_TARGETS) $(MOD_TARGETS) ;
 endef
 

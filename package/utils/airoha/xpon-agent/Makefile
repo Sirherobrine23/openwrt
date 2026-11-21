@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 include $(TOPDIR)/rules.mk
+include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=xpon-agent
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
+PKG_FLAGS:=nonshared
 PKG_MAINTAINER:=Matheus Sampaio Queiroga <srherobrine20@gmail.com>
 PKG_LICENSE:=GPL-2.0-only
 
@@ -33,12 +35,12 @@ endef
 define Build/Compile
 	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_CPPFLAGS) \
 		-fPIC -Wall -Wextra -Werror \
-		-I$(STAGING_DIR)/usr/include -I$(LINUX_DIR)/include \
+		-I$(LINUX_DIR)/user_headers/include -I$(STAGING_DIR)/usr/include \
 		-o $(PKG_BUILD_DIR)/xpon_omci.so $(PKG_BUILD_DIR)/omci_ucode.c \
 		-shared $(TARGET_LDFLAGS) -lucode
 	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_CPPFLAGS) \
 		-fPIC -Wall -Wextra -Werror \
-		-I$(STAGING_DIR)/usr/include -I$(LINUX_DIR)/include \
+		-I$(LINUX_DIR)/user_headers/include -I$(STAGING_DIR)/usr/include \
 		-o $(PKG_BUILD_DIR)/xpon.so $(PKG_BUILD_DIR)/xpon_ucode.c \
 		-shared $(TARGET_LDFLAGS) -lucode
 endef
@@ -68,5 +70,9 @@ if [ -z "$${IPKG_INSTROOT}" ]; then
 	/etc/init.d/rpcd reload >/dev/null 2>&1 || true
 fi
 endef
+
+ifneq ($(DUMP),1)
+$(STAMP_BUILT): $(LINUX_DIR)/user_headers/include/linux/xpon.h $(LINUX_DIR)/user_headers/include/linux/omci.h
+endif
 
 $(eval $(call BuildPackage,xpon-agent))

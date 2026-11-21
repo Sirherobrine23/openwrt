@@ -335,7 +335,7 @@ endif
 ifeq ($(strip $(CONFIG_EXTERNAL_KERNEL_TREE)),"")
   ifeq ($(strip $(CONFIG_KERNEL_GIT_CLONE_URI)),"")
     define Build/Configure
-	  cmp $(PKG_BUILD_DIR)/include/linux/ath5k_platform.h $(LINUX_DIR)/include/linux/ath5k_platform.h
+	  cmp $(PKG_BUILD_DIR)/include/linux/ath5k_platform.h $(LINUX_SRC_DIR)/include/linux/ath5k_platform.h
     endef
   endif
 endif

@@ -38,7 +38,7 @@ define Package/perf/description
   perf is the Linux performance monitoring tool
 endef
 
-HOST_CFLAGS += -I$(LINUX_DIR)/tools/include
+HOST_CFLAGS += -I$(LINUX_SRC_DIR)/tools/include
 
 TARGET_LDFLAGS += $(INTL_LDFLAGS)
 
@@ -82,7 +82,7 @@ endif
 define Build/Compile
 	+$(MAKE) $(PKG_JOBS) $(MAKE_FLAGS) \
 		--no-print-directory \
-		-C $(LINUX_DIR)/tools/perf \
+		-C $(LINUX_SRC_DIR)/tools/perf \
 		-f Makefile.perf
 endef
 

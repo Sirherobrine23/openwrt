@@ -39,7 +39,8 @@ mkfs_target_dir = $(if $(call param_get,pkg,$(1)),$(KDIR)/target-dir-$(call para
 
 KDIR=$(KERNEL_BUILD_DIR)
 KDIR_TMP=$(KDIR)/tmp
-DTS_DIR:=$(LINUX_DIR)/arch/$(LINUX_KARCH)/boot/dts
+DTS_DIR:=$(LINUX_SRC_DIR)/arch/$(LINUX_KARCH)/boot/dts
+DTS_BUILD_DIR:=$(LINUX_DIR)/arch/$(LINUX_KARCH)/boot/dts
 
 ifeq ($(EXTRA_IMAGE_NAME),)
 EXTRA_IMAGE_NAME:=$(call qstrip,$(CONFIG_EXTRA_IMAGE_NAME))
@@ -222,8 +223,8 @@ define Image/BuildDTB/sub
 		$(DTS_CPPFLAGS) \
 		-I$(DTS_DIR) \
 		-I$(DTS_DIR)/include \
-		-I$(LINUX_DIR)/include/ \
-		-I$(LINUX_DIR)/scripts/dtc/include-prefixes \
+		-I$(LINUX_SRC_DIR)/include/ \
+		-I$(LINUX_SRC_DIR)/scripts/dtc/include-prefixes \
 		-undef -D__DTS__ $(3) \
 		-o $(2).tmp $(1)
 	$(LINUX_DIR)/scripts/dtc/dtc -O dtb \

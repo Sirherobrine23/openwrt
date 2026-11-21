@@ -74,7 +74,7 @@ resolve_file_mode_id() {
 			id=0
 		;;
 		*[!0-9]*)
-			id=$(sed -ne "s#^$type $name \\([0-9]\\+\\)\\b.*\$#\\1#p" "$TOPDIR/tmp/.packageusergroup" 2>/dev/null)
+			id=$(sed -ne "s#^$type $name \\([0-9]\\+\\)\\b.*\$#\\1#p" "${TMP_DIR:-$TOPDIR/tmp}/.packageusergroup" 2>/dev/null)
 		;;
 		*)
 			id=$name

@@ -43,7 +43,7 @@ ifneq ($(strip $(PKG_TOOLCHAIN_ARCH)$(PKG_TOOLCHAIN_TARGET)),)
   PKG_TOOLCHAIN_LIBC ?= none
   # DUMP intentionally skips .config in rules.mk. Read only these two values,
   # so source metadata and the package build select the same compiler release.
-  _ptc_config_version = $(or $(call qstrip,$(CONFIG_$(1)_VERSION)),$(shell sed -n 's/^CONFIG_$(1)_VERSION="\([^"]*\)"$$/\1/p' $(TOPDIR)/.config 2>/dev/null),$(2))
+  _ptc_config_version = $(or $(call qstrip,$(CONFIG_$(1)_VERSION)),$(shell sed -n 's/^CONFIG_$(1)_VERSION="\([^"]*\)"$$/\1/p' $(OPENWRT_CONFIG) 2>/dev/null),$(2))
   PKG_TOOLCHAIN_GCC_VERSION ?= $(call _ptc_config_version,GCC,14.4.0)
   PKG_TOOLCHAIN_BINUTILS_VERSION ?= $(call _ptc_config_version,BINUTILS,2.46.1)
   PKG_TOOLCHAIN_GCC_VERSION := $(PKG_TOOLCHAIN_GCC_VERSION)
@@ -106,7 +106,7 @@ ifneq ($(strip $(PKG_TOOLCHAIN_ARCH)$(PKG_TOOLCHAIN_TARGET)),)
   ifneq ($(words $(PKG_TOOLCHAIN_PROFILE)),1)
     $(error Invalid package toolchain profile '$(PKG_TOOLCHAIN_PROFILE)')
   endif
-  PKG_TOOLCHAIN_DIR := $(TOPDIR)/staging_dir/toolchain-$(PKG_TOOLCHAIN_PROFILE)
+  PKG_TOOLCHAIN_DIR := $(TOPDIR)/staging_dir/$(call package_toolchain_dirname,$(PKG_TOOLCHAIN_PROFILE),$(PKG_TOOLCHAIN_CONFIG_HASH))
   PKG_TOOLCHAIN_CROSS := $(PKG_TOOLCHAIN_DIR)/bin/$(PKG_TOOLCHAIN_TARGET)-
   PKG_TOOLCHAIN_CC := $(PKG_TOOLCHAIN_CROSS)gcc
   PKG_TOOLCHAIN_CXX := $(PKG_TOOLCHAIN_CROSS)g++

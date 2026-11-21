@@ -45,6 +45,9 @@ else
   endif
   KERNEL_BUILD_DIR ?= $(BUILD_DIR)/linux-$(BOARD)_$(SUBTARGET)
   LINUX_DIR ?= $(KERNEL_BUILD_DIR)/linux-$(LINUX_VERSION)
+  # External sources are shared; LINUX_DIR remains the native object tree.
+  LINUX_EXTERNAL_BUILD := $(if $(OPENWRT_MULTI_CONTEXT),$(if $(call qstrip,$(CONFIG_EXTERNAL_KERNEL_TREE)),1))
+  LINUX_SRC_DIR := $(if $(LINUX_EXTERNAL_BUILD),$(call qstrip,$(CONFIG_EXTERNAL_KERNEL_TREE)),$(LINUX_DIR))
   LINUX_UAPI_DIR=uapi/
   LINUX_VERMAGIC:=$(strip $(shell cat $(LINUX_DIR)/.vermagic 2>/dev/null))
   LINUX_VERMAGIC:=$(if $(LINUX_VERMAGIC),$(LINUX_VERMAGIC),unknown)
@@ -67,7 +70,7 @@ else
   else ifeq ($(call qstrip,$(CONFIG_EXTERNAL_KERNEL_TREE))$(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI)),)
       LINUX_SITE:=@KERNEL/linux/kernel/v$(word 1,$(subst ., ,$(KERNEL_BASE))).x
   else
-      LINUX_UNAME_VERSION:=$(strip $(shell cat $(LINUX_DIR)/include/config/kernel.release 2>/dev/null))
+      LINUX_UNAME_VERSION:=$(or $(strip $(shell cat $(LINUX_DIR)/include/config/kernel.release 2>/dev/null)),$(KERNEL_BASE))
   endif
 
   MODULES_SUBDIR:=lib/modules/$(LINUX_UNAME_VERSION)
@@ -78,12 +81,14 @@ else
   endif
 endif
 
+LINUX_SRC_DIR ?= $(LINUX_DIR)
+
 # Keep the Git archive identifier out of package versions. Local version
 # suffixes belong to kernel.release; use the source version for packaging.
 LINUX_PKG_VERSION:=$(LINUX_VERSION)
 ifneq ($(call qstrip,$(CONFIG_EXTERNAL_KERNEL_TREE))$(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI)),)
-  ifneq ($(wildcard $(LINUX_DIR)/Makefile),)
-    LINUX_PKG_VERSION:=$(strip $(shell awk '/^VERSION =/ { v = $$3 } /^PATCHLEVEL =/ { v = v "." $$3 } /^SUBLEVEL =/ { v = v "." $$3 } /^EXTRAVERSION =/ { print v $$3; exit }' $(LINUX_DIR)/Makefile))
+  ifneq ($(wildcard $(LINUX_SRC_DIR)/Makefile),)
+    LINUX_PKG_VERSION:=$(strip $(shell awk '/^VERSION =/ { v = $$3 } /^PATCHLEVEL =/ { v = v "." $$3 } /^SUBLEVEL =/ { v = v "." $$3 } /^EXTRAVERSION =/ { print v $$3; exit }' $(LINUX_SRC_DIR)/Makefile))
   else
     # Metadata scans can run before the kernel source has been prepared.
     LINUX_PKG_VERSION:=$(KERNEL_PATCHVER)$(strip $(LINUX_VERSION-$(KERNEL_PATCHVER)))

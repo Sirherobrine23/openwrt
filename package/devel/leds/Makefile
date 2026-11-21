@@ -50,22 +50,32 @@ MAKE_FLAGS = \
 	$(if $(findstring c,$(OPENWRT_VERBOSE)),V=1,V='') \
 	prefix=/usr
 
+LEDS_BUILD_DIR=$(if $(LINUX_EXTERNAL_BUILD),$(PKG_BUILD_DIR),$(LINUX_DIR)/tools/leds)
+
+ifeq ($(LINUX_EXTERNAL_BUILD),1)
+  define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+	$(CP) $(LINUX_SRC_DIR)/tools/leds/. $(PKG_BUILD_DIR)/
+  endef
+endif
+
 define Build/Compile
 	-$(MAKE) clean \
-		-C $(LINUX_DIR)/tools/leds
+		-C $(LEDS_BUILD_DIR)
 	+$(MAKE_FLAGS) $(MAKE) \
-		-C $(LINUX_DIR)/tools/leds
+		$(if $(LINUX_EXTERNAL_BUILD),CFLAGS="$(TARGET_CFLAGS) $(TARGET_CPPFLAGS) -I$(LINUX_SRC_DIR)/include/uapi") \
+		-C $(LEDS_BUILD_DIR)
 endef
 
 define Package/ledumon/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(LINUX_DIR)/tools/leds/uledmon \
+	$(INSTALL_BIN) $(LEDS_BUILD_DIR)/uledmon \
 		$(1)/usr/bin/ledumon
 endef
 
 define Package/ledhwbmon/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(LINUX_DIR)/tools/leds/led_hw_brightness_mon \
+	$(INSTALL_BIN) $(LEDS_BUILD_DIR)/led_hw_brightness_mon \
 		$(1)/usr/bin/ledhwbmon
 endef
 
