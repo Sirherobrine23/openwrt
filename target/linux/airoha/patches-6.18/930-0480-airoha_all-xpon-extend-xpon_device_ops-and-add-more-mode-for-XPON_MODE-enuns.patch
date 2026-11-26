@@ -1,0 +1,1693 @@
+From cbf1070b988aa8f3c755e08ce10f6e0e278b7917 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Tue, 3 Nov 2026 13:09:32 -0300
+Subject: [PATCH] xpon: extend xpon_device_ops and add more mode for XPON_MODE
+ enuns
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/optical/core.c       |  26 +-
+ include/linux/optical_frontend.h |   4 +
+ include/net/xpon.h               | 112 ++++++--
+ include/uapi/linux/xpon.h        |  28 +-
+ net/xpon/core.c                  | 569 ++++++++++++++++++++++++++++++++++-----
+ net/xpon/endpoint.c              |   8 +-
+ net/xpon/genl.c                  |  24 +-
+ net/xpon/internal.h              |  21 +-
+ net/xpon/mode_test.c             | 200 ++++++++++++--
+ net/xpon/oam/core.c              |  16 +-
+ net/xpon/omci/access_test.c      |  16 +-
+ net/xpon/sysfs.c                 |  72 ++++-
+ net/xpon/tests.c                 |  40 ++-
+ 13 files changed, 969 insertions(+), 167 deletions(-)
+
+diff --git a/drivers/net/optical/core.c b/drivers/net/optical/core.c
+--- a/drivers/net/optical/core.c
++++ b/drivers/net/optical/core.c
+@@ -116,11 +116,12 @@ static ssize_t supported_protocols_show(struct device *dev,
+ 	struct optical_frontend *frontend =
+ 		container_of(dev, struct optical_frontend, dev);
+ 	ssize_t len = 0;
+-	unsigned int protocol;
++	unsigned int protocol, protocols;
++	optical_frontend_get_modes(frontend, &protocols);
+ 
+ 	for (protocol = OPTICAL_FRONTEND_PROTO_ETHERNET;
+ 	     protocol <= OPTICAL_FRONTEND_PROTO_NGPON2; protocol <<= 1) {
+-		if (!(frontend->desc->protocols & protocol))
++		if (!(protocols & protocol))
+ 			continue;
+ 		len += sysfs_emit_at(buf, len, "%s%s", len ? " " : "",
+ 				     optical_frontend_protocol_name(protocol));
+@@ -513,6 +514,27 @@ int optical_frontend_get_mode(struct optical_frontend *frontend,
+ }
+ EXPORT_SYMBOL_GPL(optical_frontend_get_mode);
+ 
++int optical_frontend_get_modes(struct optical_frontend *frontend,
++			       u32 *modes)
++{
++	int ret;
++
++	if (!frontend || !modes)
++		return -EINVAL;
++
++	mutex_lock(&frontend->op_lock);
++	if (frontend->ops->get_protocols)
++		ret = frontend->ops->get_protocols(frontend, modes);
++	else if (frontend->desc && frontend->desc->protocols) {
++		*modes = frontend->desc->protocols;
++	} else
++		ret = -ENODATA;
++	mutex_unlock(&frontend->op_lock);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(optical_frontend_get_modes);
++
+ int optical_frontend_tx_enable(struct optical_frontend *frontend, bool enable)
+ {
+ 	int ret;
+diff --git a/include/linux/optical_frontend.h b/include/linux/optical_frontend.h
+--- a/include/linux/optical_frontend.h
++++ b/include/linux/optical_frontend.h
+@@ -184,6 +184,7 @@ struct optical_frontend_desc {
+ /**
+  * struct optical_frontend_ops - provider operations
+  * @set_mode: configure protocol/rates; optional
++ * @get_protocols: get current protocols is supported; optional
+  * @tx_enable: enable or disable transmitter state internal to the provider; optional
+  * @tx_rearm: rearm a transmitter safety/fault latch; optional
+  * @tx_timing_calibrate: calibrate provider-local burst timing; optional
+@@ -196,6 +197,7 @@ struct optical_frontend_desc {
+ struct optical_frontend_ops {
+ 	int (*set_mode)(struct optical_frontend *frontend,
+ 			const struct optical_frontend_mode *mode);
++	int (*get_protocols)(struct optical_frontend *frontend, u32 *modes);
+ 	int (*tx_enable)(struct optical_frontend *frontend, bool enable);
+ 	int (*tx_rearm)(struct optical_frontend *frontend);
+ 	int (*tx_timing_calibrate)(struct optical_frontend *frontend);
+@@ -229,6 +231,8 @@ int optical_frontend_set_mode(struct optical_frontend *frontend,
+ 			      const struct optical_frontend_mode *mode);
+ int optical_frontend_get_mode(struct optical_frontend *frontend,
+ 			      struct optical_frontend_mode *mode);
++int optical_frontend_get_modes(struct optical_frontend *frontend,
++			       u32 *mode);
+ int optical_frontend_tx_enable(struct optical_frontend *frontend, bool enable);
+ int optical_frontend_tx_rearm(struct optical_frontend *frontend);
+ int optical_frontend_tx_timing_calibrate(struct optical_frontend *frontend);
+diff --git a/include/net/xpon.h b/include/net/xpon.h
+--- a/include/net/xpon.h
++++ b/include/net/xpon.h
+@@ -14,6 +14,7 @@ struct led_classdev;
+ struct net_device;
+ struct notifier_block;
+ struct xpon_device;
++struct optical_frontend;
+ 
+ #define XPON_MODE_CAP(_mode)	((unsigned long)(_mode))
+ 
+@@ -26,6 +27,15 @@ static inline bool xpon_mode_valid(u32 mode)
+ #define XPON_STATE_F_SIGNAL	BIT(0)
+ #define XPON_STATE_F_LOS	BIT(1)
+ 
++/* XEPON line profiles are protocol settings, not Device Tree properties.
++ * Values deliberately do not encode the Airoha SCU WAN_CONF register.
++ */
++enum xpon_xepon_profile {
++	XPON_XEPON_10G_10G = 0,
++	XPON_XEPON_10G_1G,
++	XPON_XEPON_1G_1G,
++};
++
+ struct xpon_state {
+ 	enum xpon_mode mode;
+ 	enum xpon_registration_state registration;
+@@ -93,8 +103,60 @@ struct xpon_report_config {
+ 	u8 queue;
+ };
+ 
++/**
++ * struct xpon_device_limits - limits for a single PON mode
++ * @max_links: maximum number of LLIDs (zero for protocols without LLIDs)
++ * @max_endpoints: maximum number of independently exposed endpoint netdevs
++ * @max_queues: maximum number of hardware queues per endpoint
++ * @report_sets: number of EPON MPCP REPORT sets
++ *
++ * These are effective per-mode limits, not the maximum across all modes.
++ * get_limits() provides the limits before registration; the core caches them
++ * and preallocates enough LLID storage for every advertised mode.
++ * The callback must be side-effect free. An error for any advertised mode
++ * prevents registration, so do not advertise an unimplemented mode.
++ */
++struct xpon_device_limits {
++	u16 max_links;
++	u16 max_endpoints;
++	u8 max_queues;
++	u8 report_sets;
++};
++
++/**
++ * struct xpon_device_ops - xPON hardware and protocol lifecycle
++ *
++ * @get_limits: report hardware capacities for each advertised mode;
++ *              called before hardware preparation, must be side-effect free,
++ *              and may not access a live MAC/PHY.
++ * @hw_prepare: initialize the initially selected mode during registration
++ * @hw_pre_shutdown: stop protocol services, mask/synchronize MAC IRQs, disable
++ *                   the optical TX and quiesce the old PHY/MAC/datapath
++ * @set_mode: select WAN mux/optical path and fully start the requested mode;
++ *            leave TX disabled until the new protocol is ready
++ * @hw_fallback: recover a safe mode after either transition callback fails;
++ *               report the mode actually recovered in @recovered
++ * @get_mode: read the hardware-selected mode
++ *
++ * Mode changes run under the core mode_lock with the lower netdev stopped and
++ * without logical endpoints. Callers with live netdev/OAM consumers must hold
++ * RTNL (both sysfs and Generic Netlink entrypoints do so) to serialize their
++ * lifetimes. A provider must keep MAC/PHY/OMCI/OAM teardown
++ * and re-registration inside its callbacks. Callbacks must not recursively
++ * request another mode change. Returning failure from hw_fallback leaves the
++ * device faulted; it cannot be switched again without reinitialization.
++ */
+ struct xpon_device_ops {
++	int (*get_limits)(struct xpon_device *xpon, enum xpon_mode mode,
++			  struct xpon_device_limits *limits);
++	int (*hw_prepare)(struct xpon_device *xpon, enum xpon_mode mode);
++	int (*hw_pre_shutdown)(struct xpon_device *xpon,
++			       enum xpon_mode previous, enum xpon_mode next);
++	int (*hw_fallback)(struct xpon_device *xpon,
++			   enum xpon_mode previous, enum xpon_mode attempted,
++			   enum xpon_mode *recovered);
+ 	int (*set_mode)(struct xpon_device *xpon, enum xpon_mode mode);
++	int (*get_mode)(struct xpon_device *xpon, enum xpon_mode *mode);
+ 	/* NETDEV_TX_BUSY leaves the skb with the caller. */
+ 	netdev_tx_t (*xmit)(struct xpon_device *xpon, struct sk_buff *skb,
+ 			    const struct xpon_endpoint_config *config);
+@@ -108,24 +170,30 @@ struct xpon_device_ops {
+ 			  const struct xpon_report_config *config);
+ };
+ 
+-struct xpon_device_desc {
+-	struct net_device *netdev;
+-	struct device *optical;
+-	const struct xpon_device_ops *ops;
+-	struct led_classdev *pon_led;
+-	struct led_classdev *los_led;
+-	struct led_classdev *fiber_led;
++/* Each physical BOB/LDDLA may support a different set of PON modes. */
++struct xpon_optical_path {
++	struct device *dev;
++	struct optical_frontend *frontend;
+ 	unsigned long modes;
+-	u16 max_links;
+-	u16 max_endpoints;
+-	u8 max_queues;
+-	u8 report_sets;
+-	enum xpon_mode mode;
+-	void *priv;
++	/* Exactly one frontend is active for a shared xPON MAC. */
++	bool active;
+ };
+ 
+-struct xpon_device *xpon_device_register(struct device *parent,
+-					 const struct xpon_device_desc *desc);
++/*
++ * Configuration is stored directly in the allocated xpon_device. The provider
++ * may keep its hardware-specific settings in xpon_device_priv().
++ * Setup may only be changed before registration. Limits are supplied by
++ * ops->get_limits() and are committed automatically on mode transitions.
++ */
++struct xpon_device *xpon_device_alloc(struct device *parent, int priv_size);
++void xpon_device_free(struct xpon_device *xpon);
++int xpon_device_setup(struct xpon_device *xpon, struct net_device *netdev,
++		      const struct xpon_device_ops *ops, void *priv,
++		      enum xpon_mode mode, unsigned long modes);
++int xpon_device_set_leds(struct xpon_device *xpon,
++			 struct led_classdev *pon, struct led_classdev *los,
++			 struct led_classdev *fiber);
++int xpon_device_register_allocated(struct xpon_device *xpon);
+ void xpon_device_unregister(struct xpon_device *xpon);
+ 
+ struct device *xpon_device_dev(struct xpon_device *xpon);
+@@ -133,6 +201,20 @@ struct net_device *xpon_device_netdev(struct xpon_device *xpon);
+ void *xpon_device_priv(struct xpon_device *xpon);
+ unsigned long xpon_device_modes(struct xpon_device *xpon);
+ enum xpon_mode xpon_device_mode(struct xpon_device *xpon);
++/* Set before entering XEPON. A live XEPON PHY must be switched out first. */
++enum xpon_xepon_profile xpon_device_xepon_profile(struct xpon_device *xpon);
++int xpon_device_set_xepon_profile(struct xpon_device *xpon,
++				  enum xpon_xepon_profile profile);
++int xpon_device_get_limits(struct xpon_device *xpon,
++			   struct xpon_device_limits *limits);
++int xpon_device_get_hw_mode(struct xpon_device *xpon, enum xpon_mode *mode);
++/* Borrowed active optical frontend, owned by the xPON core. */
++struct optical_frontend *xpon_device_optical_frontend(struct xpon_device *xpon);
++/* Borrowed candidate frontend; intended for use inside mode callbacks. */
++struct optical_frontend *xpon_device_optical_frontend_for_mode(
++				struct xpon_device *xpon, enum xpon_mode mode);
++bool xpon_device_mode_faulted(struct xpon_device *xpon);
++struct device *xpon_device_optical(struct xpon_device *xpon);
+ 
+ int xpon_device_set_mode(struct xpon_device *xpon, enum xpon_mode mode);
+ void xpon_device_report_registration(struct xpon_device *xpon,
+diff --git a/include/uapi/linux/xpon.h b/include/uapi/linux/xpon.h
+--- a/include/uapi/linux/xpon.h
++++ b/include/uapi/linux/xpon.h
+@@ -31,16 +31,24 @@ enum xpon_link_state {
+ 
+ /* Each mode is a single bit; capability masks combine these values. */
+ enum xpon_mode {
+-	XPON_MODE_GPON = (1U << 1),	/* ITU-T G.984 (2.5Gbps RX / 1.2Gbps TX) */
+-	XPON_MODE_EPON = (1U << 2),	/* IEEE 802.3ah (1Gbps) */
+-	XPON_MODE_XEPON = (1U << 3),	/* IEEE 802.3av (10G) */
+-	XPON_MODE_XGPON = (1U << 4),	/* ITU-T G.987 (10Gbps RX / 2.5Gbps TX) */
+-	XPON_MODE_XGSPON = (1U << 5),	/* ITU-T G.9807.1 (10Gbps) */
+-	XPON_MODE_NGPON2 = (1U << 6),	/* ITU-T G.989 (10Gbps per channel) */
+-	XPON_MODE_25GSPON = (1U << 7),	/* 25GS-PON MSA specification (25Gbps) */
+-	XPON_MODE_50GPON = (1U << 8),	/* ITU-T G.9804 (50Gbps) */
+-	XPON_MODE_25GEPON = (1U << 9),	/* IEEE 802.3ca (25Gbps) */
+-	XPON_MODE_50GEPON = (1U << 10),	/* IEEE 802.3ca (50Gbps) */
++	XPON_MODE_GPON =		(1U << 1),	/* ITU-T G.984 (2.5Gbps RX / 1.2Gbps TX) */
++	XPON_MODE_EPON =		(1U << 2),	/* IEEE 802.3ah (1Gbps) */
++	XPON_MODE_XEPON =		(1U << 3),	/* IEEE 802.3av (10Gbps) */
++	XPON_MODE_XGPON =		(1U << 4),	/* ITU-T G.987 (10Gbps RX / 2.5Gbps TX) */
++	XPON_MODE_XGSPON =		(1U << 5),	/* ITU-T G.9807.1 (10Gbps) */
++	XPON_MODE_NGPON2 =		(1U << 6),	/* ITU-T G.989 (10Gbps per channel) */
++	XPON_MODE_25GSPON =		(1U << 7),	/* 25GS-PON MSA specification (25Gbps) */
++	XPON_MODE_50GPON =		(1U << 8),	/* ITU-T G.9804 (50Gbps) */
++	XPON_MODE_25GEPON =		(1U << 9),	/* IEEE 802.3ca (25Gbps) */
++	XPON_MODE_50GEPON =		(1U << 10),	/* IEEE 802.3ca (50Gbps) */
++	XPON_MODE_XEPON_10G_1G =	(1U << 11),	/* IEEE 802.3av (10Gbps RX / 1Gbps TX) */
++	XPON_MODE_XEPON_10G_10G =	(1U << 12),	/* IEEE 802.3av (10Gbps symmetric) */
++	XPON_MODE_XEPON_1G_1G =		(1U << 13),	/* IEEE 802.3av (1Gbps symmetric) */
++	XPON_MODE_NGPON2_10G_10G =	(1U << 14),	/* ITU-T G.989 (10Gbps RX / 10Gbps TX) */
++	XPON_MODE_NGPON2_10G_2G =	(1U << 15),	/* ITU-T G.989 (10Gbps RX / 2.5Gbps TX) */
++	XPON_MODE_NGPON2_2G_2G =	(1U << 16),	/* ITU-T G.989 (2.5Gbps symmetric) */
++	XPON_MODE_GPON_SYM =		(1U << 17),	/* ITU-T G.984 (2.5Gbps symmetric) */
++	XPON_MODE_TURBO_EPON =		(1U << 18),	/* EPON extender by broadcom (2.5Gbps RX / 1Gbps TX) */
+ 
+ 	__XPON_MODE_MAX,
+ };
+diff --git a/net/xpon/core.c b/net/xpon/core.c
+--- a/net/xpon/core.c
++++ b/net/xpon/core.c
+@@ -11,8 +11,12 @@
+ #include <linux/etherdevice.h>
+ #include <linux/module.h>
+ #include <linux/netdevice.h>
++#include <linux/optical_frontend.h>
+ #include <linux/slab.h>
+ #include <linux/rtnetlink.h>
++#include <linux/optical_frontend.h>
++#include <linux/property.h>
++#include <linux/string.h>
+ #include <net/net_namespace.h>
+ #include <net/xpon.h>
+ 
+@@ -21,6 +25,21 @@
+ static LIST_HEAD(xpon_devices);
+ static DEFINE_MUTEX(xpon_devices_lock);
+ 
++static void xpon_opticals_cleanup(struct xpon_device *xpon)
++{
++	u16 i;
++
++	for (i = 0; i < xpon->num_optical; i++) {
++		struct xpon_optical_path *path = xpon->opticals[i];
++
++		put_device(path->dev);
++		kfree(path);
++	}
++	kfree(xpon->opticals);
++	xpon->opticals = NULL;
++	xpon->num_optical = 0;
++}
++
+ static void xpon_release(struct kref *ref)
+ {
+ 	struct xpon_device *xpon = container_of(ref, struct xpon_device, ref);
+@@ -28,7 +47,9 @@ static void xpon_release(struct kref *ref)
+ 	xa_destroy(&xpon->endpoints);
+ 	xa_destroy(&xpon->rx_endpoints);
+ 	xa_destroy(&xpon->pending_endpoints);
++	xpon_opticals_cleanup(xpon);
+ 	kfree(xpon->links);
++	kfree(xpon->owned_priv);
+ 	kfree(xpon);
+ }
+ 
+@@ -77,87 +98,330 @@ static void xpon_queue_event(struct xpon_device *xpon, unsigned long changed)
+ 	schedule_work(&xpon->notify_work);
+ }
+ 
+-struct xpon_device *
+-xpon_device_register(struct device *parent,
+-		     const struct xpon_device_desc *desc)
++/**
++ * xpon_device_alloc() - allocate a generic xPON instance and private area
++ * @parent: hardware device owning the instance
++ * @priv_size: size of the driver-private area, or zero for external ownership
++ *
++ * The private area is freed only after the last endpoint reference goes away.
++ * The caller must call xpon_device_free() if registration never succeeds,
++ * otherwise xpon_device_unregister() after quiescing the hardware.
++ */
++struct xpon_device *xpon_device_alloc(struct device *parent, int priv_size)
+ {
+ 	struct xpon_device *xpon;
+-	int ret;
+ 
+-	if (!parent || !desc || !desc->netdev ||
+-	    !xpon_mode_valid(desc->mode) ||
+-	    (desc->modes & ~((unsigned long)XPON_MODE_MASK)) ||
+-	    !(desc->modes & XPON_MODE_CAP(desc->mode)))
++	if (!parent || priv_size < 0)
+ 		return ERR_PTR(-EINVAL);
+-
+ 	xpon = kzalloc(sizeof(*xpon), GFP_KERNEL);
+ 	if (!xpon)
+ 		return ERR_PTR(-ENOMEM);
+-
++	if (priv_size) {
++		xpon->owned_priv = kzalloc(priv_size, GFP_KERNEL);
++		if (!xpon->owned_priv) {
++			kfree(xpon);
++			return ERR_PTR(-ENOMEM);
++		}
++		xpon->priv = xpon->owned_priv;
++	}
+ 	INIT_LIST_HEAD(&xpon->list);
+ 	kref_init(&xpon->ref);
+ 	xa_init(&xpon->endpoints);
+ 	xa_init(&xpon->rx_endpoints);
+ 	xpon_endpoint_work_init(xpon);
+-	xpon->max_links = desc->max_links;
+-	xpon->max_endpoints = desc->max_endpoints;
+-	xpon->max_queues = desc->max_queues;
+-	xpon->report_sets = desc->report_sets;
+-	if (desc->max_links) {
+-		xpon->links = kcalloc(desc->max_links, sizeof(*xpon->links),
+-				      GFP_KERNEL);
+-		if (!xpon->links) {
+-			xpon_device_put(xpon);
+-			return ERR_PTR(-ENOMEM);
+-		}
+-	}
+ 	spin_lock_init(&xpon->state_lock);
+ 	mutex_init(&xpon->mode_lock);
+ 	INIT_WORK(&xpon->notify_work, xpon_notify_work);
+ 	BLOCKING_INIT_NOTIFIER_HEAD(&xpon->notifier);
+-
+ 	xpon->parent = parent;
+-	xpon->netdev = desc->netdev;
+-	xpon->optical = desc->optical;
+-	xpon->ops = desc->ops;
+-	xpon->priv = desc->priv;
+-	xpon->modes = desc->modes;
+-	xpon->pon_led = desc->pon_led;
+-	xpon->los_led = desc->los_led;
+-	xpon->fiber_led = desc->fiber_led;
+-	xpon->state.mode = desc->mode;
++	return xpon;
++}
++EXPORT_SYMBOL_GPL(xpon_device_alloc);
++
++void xpon_device_free(struct xpon_device *xpon)
++{
++	if (!xpon || WARN_ON_ONCE(xpon->registered))
++		return;
++	xpon_device_put(xpon);
++}
++EXPORT_SYMBOL_GPL(xpon_device_free);
++
++/* Describe the board's optical paths in optical-frontend-names. */
++static unsigned long xpon_optical_named_modes(const char *name,
++					      unsigned long all_modes)
++{
++	if (!name || !strcmp(name, "pon"))
++		return all_modes;
++	if (!strcmp(name, "gpon"))
++		return XPON_MODE_GPON | XPON_MODE_EPON;
++	if (!strcmp(name, "xgspon"))
++		return XPON_MODE_XGPON | XPON_MODE_XGSPON |
++		       XPON_MODE_XEPON | XPON_MODE_NGPON2;
++	if (!strcmp(name, "epon"))
++		return XPON_MODE_EPON;
++	if (!strcmp(name, "xgpon"))
++		return XPON_MODE_XGPON;
++	if (!strcmp(name, "xepon"))
++		return XPON_MODE_XEPON;
++	if (!strcmp(name, "ngpon2"))
++		return XPON_MODE_NGPON2;
++
++	return 0;
++}
++
++static struct xpon_optical_path *
++xpon_optical_for_mode(struct xpon_device *xpon, enum xpon_mode mode)
++{
++	u16 i;
++
++	for (i = 0; i < xpon->num_optical; i++) {
++		struct xpon_optical_path *path = xpon->opticals[i];
++
++		if (path->modes & XPON_MODE_CAP(mode))
++			return path;
++	}
++	return NULL;
++}
++
++/* Update while holding mode_lock. No provider is reconfigured here. */
++static void xpon_opticals_set_active(struct xpon_device *xpon,
++				     struct xpon_optical_path *selected)
++{
++	u16 i;
++
++	for (i = 0; i < xpon->num_optical; i++)
++		WRITE_ONCE(xpon->opticals[i]->active,
++			   xpon->opticals[i] == selected);
++}
++
++static struct xpon_optical_path *xpon_optical_current(struct xpon_device *xpon)
++{
++	u16 i;
++
++	for (i = 0; i < xpon->num_optical; i++) {
++		struct xpon_optical_path *path = xpon->opticals[i];
++
++		if (READ_ONCE(path->active))
++			return path;
++	}
++	return NULL;
++}
++
++/* The parent owns devm frontend consumer references; the xPON instance
++ * additionally pins each class device until its final kref is released.
++ * All optical selection, including a single legacy "pon" provider, is here.
++ */
++static int xpon_opticals_init(struct xpon_device *xpon)
++{
++	struct device *dev = xpon->parent;
++	struct xpon_optical_path *path;
++	struct optical_frontend *frontend;
++	const char *name;
++	unsigned long modes;
++	int count, ret, i, j;
++
++	count = device_property_count_u32(dev, "optical-frontend-names");
++	if (count < 0 && count != -EINVAL && count != -ENOENT &&
++	    count != -ENODATA)
++		return count;
++	/* Without named paths, retain the DT's first unnamed provider. */
++	if (count <= 0)
++		count = 1;
++
++	xpon->opticals = kcalloc(count, sizeof(*xpon->opticals), GFP_KERNEL);
++	if (!xpon->opticals)
++		return -ENOMEM;
++
++	for (i = 0; i < count; i++) {
++		ret = of_property_read_string_index(dev->of_node,
++					"optical-frontend-names", i, &name);
++		if (ret) {
++			if (i || (ret != -EINVAL && ret != -ENOENT &&
++				  ret != -ENODATA))
++				return ret;
++			name = NULL;
++		}
++
++		modes = xpon_optical_named_modes(name, xpon->modes);
++		if (!modes)
++			return dev_err_probe(dev, -EINVAL,
++				"unsupported optical frontend name %s\n",
++				name ?: "<none>");
++		/* A protocol must never silently select the first of two BOBs. */
++		for (j = 0; j < xpon->num_optical; j++) {
++			if (xpon->opticals[j]->modes & modes)
++				return dev_err_probe(dev, -EINVAL,
++					"optical path %s overlaps another path\n",
++					name ?: "<none>");
++		}
++
++		frontend = devm_optical_frontend_get_optional(dev, name);
++		if (IS_ERR(frontend))
++			return PTR_ERR(frontend);
++		if (!frontend) {
++			if (name)
++				return dev_err_probe(dev, -EINVAL,
++					"optical frontend %s is not referenced\n", name);
++			continue;
++		}
++
++		path = kzalloc(sizeof(*path), GFP_KERNEL);
++		if (!path)
++			return -ENOMEM;
++		path->frontend = frontend;
++		path->dev = get_device(optical_frontend_get_device(frontend));
++		if (!path->dev) {
++			kfree(path);
++			return -ENODEV;
++		}
++		path->modes = modes;
++		xpon->opticals[xpon->num_optical++] = path;
++	}
++
++	if (xpon->num_optical &&
++	    !xpon_optical_for_mode(xpon, xpon->state.mode))
++		return dev_err_probe(dev, -EINVAL,
++				"no optical path supports initial PON mode\n");
++
++	xpon_opticals_set_active(xpon,
++			xpon_optical_for_mode(xpon, xpon->state.mode));
++	return 0;
++}
++
++/**
++ * xpon_device_setup() - configure a device allocated with xpon_device_alloc()
++ *
++ * @priv may point to externally managed driver state or be NULL, in which case
++ * xpon_device_priv() exposes the private bytes allocated with the device.
++ */
++int xpon_device_setup(struct xpon_device *xpon, struct net_device *netdev,
++		      const struct xpon_device_ops *ops, void *priv,
++		      enum xpon_mode mode, unsigned long modes)
++{
++	if (!xpon || !netdev || !ops || !xpon_mode_valid(mode) ||
++	    (modes & ~((unsigned long)XPON_MODE_MASK)) ||
++	    !(modes & XPON_MODE_CAP(mode)) || xpon->registered ||
++	    (xpon->owned_priv && priv && priv != xpon->owned_priv))
++		return -EINVAL;
++
++	xpon->netdev = netdev;
++	xpon->ops = ops;
++	if (priv)
++		xpon->priv = priv;
++	xpon->modes = modes;
++	xpon->state.mode = mode;
+ 	xpon->state.registration = XPON_REGISTRATION_DOWN;
+-	xpon->state.valid = 0;
+ 	xpon->notify_old = xpon->state;
++	xpon->configured = true;
++	return 0;
++}
++EXPORT_SYMBOL_GPL(xpon_device_setup);
+ 
+-	ret = xpon_unis_init(xpon);
+-	if (ret) {
+-		xpon_device_put(xpon);
+-		return ERR_PTR(ret);
++/* Build a stable capability table before touching hardware. Preallocating the
++ * largest LLID table avoids kfree/realloc while switching between GPON (no
++ * LLIDs) and EPON. A provider may omit get_limits only if it uses no links,
++ * endpoints or queues. A failing advertised mode makes registration fail.
++ */
++static int xpon_mode_limits_init(struct xpon_device *xpon)
++{
++	struct xpon_device_limits limits;
++	unsigned long modes = xpon->modes;
++	unsigned int bit;
++	int ret;
++
++	xpon->link_capacity = 0;
++	for_each_set_bit(bit, &modes, BITS_PER_LONG) {
++		memset(&limits, 0, sizeof(limits));
++		if (xpon->ops->get_limits) {
++			ret = xpon->ops->get_limits(xpon, BIT(bit), &limits);
++			if (ret)
++				return ret;
++		}
++		if (limits.max_endpoints && !limits.max_queues)
++			return -EINVAL;
++		xpon->mode_limits[bit] = limits;
++		xpon->link_capacity = max(xpon->link_capacity,
++					  limits.max_links);
+ 	}
+-	ret = xpon_leds_register(xpon);
+-	if (ret) {
+-		xpon_unis_cleanup(xpon);
+-		xpon_device_put(xpon);
+-		return ERR_PTR(ret);
++	xpon->limits = xpon->mode_limits[__ffs(xpon->state.mode)];
++	return 0;
++}
++
++int xpon_device_set_leds(struct xpon_device *xpon,
++			 struct led_classdev *pon, struct led_classdev *los,
++			 struct led_classdev *fiber)
++{
++	if (!xpon || xpon->registered)
++		return -EINVAL;
++	xpon->pon_led = pon;
++	xpon->los_led = los;
++	xpon->fiber_led = fiber;
++	return 0;
++}
++EXPORT_SYMBOL_GPL(xpon_device_set_leds);
++
++/**
++ * xpon_device_register_allocated() - publish a configured xPON device
++ *
++ * On failure, the object remains caller-owned and must be freed. The driver
++ * owns unwinding of hardware initialized by hw_prepare on later errors.
++ */
++int xpon_device_register_allocated(struct xpon_device *xpon)
++{
++	int ret;
++
++	if (!xpon || xpon->registered || !xpon->configured ||
++	    !xpon->netdev || !xpon->ops)
++		return -EINVAL;
++
++	ret = xpon_mode_limits_init(xpon);
++	if (ret)
++		return ret;
++	ret = xpon_opticals_init(xpon);
++	if (ret)
++		goto err_optical;
++	if (xpon->link_capacity) {
++		xpon->links = kcalloc(xpon->link_capacity, sizeof(*xpon->links),
++					 GFP_KERNEL);
++		if (!xpon->links) {
++			ret = -ENOMEM;
++			goto err_optical;
++		}
+ 	}
+-	
+-	ret = xpon_sysfs_register(xpon);
+-	if (ret) {
+-		xpon_unis_cleanup(xpon);
+-		xpon_device_put(xpon);
+-		return ERR_PTR(ret);
++	if (xpon->ops->hw_prepare) {
++		ret = xpon->ops->hw_prepare(xpon, xpon->state.mode);
++		if (ret)
++			goto err_links;
+ 	}
++	ret = xpon_unis_init(xpon);
++	if (ret)
++		goto err_links;
++	ret = xpon_leds_register(xpon);
++	if (ret)
++		goto err_uni;
++	ret = xpon_sysfs_register(xpon);
++	if (ret)
++		goto err_uni;
+ 
+ 	mutex_lock(&xpon_devices_lock);
+ 	list_add_tail(&xpon->list, &xpon_devices);
++	xpon->registered = true;
+ 	mutex_unlock(&xpon_devices_lock);
+-
+ 	xpon_leds_update(xpon, &xpon->state);
+-	dev_info(parent, "registered xPON device for %s\n", desc->netdev->name);
+-	return xpon;
++	dev_info(xpon->parent, "registered xPON device for %s\n",
++		 xpon->netdev->name);
++	return 0;
++
++err_uni:
++	xpon_unis_cleanup(xpon);
++err_links:
++	kfree(xpon->links);
++	xpon->links = NULL;
++err_optical:
++	xpon_opticals_cleanup(xpon);
++	return ret;
+ }
+-EXPORT_SYMBOL_GPL(xpon_device_register);
++EXPORT_SYMBOL_GPL(xpon_device_register_allocated);
+ 
+ void xpon_device_unregister(struct xpon_device *xpon)
+ {
+@@ -165,9 +429,14 @@ void xpon_device_unregister(struct xpon_device *xpon)
+ 		return;
+ 
+ 	rtnl_lock();
++	if (WARN_ON_ONCE(!xpon->registered)) {
++		rtnl_unlock();
++		return;
++	}
+ 	WRITE_ONCE(xpon->unregistering, true);
+ 	mutex_lock(&xpon_devices_lock);
+ 	list_del_init(&xpon->list);
++	xpon->registered = false;
+ 	mutex_unlock(&xpon_devices_lock);
+ 	xpon_endpoints_cleanup(xpon);
+ 	rtnl_unlock();
+@@ -209,49 +478,207 @@ enum xpon_mode xpon_device_mode(struct xpon_device *xpon)
+ }
+ EXPORT_SYMBOL_GPL(xpon_device_mode);
+ 
+-int xpon_device_set_mode(struct xpon_device *xpon, enum xpon_mode mode)
++/* Profile changes are staged for the next XEPON entry. This avoids
++ * reprogramming PHY PLLs while an XEPON session is powered.
++ */
++enum xpon_xepon_profile xpon_device_xepon_profile(struct xpon_device *xpon)
++{
++	return xpon ? READ_ONCE(xpon->xepon_profile) : XPON_XEPON_10G_10G;
++}
++EXPORT_SYMBOL_GPL(xpon_device_xepon_profile);
++
++int xpon_device_set_xepon_profile(struct xpon_device *xpon,
++				  enum xpon_xepon_profile profile)
+ {
+-	enum xpon_mode old_mode;
+ 	int ret = 0;
+ 
+-	if (!xpon || !xpon_mode_valid(mode))
++	if (!xpon || profile > XPON_XEPON_1G_1G)
++		return -EINVAL;
++	mutex_lock(&xpon->mode_lock);
++	if (!xpon->registered || xpon->unregistering ||
++	    xpon->mode_changing || xpon->mode_faulted ||
++	    READ_ONCE(xpon->state.mode) == XPON_MODE_XEPON ||
++	    netif_running(xpon->netdev))
++		ret = -EBUSY;
++	else
++		WRITE_ONCE(xpon->xepon_profile, profile);
++	mutex_unlock(&xpon->mode_lock);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(xpon_device_set_xepon_profile);
++
++int xpon_device_get_limits(struct xpon_device *xpon,
++			   struct xpon_device_limits *limits)
++{
++	unsigned long flags;
++
++	if (!xpon || !limits || !xpon->registered)
++		return -EINVAL;
++	spin_lock_irqsave(&xpon->state_lock, flags);
++	*limits = xpon->limits;
++	spin_unlock_irqrestore(&xpon->state_lock, flags);
++	return 0;
++}
++EXPORT_SYMBOL_GPL(xpon_device_get_limits);
++
++int xpon_device_get_hw_mode(struct xpon_device *xpon, enum xpon_mode *mode)
++{
++	int ret;
++
++	if (!xpon || !mode)
+ 		return -EINVAL;
+-	if (!(xpon->modes & XPON_MODE_CAP(mode)))
++	if (!xpon->ops || !xpon->ops->get_mode)
+ 		return -EOPNOTSUPP;
++	mutex_lock(&xpon->mode_lock);
++	ret = xpon->ops->get_mode(xpon, mode);
++	if (!ret && !xpon_mode_valid(*mode))
++		ret = -ERANGE;
++	mutex_unlock(&xpon->mode_lock);
++	return ret;
++}
++EXPORT_SYMBOL_GPL(xpon_device_get_hw_mode);
++
++struct optical_frontend *xpon_device_optical_frontend(struct xpon_device *xpon)
++{
++	struct xpon_optical_path *path;
++
++	if (!xpon)
++		return NULL;
++	path = xpon_optical_current(xpon);
++	return path ? path->frontend : NULL;
++}
++EXPORT_SYMBOL_GPL(xpon_device_optical_frontend);
++
++struct device *xpon_device_optical(struct xpon_device *xpon)
++{
++	struct xpon_optical_path *path;
++
++	if (!xpon)
++		return NULL;
++	path = xpon_optical_current(xpon);
++	return path ? path->dev : NULL;
++}
++EXPORT_SYMBOL_GPL(xpon_device_optical);
++
++struct optical_frontend *xpon_device_optical_frontend_for_mode(
++				struct xpon_device *xpon, enum xpon_mode mode)
++{
++	struct xpon_optical_path *path;
++
++	if (!xpon || !xpon_mode_valid(mode))
++		return NULL;
++	path = xpon_optical_for_mode(xpon, mode);
++	return path ? path->frontend : NULL;
++}
++EXPORT_SYMBOL_GPL(xpon_device_optical_frontend_for_mode);
++
++bool xpon_device_mode_faulted(struct xpon_device *xpon)
++{
++	return !xpon || READ_ONCE(xpon->mode_faulted);
++}
++EXPORT_SYMBOL_GPL(xpon_device_mode_faulted);
++
++static void xpon_commit_mode(struct xpon_device *xpon, enum xpon_mode mode)
++{
++	struct xpon_optical_path *prev = xpon_optical_current(xpon);
++	struct xpon_optical_path *next = xpon_optical_for_mode(xpon, mode);
++	enum xpon_mode old = READ_ONCE(xpon->state.mode);
++	unsigned long flags;
++	bool had_links;
+ 
++	/* hw_pre_shutdown has drained the old provider. Still serialize against
++	 * outstanding LLID reporters and readers of the state/limits snapshot.
++	 */
++	spin_lock_irqsave(&xpon->state_lock, flags);
++	had_links = xpon->limits.max_links ||
++		    xpon->mode_limits[__ffs(mode)].max_links;
++	if (xpon->links)
++		memset(xpon->links, 0,
++		       xpon->link_capacity * sizeof(*xpon->links));
++	xpon->limits = xpon->mode_limits[__ffs(mode)];
++	WRITE_ONCE(xpon->state.mode, mode);
++	spin_unlock_irqrestore(&xpon->state_lock, flags);
++
++	xpon_opticals_set_active(xpon, next);
++	if (prev != next)
++		xpon_sysfs_optical_changed(xpon, prev ? prev->dev : NULL);
++	if (old != mode)
++		xpon_queue_event(xpon, XPON_EVENT_MODE);
++	if (had_links)
++		xpon_queue_event(xpon, XPON_EVENT_LLID);
++}
++
++int xpon_device_set_mode(struct xpon_device *xpon, enum xpon_mode mode)
++{
++	enum xpon_mode old_mode, recovered;
++	int ret = 0, fallback_ret;
++
++	if (!xpon || !xpon_mode_valid(mode))
++		return -EINVAL;
+ 	mutex_lock(&xpon->mode_lock);
+-	if (xpon->mode_changing) {
++	if (xpon->unregistering || !xpon->registered ||
++	    xpon->mode_changing || xpon->mode_faulted) {
+ 		ret = -EBUSY;
+ 		goto out;
+ 	}
+-	if (netif_running(xpon->netdev) || !xa_empty(&xpon->endpoints)) {
++	if (!(xpon->modes & XPON_MODE_CAP(mode)) ||
++	    (xpon->num_optical && !xpon_optical_for_mode(xpon, mode))) {
++		ret = -EOPNOTSUPP;
++		goto out;
++	}
++	if (netif_running(xpon->netdev) || !xa_empty(&xpon->endpoints) ||
++	    !xa_empty(&xpon->pending_endpoints)) {
+ 		ret = -EBUSY;
+ 		goto out;
+ 	}
+-
+-	old_mode = xpon->state.mode;
++	old_mode = READ_ONCE(xpon->state.mode);
+ 	if (old_mode == mode)
+ 		goto out;
+ 
+-	if (!xpon->ops || !xpon->ops->set_mode) {
++	/* Legacy set_mode implementations alone cannot safely change live
++	 * protocol services; require an explicit teardown and recovery contract.
++	 */
++	if (!xpon->ops || !xpon->ops->hw_pre_shutdown ||
++	    !xpon->ops->set_mode || !xpon->ops->hw_fallback) {
+ 		ret = -EOPNOTSUPP;
+ 		goto out;
+ 	}
++
++	xpon->transition_target = mode;
+ 	xpon->mode_changing = true;
+ 	xpon_device_report_carrier(xpon, false);
+ 	xpon_device_report_registration(xpon, XPON_REGISTRATION_DOWN);
+-
+-	if (xpon->ops && xpon->ops->set_mode) {
++	ret = xpon->ops->hw_pre_shutdown(xpon, old_mode, mode);
++	if (!ret)
+ 		ret = xpon->ops->set_mode(xpon, mode);
+-		if (ret)
+-			goto out_changing;
++	if (!ret) {
++		xpon_commit_mode(xpon, mode);
++		goto out_changing;
+ 	}
+ 
+-	WRITE_ONCE(xpon->state.mode, mode);
+-	xpon_queue_event(xpon, XPON_EVENT_MODE);
++	/* A failed teardown may already have modified the old hardware. The
++	 * driver must either rebuild a safe mode or report unrecoverable failure.
++	 */
++	recovered = old_mode;
++	fallback_ret = xpon->ops->hw_fallback(xpon, old_mode, mode,
++					    &recovered);
++	if (fallback_ret || !xpon_mode_valid(recovered) ||
++	    !(xpon->modes & XPON_MODE_CAP(recovered)) ||
++	    (xpon->num_optical && !xpon_optical_for_mode(xpon, recovered))) {
++		WRITE_ONCE(xpon->mode_faulted, true);
++		dev_err(xpon->parent,
++			"xPON mode transition failed (%d), recovery failed (%d)\n",
++			ret, fallback_ret ?: -EINVAL);
++	} else {
++		xpon_commit_mode(xpon, recovered);
++		dev_warn(xpon->parent,
++			 "xPON mode transition failed (%d), recovered mode %u\n",
++			 ret, recovered);
++	}
+ 
+ out_changing:
+ 	xpon->mode_changing = false;
++	xpon->transition_target = READ_ONCE(xpon->state.mode);
+ out:
+ 	mutex_unlock(&xpon->mode_lock);
+ 	return ret;
+@@ -381,7 +808,7 @@ int xpon_oam_transmit(struct xpon_device *xpon, u32 id, const void *frame,
+ 	ASSERT_RTNL();
+ 	if (!xpon->oam || !xpon->ops || !xpon->ops->oam_xmit)
+ 		return -EOPNOTSUPP;
+-	if (!id || id > xpon->max_links || len < ETH_HLEN + 4 ||
++	if (!id || id > xpon->limits.max_links || len < ETH_HLEN + 4 ||
+ 	    len > XPON_OAM_FRAME_MAX || eth->h_proto != htons(ETH_P_SLOW) ||
+ 	    ((const u8 *)frame)[ETH_HLEN] != 3)
+ 		return -EINVAL;
+@@ -416,9 +843,13 @@ void xpon_link_report(struct xpon_device *xpon, u32 id, u16 llid, u8 state,
+ {
+ 	unsigned long flags;
+ 
+-	if (!xpon || !id || id > xpon->max_links)
++	if (!xpon || !id)
+ 		return;
+ 	spin_lock_irqsave(&xpon->state_lock, flags);
++	if (id > xpon->limits.max_links) {
++		spin_unlock_irqrestore(&xpon->state_lock, flags);
++		return;
++	}
+ 	xpon->links[id - 1].llid = llid;
+ 	xpon->links[id - 1].state = state;
+ 	xpon->links[id - 1].enabled = enabled;
+diff --git a/net/xpon/endpoint.c b/net/xpon/endpoint.c
+--- a/net/xpon/endpoint.c
++++ b/net/xpon/endpoint.c
+@@ -23,7 +23,7 @@ static bool xpon_endpoint_ready(struct xpon_endpoint *ep)
+ 	cfg = ep->config;
+ 	ready = cfg.enabled && !xpon->state.los && xpon->state.carrier;
+ 	if (cfg.type == XPON_ENDPOINT_LLID)
+-		ready = cfg.enabled && cfg.channel < xpon->max_links &&
++		ready = cfg.enabled && cfg.channel < xpon->limits.max_links &&
+ 			xpon->links[cfg.channel].state ==
+ 				XPON_LINK_REGISTERED &&
+ 			xpon->links[cfg.channel].llid == cfg.wire_id;
+@@ -151,11 +151,11 @@ int xpon_endpoint_set(struct xpon_device *xpon,
+ 		return -EOPNOTSUPP;
+ 	if (!config->id || config->id == U32_MAX ||
+ 	    config->type > XPON_ENDPOINT_LLID ||
+-	    config->queue >= xpon->max_queues)
++	    config->queue >= xpon->limits.max_queues)
+ 		return -EINVAL;
+ 	if (config->type == XPON_ENDPOINT_LLID) {
+ 		if (xpon->state.mode != XPON_MODE_EPON ||
+-		    (!config->link_id || config->link_id > xpon->max_links))
++		    (!config->link_id || config->link_id > xpon->limits.max_links))
+ 			return -EINVAL;
+ 	} else if (xpon->state.mode == XPON_MODE_EPON) {
+ 		return -EINVAL;
+@@ -176,7 +176,7 @@ int xpon_endpoint_set(struct xpon_device *xpon,
+ 
+ 		xa_for_each(&xpon->endpoints, index, other)
+ 			count++;
+-		if (count >= xpon->max_endpoints)
++		if (count >= xpon->limits.max_endpoints)
+ 			return -ENOSPC;
+ 		dev = alloc_netdev(sizeof(*ep), "pon%d", NET_NAME_ENUM,
+ 				   xpon_endpoint_setup);
+diff --git a/net/xpon/genl.c b/net/xpon/genl.c
+--- a/net/xpon/genl.c
++++ b/net/xpon/genl.c
+@@ -30,10 +30,12 @@ static struct genl_family xpon_genl_family;
+ static int xpon_genl_put_state(struct sk_buff *msg, struct xpon_device *xpon)
+ {
+ 	struct xpon_state state;
++	struct xpon_device_limits limits;
+ 	u32 caps = 0;
+ 
+ 	spin_lock_bh(&xpon->state_lock);
+ 	state = xpon->state;
++	limits = xpon->limits;
+ 	spin_unlock_bh(&xpon->state_lock);
+ 	if (xpon->ops) {
+ 		if (xpon->ops->xmit)
+@@ -55,10 +57,10 @@ static int xpon_genl_put_state(struct sk_buff *msg, struct xpon_device *xpon)
+ 	    ((state.valid & XPON_STATE_F_LOS) &&
+ 	     nla_put_u8(msg, XPON_ATTR_LOS, state.los)) ||
+ 	    nla_put_u32(msg, XPON_ATTR_CAPABILITIES, caps) ||
+-	    nla_put_u16(msg, XPON_ATTR_MAX_LINKS, xpon->max_links) ||
+-	    nla_put_u16(msg, XPON_ATTR_MAX_ENDPOINTS, xpon->max_endpoints) ||
+-	    nla_put_u8(msg, XPON_ATTR_MAX_QUEUES, xpon->max_queues) ||
+-	    nla_put_u8(msg, XPON_ATTR_MAX_REPORT_SETS, xpon->report_sets) ||
++	    nla_put_u16(msg, XPON_ATTR_MAX_LINKS, limits.max_links) ||
++	    nla_put_u16(msg, XPON_ATTR_MAX_ENDPOINTS, limits.max_endpoints) ||
++	    nla_put_u8(msg, XPON_ATTR_MAX_QUEUES, limits.max_queues) ||
++	    nla_put_u8(msg, XPON_ATTR_MAX_REPORT_SETS, limits.report_sets) ||
+ 	    nla_put_u8(msg, XPON_ATTR_ONU_TYPE, xpon->onu_type) ||
+ 	    nla_put_u8(msg, XPON_ATTR_UNI_COUNT, xpon->uni_count))
+ 		return -EMSGSIZE;
+@@ -92,7 +94,7 @@ static int xpon_genl_put_object(struct sk_buff *msg, struct xpon_device *xpon,
+ 		put_device(&dev->dev);
+ 		return ret ? -EMSGSIZE : 0;
+ 	case XPON_CMD_LINK_GET:
+-		if (!id || id > xpon->max_links)
++		if (!id || id > xpon->limits.max_links)
+ 			return -ENOENT;
+ 		spin_lock_bh(&xpon->state_lock);
+ 		link = xpon->links[id - 1];
+@@ -160,7 +162,7 @@ static int xpon_genl_doit(struct sk_buff *skb, struct genl_info *info)
+ 			      -EINVAL;
+ 		goto out;
+ 	case XPON_CMD_LINK_SET:
+-		if (!id || id > xpon->max_links || !a[XPON_ATTR_ENABLED]) {
++		if (!id || id > xpon->limits.max_links || !a[XPON_ATTR_ENABLED]) {
+ 			ret = -EINVAL;
+ 			goto out;
+ 		}
+@@ -216,15 +218,15 @@ static int xpon_genl_doit(struct sk_buff *skb, struct genl_info *info)
+ 		goto out;
+ 	case XPON_CMD_REPORT_GET:
+ 	case XPON_CMD_REPORT_SET:
+-		if (!id || id > xpon->max_links || !a[XPON_ATTR_QUEUE] ||
++		if (!id || id > xpon->limits.max_links || !a[XPON_ATTR_QUEUE] ||
+ 		    !a[XPON_ATTR_REPORT_SET]) {
+ 			ret = -EINVAL;
+ 			goto out;
+ 		}
+ 		report.queue = nla_get_u8(a[XPON_ATTR_QUEUE]);
+ 		report.set = nla_get_u8(a[XPON_ATTR_REPORT_SET]);
+-		if (report.queue >= xpon->max_queues ||
+-		    report.set >= xpon->report_sets) {
++		if (report.queue >= xpon->limits.max_queues ||
++		    report.set >= xpon->limits.report_sets) {
+ 			ret = -EINVAL;
+ 			goto out;
+ 		}
+@@ -237,7 +239,7 @@ static int xpon_genl_doit(struct sk_buff *skb, struct genl_info *info)
+ 			report.sets = nla_get_u8(a[XPON_ATTR_REPORT_SETS]);
+ 			report.threshold_tq =
+ 				nla_get_u32(a[XPON_ATTR_THRESHOLD_TQ]);
+-			if (!report.sets || report.sets > xpon->report_sets ||
++			if (!report.sets || report.sets > xpon->limits.report_sets ||
+ 			    report.set >= report.sets) {
+ 				ret = -EINVAL;
+ 				goto out;
+@@ -313,7 +315,7 @@ static int xpon_genl_dump(struct sk_buff *msg, struct netlink_callback *cb)
+ 		ret = -ENODEV;
+ 		goto unlock;
+ 	}
+-	last = cmd == XPON_CMD_UNI_GET ? xpon->uni_count : xpon->max_links;
++	last = cmd == XPON_CMD_UNI_GET ? xpon->uni_count : xpon->limits.max_links;
+ 	for (;;) {
+ 		if (cmd == XPON_CMD_ENDPOINT_GET) {
+ 			if (!xa_find(&xpon->endpoints, &id, U32_MAX,
+diff --git a/net/xpon/internal.h b/net/xpon/internal.h
+--- a/net/xpon/internal.h
++++ b/net/xpon/internal.h
+@@ -32,10 +32,12 @@ struct xpon_device {
+ 	struct list_head list;
+ 	struct kref ref;
+ 	bool unregistering;
+-	u16 max_links;
+-	u16 max_endpoints;
+-	u8 max_queues;
+-	u8 report_sets;
++	bool registered;
++	void *owned_priv;
++	/* Effective per-mode limits and immutable capacities cached at probe. */
++	struct xpon_device_limits limits;
++	struct xpon_device_limits mode_limits[BITS_PER_LONG];
++	u16 link_capacity;
+ 	u8 onu_type;
+ 	u8 uni_count;
+ 	struct xpon_uni *unis;
+@@ -49,7 +51,8 @@ struct xpon_device {
+ 	struct device *parent;
+ 	struct device *class_dev;
+ 	struct net_device *netdev;
+-	struct device *optical;
++	struct xpon_optical_path **opticals;
++	u16 num_optical;
+ 	const struct xpon_device_ops *ops;
+ 	void *priv;
+ 
+@@ -57,7 +60,13 @@ struct xpon_device {
+ 	struct xpon_state state;
+ 	spinlock_t state_lock;
+ 	struct mutex mode_lock;
++	/* Owned by the xPON core; consumed by MAC only during mode setup. */
++	enum xpon_xepon_profile xepon_profile;
+ 	bool mode_changing;
++	/* Requested mode is valid only while mode_changing is set. */
++	enum xpon_mode transition_target;
++	bool mode_faulted;
++	bool configured;
+ 
+ 	unsigned long pending_events;
+ 	struct xpon_state notify_old;
+@@ -79,6 +88,8 @@ extern struct class *xpon_class;
+ int xpon_sysfs_init(void);
+ void xpon_sysfs_exit(void);
+ int xpon_sysfs_register(struct xpon_device *xpon);
++void xpon_sysfs_optical_changed(struct xpon_device *xpon,
++				struct device *previous);
+ void xpon_sysfs_unregister(struct xpon_device *xpon);
+ void xpon_sysfs_notify(struct xpon_device *xpon, unsigned long changed);
+ 
+diff --git a/net/xpon/mode_test.c b/net/xpon/mode_test.c
+--- a/net/xpon/mode_test.c
++++ b/net/xpon/mode_test.c
+@@ -11,6 +11,11 @@ struct xpon_mode_test_ctx {
+ 	struct xpon_device *xpon;
+ 	int calls;
+ 	int error;
++	int stop_error;
++	int fallback_error;
++	int stop_calls;
++	int fallback_calls;
++	int limits_calls;
+ 	enum xpon_mode requested;
+ };
+ 
+@@ -23,13 +28,64 @@ static int xpon_test_set_mode(struct xpon_device *xpon, enum xpon_mode mode)
+ 	return ctx->error;
+ }
+ 
++static int xpon_test_hw_pre_shutdown(struct xpon_device *xpon,
++				      enum xpon_mode old, enum xpon_mode next)
++{
++	struct xpon_mode_test_ctx *ctx = xpon_device_priv(xpon);
++
++	ctx->stop_calls++;
++	return ctx->stop_error;
++}
++
++static int xpon_test_hw_fallback(struct xpon_device *xpon,
++				 enum xpon_mode old, enum xpon_mode attempted,
++				 enum xpon_mode *recovered)
++{
++	struct xpon_mode_test_ctx *ctx = xpon_device_priv(xpon);
++
++	ctx->fallback_calls++;
++	*recovered = old;
++	return ctx->fallback_error;
++}
++
++static int xpon_test_get_limits(struct xpon_device *xpon,
++				 enum xpon_mode mode,
++				 struct xpon_device_limits *limits)
++{
++	struct xpon_mode_test_ctx *ctx = xpon_device_priv(xpon);
++
++	ctx->limits_calls++;
++	switch (mode) {
++	case XPON_MODE_GPON:
++		limits->max_endpoints = 2;
++		limits->max_queues = 8;
++		return 0;
++	case XPON_MODE_XGSPON:
++		return 0;
++	case XPON_MODE_50GPON:
++		limits->max_endpoints = 4;
++		limits->max_queues = 8;
++		return 0;
++	case XPON_MODE_50GEPON:
++		limits->max_links = 4;
++		limits->max_endpoints = 4;
++		limits->max_queues = 4;
++		limits->report_sets = 3;
++		return 0;
++	default:
++		return -EOPNOTSUPP;
++	}
++}
++
+ static const struct xpon_device_ops xpon_test_ops = {
++	.get_limits = xpon_test_get_limits,
++	.hw_pre_shutdown = xpon_test_hw_pre_shutdown,
++	.hw_fallback = xpon_test_hw_fallback,
+ 	.set_mode = xpon_test_set_mode,
+ };
+ 
+ static int xpon_mode_test_init(struct kunit *test)
+ {
+-	struct xpon_device_desc desc = {};
+ 	struct xpon_mode_test_ctx *ctx;
+ 	int ret;
+ 
+@@ -46,20 +102,26 @@ static int xpon_mode_test_init(struct kunit *test)
+ 		goto unregister_parent;
+ 	}
+ 	strscpy(ctx->netdev->name, "xpon-test");
+-	desc.netdev = ctx->netdev;
+-	desc.modes = XPON_MODE_GPON | XPON_MODE_XGSPON |
+-		     XPON_MODE_50GPON | XPON_MODE_50GEPON;
+-	desc.mode = XPON_MODE_GPON;
+-	desc.ops = &xpon_test_ops;
+-	desc.priv = ctx;
+-	ctx->xpon = xpon_device_register(ctx->parent, &desc);
++	ctx->xpon = xpon_device_alloc(ctx->parent, 0);
+ 	if (IS_ERR(ctx->xpon)) {
+ 		ret = PTR_ERR(ctx->xpon);
+-		free_netdev(ctx->netdev);
+-		goto unregister_parent;
++		goto free_netdev;
+ 	}
++	ret = xpon_device_setup(ctx->xpon, ctx->netdev, &xpon_test_ops,
++				ctx, XPON_MODE_GPON,
++				XPON_MODE_GPON | XPON_MODE_XGSPON |
++				XPON_MODE_50GPON | XPON_MODE_50GEPON);
++	if (ret)
++		goto free_xpon;
++	ret = xpon_device_register_allocated(ctx->xpon);
++	if (ret)
++		goto free_xpon;
+ 	return 0;
+ 
++free_xpon:
++	xpon_device_free(ctx->xpon);
++free_netdev:
++	free_netdev(ctx->netdev);
+ unregister_parent:
+ 	root_device_unregister(ctx->parent);
+ 	return ret;
+@@ -92,6 +154,42 @@ static void xpon_mode_high_bits(struct kunit *test)
+ 				  XPON_MODE_50GEPON));
+ }
+ 
++/* The core preallocates the largest LLID table at registration, but only
++ * exposes the effective limits for the current mode.
++ */
++static void xpon_mode_limits_switch(struct kunit *test)
++{
++	struct xpon_mode_test_ctx *ctx = test->priv;
++	struct xpon_device_limits limits;
++	int calls = ctx->limits_calls;
++
++	KUNIT_ASSERT_EQ(test, xpon_device_get_limits(ctx->xpon, &limits), 0);
++	KUNIT_EXPECT_EQ(test, limits.max_links, (u16)0);
++	KUNIT_EXPECT_EQ(test, limits.max_endpoints, (u16)2);
++	KUNIT_ASSERT_EQ(test,
++			xpon_device_set_mode(ctx->xpon, XPON_MODE_50GEPON), 0);
++	KUNIT_ASSERT_EQ(test, xpon_device_get_limits(ctx->xpon, &limits), 0);
++	KUNIT_EXPECT_EQ(test, limits.max_links, (u16)4);
++	KUNIT_EXPECT_EQ(test, limits.max_endpoints, (u16)4);
++	KUNIT_EXPECT_EQ(test, limits.max_queues, (u8)4);
++	KUNIT_EXPECT_EQ(test, limits.report_sets, (u8)3);
++	KUNIT_EXPECT_EQ(test, ctx->limits_calls, calls);
++}
++
++static void xpon_mode_limits_fallback(struct kunit *test)
++{
++	struct xpon_mode_test_ctx *ctx = test->priv;
++	struct xpon_device_limits limits;
++
++	ctx->error = -EIO;
++	KUNIT_EXPECT_EQ(test,
++		xpon_device_set_mode(ctx->xpon, XPON_MODE_50GEPON), -EIO);
++	KUNIT_ASSERT_EQ(test, xpon_device_get_limits(ctx->xpon, &limits), 0);
++	KUNIT_EXPECT_EQ(test, limits.max_links, (u16)0);
++	KUNIT_EXPECT_EQ(test, limits.max_endpoints, (u16)2);
++	KUNIT_EXPECT_EQ(test, xpon_device_mode(ctx->xpon), XPON_MODE_GPON);
++}
++
+ static void xpon_mode_invalid_requests(struct kunit *test)
+ {
+ 	struct xpon_mode_test_ctx *ctx = test->priv;
+@@ -125,11 +223,39 @@ static void xpon_mode_backend_failure(struct kunit *test)
+ 	KUNIT_EXPECT_EQ(test, xpon_device_set_mode(ctx->xpon, XPON_MODE_XGSPON),
+ 			-EIO);
+ 	KUNIT_EXPECT_EQ(test, xpon_device_mode(ctx->xpon), XPON_MODE_GPON);
++	KUNIT_EXPECT_EQ(test, ctx->fallback_calls, 1);
++	KUNIT_EXPECT_FALSE(test, xpon_device_mode_faulted(ctx->xpon));
+ 	ctx->error = 0;
+ 	KUNIT_EXPECT_EQ(test, xpon_device_set_mode(ctx->xpon, XPON_MODE_XGSPON), 0);
+ 	KUNIT_EXPECT_EQ(test, xpon_device_mode(ctx->xpon), XPON_MODE_XGSPON);
+ }
+ 
++static void xpon_mode_fallback_fault(struct kunit *test)
++{
++	struct xpon_mode_test_ctx *ctx = test->priv;
++
++	ctx->error = -EIO;
++	ctx->fallback_error = -EIO;
++	KUNIT_EXPECT_EQ(test, xpon_device_set_mode(ctx->xpon, XPON_MODE_XGSPON),
++			-EIO);
++	KUNIT_EXPECT_TRUE(test, xpon_device_mode_faulted(ctx->xpon));
++	ctx->error = 0;
++	KUNIT_EXPECT_EQ(test, xpon_device_set_mode(ctx->xpon, XPON_MODE_XGSPON),
++			-EBUSY);
++}
++
++static void xpon_mode_stop_failure(struct kunit *test)
++{
++	struct xpon_mode_test_ctx *ctx = test->priv;
++
++	ctx->stop_error = -ETIMEDOUT;
++	KUNIT_EXPECT_EQ(test, xpon_device_set_mode(ctx->xpon, XPON_MODE_XGSPON),
++			-ETIMEDOUT);
++	KUNIT_EXPECT_EQ(test, ctx->calls, 0);
++	KUNIT_EXPECT_EQ(test, ctx->fallback_calls, 1);
++	KUNIT_EXPECT_EQ(test, xpon_device_mode(ctx->xpon), XPON_MODE_GPON);
++}
++
+ static void xpon_mode_running(struct kunit *test)
+ {
+ 	struct xpon_mode_test_ctx *ctx = test->priv;
+@@ -144,27 +270,25 @@ static void xpon_mode_running(struct kunit *test)
+ static void xpon_mode_invalid_registration(struct kunit *test)
+ {
+ 	struct xpon_mode_test_ctx *ctx = test->priv;
+-	struct xpon_device_desc desc = {
+-		.netdev = ctx->netdev,
+-		.modes = XPON_MODE_GPON | XPON_MODE_XGSPON,
+-	};
+ 	struct xpon_device *xpon;
+ 	const u32 modes[] = { 0, 1, XPON_MODE_GPON | XPON_MODE_XGSPON };
+-	int i;
++	int i, ret;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(modes); i++) {
+-		desc.mode = modes[i];
+-		xpon = xpon_device_register(ctx->parent, &desc);
+-		if (!IS_ERR(xpon))
+-			xpon_device_unregister(xpon);
+-		KUNIT_EXPECT_EQ(test, PTR_ERR_OR_ZERO(xpon), -EINVAL);
++		xpon = xpon_device_alloc(ctx->parent, 0);
++		KUNIT_ASSERT_FALSE(test, IS_ERR(xpon));
++		ret = xpon_device_setup(xpon, ctx->netdev, &xpon_test_ops,
++				ctx, modes[i], XPON_MODE_GPON | XPON_MODE_XGSPON);
++		KUNIT_EXPECT_EQ(test, ret, -EINVAL);
++		xpon_device_free(xpon);
+ 	}
+-	desc.mode = XPON_MODE_GPON;
+-	desc.modes |= BIT(31);
+-	xpon = xpon_device_register(ctx->parent, &desc);
+-	if (!IS_ERR(xpon))
+-		xpon_device_unregister(xpon);
+-	KUNIT_EXPECT_EQ(test, PTR_ERR_OR_ZERO(xpon), -EINVAL);
++	xpon = xpon_device_alloc(ctx->parent, 0);
++	KUNIT_ASSERT_FALSE(test, IS_ERR(xpon));
++	ret = xpon_device_setup(xpon, ctx->netdev, &xpon_test_ops,
++				ctx, XPON_MODE_GPON,
++				XPON_MODE_GPON | XPON_MODE_XGSPON | BIT(31));
++	KUNIT_EXPECT_EQ(test, ret, -EINVAL);
++	xpon_device_free(xpon);
+ }
+ 
+ static struct device_attribute *xpon_test_attr(struct device *dev,
+@@ -204,14 +328,38 @@ static void xpon_mode_sysfs(struct kunit *test)
+ 	KUNIT_EXPECT_STREQ(test, buf, "50gepon\n");
+ }
+ 
++static void xpon_mode_alloc_private(struct kunit *test)
++{
++	struct xpon_mode_test_ctx *ctx = test->priv;
++	struct xpon_device *xpon;
++	u64 *data;
++
++	xpon = xpon_device_alloc(ctx->parent, sizeof(*data));
++	KUNIT_ASSERT_FALSE(test, IS_ERR(xpon));
++	data = xpon_device_priv(xpon);
++	KUNIT_ASSERT_NOT_NULL(test, data);
++	KUNIT_EXPECT_EQ(test, *data, 0ULL);
++	*data = 0x123456789abcdefULL;
++	KUNIT_EXPECT_EQ(test, *(u64 *)xpon_device_priv(xpon), *data);
++	xpon_device_free(xpon);
++
++	xpon = xpon_device_alloc(ctx->parent, -1);
++	KUNIT_EXPECT_EQ(test, PTR_ERR(xpon), -EINVAL);
++}
++
+ static struct kunit_case xpon_mode_cases[] = {
+ 	KUNIT_CASE(xpon_mode_high_bits),
++	KUNIT_CASE(xpon_mode_limits_switch),
++	KUNIT_CASE(xpon_mode_limits_fallback),
+ 	KUNIT_CASE(xpon_mode_invalid_requests),
+ 	KUNIT_CASE(xpon_mode_unsupported),
+ 	KUNIT_CASE(xpon_mode_backend_failure),
++	KUNIT_CASE(xpon_mode_fallback_fault),
++	KUNIT_CASE(xpon_mode_stop_failure),
+ 	KUNIT_CASE(xpon_mode_running),
+ 	KUNIT_CASE(xpon_mode_invalid_registration),
+ 	KUNIT_CASE(xpon_mode_sysfs),
++	KUNIT_CASE(xpon_mode_alloc_private),
+ 	{}
+ };
+ 
+diff --git a/net/xpon/oam/core.c b/net/xpon/oam/core.c
+--- a/net/xpon/oam/core.c
++++ b/net/xpon/oam/core.c
+@@ -15,9 +15,21 @@ struct xpon_oam *xpon_oam_register(struct xpon_device *xpon,
+ 				   void *priv)
+ {
+ 	struct xpon_oam *oam;
++	u16 max_links;
+ 	int ret;
+ 
+-	if (!xpon || !ops || !ops->xmit || !xpon->max_links)
++	if (!xpon || !ops || !ops->xmit)
++		return ERR_PTR(-EINVAL);
++
++	/* In a GPON -> EPON transition the published limits still describe
++	 * GPON (zero LLIDs). Only the provider running under mode_lock may
++	 * attach its future OAM instance before the new mode is committed.
++	 */
++	max_links = xpon->limits.max_links;
++	if (READ_ONCE(xpon->mode_changing))
++		max_links = xpon->mode_limits[
++			__ffs(xpon->transition_target)].max_links;
++	if (!max_links)
+ 		return ERR_PTR(-EINVAL);
+ 	if (xpon->oam)
+ 		return ERR_PTR(-EBUSY);
+@@ -78,7 +90,7 @@ void xpon_oam_receive(struct xpon_oam *oam, struct sk_buff *skb, u8 index)
+ 	if (!oam || !skb)
+ 		goto free;
+ 	xpon = oam->xpon;
+-	if (index >= xpon->max_links || skb->len > XPON_OAM_FRAME_MAX ||
++	if (index >= xpon->limits.max_links || skb->len > XPON_OAM_FRAME_MAX ||
+ 	    !pskb_may_pull(skb, ETH_HLEN + 4) ||
+ 	    ((struct ethhdr *)skb->data)->h_proto != htons(ETH_P_SLOW) ||
+ 	    skb->data[ETH_HLEN] != XPON_OAM_SUBTYPE)
+diff --git a/net/xpon/omci/access_test.c b/net/xpon/omci/access_test.c
+--- a/net/xpon/omci/access_test.c
++++ b/net/xpon/omci/access_test.c
+@@ -260,12 +260,7 @@ static void omci_access_pon_registration(struct kunit *test)
+ 	};
+ 	static const struct xpon_device_ops xpon_ops = {};
+ 	struct omci_access_test_ctx *ctx = test->priv;
+-	struct xpon_device_desc desc = {
+-		.netdev = ctx->netdev,
+-		.ops = &xpon_ops,
+-		.modes = XPON_MODE_XGSPON,
+-		.mode = XPON_MODE_XGSPON,
+-	};
++
+ 	struct omci_line_status status;
+ 	struct omci_device *odev;
+ 	struct xpon_device *xpon;
+@@ -274,8 +269,15 @@ static void omci_access_pon_registration(struct kunit *test)
+ 	/* Replace the copper registration with a real OMCI core registration. */
+ 	omci_line_unregister(ctx->line);
+ 	ctx->line = NULL;
+-	xpon = xpon_device_register(ctx->parent, &desc);
++	xpon = xpon_device_alloc(ctx->parent, 0);
+ 	KUNIT_ASSERT_FALSE(test, IS_ERR(xpon));
++	if (xpon_device_setup(xpon, ctx->netdev, &xpon_ops, NULL,
++			      XPON_MODE_XGSPON, XPON_MODE_XGSPON) ||
++	    xpon_device_register_allocated(xpon)) {
++		xpon_device_free(xpon);
++		KUNIT_FAIL(test, "failed to register test xPON device");
++		return;
++	}
+ 	odev = omci_device_register(xpon, 0, &transport_ops, NULL);
+ 	KUNIT_EXPECT_FALSE(test, IS_ERR(odev));
+ 	if (IS_ERR(odev))
+diff --git a/net/xpon/sysfs.c b/net/xpon/sysfs.c
+--- a/net/xpon/sysfs.c
++++ b/net/xpon/sysfs.c
+@@ -2,6 +2,7 @@
+ 
+ #include <linux/device.h>
+ #include <linux/netdevice.h>
++#include <linux/rtnetlink.h>
+ #include <linux/string.h>
+ #include <net/xpon.h>
+ 
+@@ -110,11 +111,56 @@ static ssize_t mode_current_store(struct device *dev,
+ 	else
+ 		return -EINVAL;
+ 
++	/* Mirror the Generic Netlink entrypoint: RTNL protects the OAM and
++	 * GDM2 provider lifetime while mode callbacks detach/re-register them.
++	 */
++	rtnl_lock();
+ 	ret = xpon_device_set_mode(xpon, mode);
++	rtnl_unlock();
+ 	return ret ? ret : count;
+ }
+ static DEVICE_ATTR_RW(mode_current);
+ 
++static ssize_t xepon_profile_show(struct device *dev,
++				  struct device_attribute *attr, char *buf)
++{
++	struct xpon_device *xpon = dev_get_drvdata(dev);
++
++	switch (xpon_device_xepon_profile(xpon)) {
++	case XPON_XEPON_10G_1G:
++		return sysfs_emit(buf, "10g-1g\n");
++	case XPON_XEPON_1G_1G:
++		return sysfs_emit(buf, "1g-1g\n");
++	case XPON_XEPON_10G_10G:
++	default:
++		return sysfs_emit(buf, "10g-10g\n");
++	}
++}
++
++static ssize_t xepon_profile_store(struct device *dev,
++				   struct device_attribute *attr,
++				   const char *buf, size_t count)
++{
++	struct xpon_device *xpon = dev_get_drvdata(dev);
++	enum xpon_xepon_profile profile;
++	int ret;
++
++	if (sysfs_streq(buf, "10g-1g"))
++		profile = XPON_XEPON_10G_1G;
++	else if (sysfs_streq(buf, "10g-10g"))
++		profile = XPON_XEPON_10G_10G;
++	else if (sysfs_streq(buf, "1g-1g"))
++		profile = XPON_XEPON_1G_1G;
++	else
++		return -EINVAL;
++
++	rtnl_lock();
++	ret = xpon_device_set_xepon_profile(xpon, profile);
++	rtnl_unlock();
++	return ret ? ret : count;
++}
++static DEVICE_ATTR_RW(xepon_profile);
++
+ static ssize_t state_show(struct device *dev, struct device_attribute *attr,
+ 			  char *buf)
+ {
+@@ -159,6 +205,7 @@ static DEVICE_ATTR_RO(los);
+ static struct attribute *xpon_attrs[] = {
+ 	&dev_attr_mode_available.attr,
+ 	&dev_attr_mode_current.attr,
++	&dev_attr_xepon_profile.attr,
+ 	&dev_attr_state.attr,
+ 	&dev_attr_carrier.attr,
+ 	&dev_attr_signal_detect.attr,
+@@ -226,9 +273,9 @@ int xpon_sysfs_register(struct xpon_device *xpon)
+ 		return ret;
+ 	}
+ 
+-	if (xpon->optical) {
++	if (xpon_device_optical(xpon)) {
+ 		ret = sysfs_create_link(&xpon->class_dev->kobj,
+-					&xpon->optical->kobj, "optical");
++					&xpon_device_optical(xpon)->kobj, "optical");
+ 		if (ret)
+ 			dev_warn(xpon->parent,
+ 				 "failed to create optical xPON link: %d\n", ret);
+@@ -237,11 +284,30 @@ int xpon_sysfs_register(struct xpon_device *xpon)
+ 	return 0;
+ }
+ 
++/* The mode-lock owner updates the active optical symlink after commit. */
++void xpon_sysfs_optical_changed(struct xpon_device *xpon,
++				struct device *previous)
++{
++	int ret;
++
++	if (!xpon->class_dev)
++		return;
++	if (previous)
++		sysfs_remove_link(&xpon->class_dev->kobj, "optical");
++	if (!xpon_device_optical(xpon))
++		return;
++	ret = sysfs_create_link(&xpon->class_dev->kobj,
++				&xpon_device_optical(xpon)->kobj, "optical");
++	if (ret)
++		dev_warn(xpon->parent, "failed to switch optical symlink: %d\n",
++			 ret);
++}
++
+ void xpon_sysfs_unregister(struct xpon_device *xpon)
+ {
+ 	if (!xpon->class_dev)
+ 		return;
+-	if (xpon->optical)
++	if (xpon_device_optical(xpon))
+ 		sysfs_remove_link(&xpon->class_dev->kobj, "optical");
+ 	device_unregister(xpon->class_dev);
+ 	xpon->class_dev = NULL;
+diff --git a/net/xpon/tests.c b/net/xpon/tests.c
+--- a/net/xpon/tests.c
++++ b/net/xpon/tests.c
+@@ -31,22 +31,27 @@ static const struct net_device_ops xpon_test_netdev_ops = {
+ 	.ndo_start_xmit = xpon_test_parent_xmit,
+ };
+ 
++static int xpon_test_get_limits(struct xpon_device *xpon,
++				enum xpon_mode mode,
++				struct xpon_device_limits *limits)
++{
++	if (mode == XPON_MODE_EPON) {
++		limits->max_links = 2;
++		limits->max_endpoints = 2;
++		limits->max_queues = 2;
++	}
++	return 0;
++}
++
+ static const struct xpon_device_ops xpon_test_ops = {
++	.get_limits = xpon_test_get_limits,
+ 	.xmit = xpon_test_xmit,
+ };
+ 
+ static int xpon_test_init(struct kunit *test)
+ {
+ 	struct xpon_test_context *ctx;
+-	struct xpon_device_desc desc = {
+-		.mode = XPON_MODE_EPON,
+-		.modes = XPON_MODE_CAP(XPON_MODE_EPON) |
+-			 XPON_MODE_CAP(XPON_MODE_GPON),
+-		.max_links = 2,
+-		.max_endpoints = 2,
+-		.max_queues = 2,
+-		.ops = &xpon_test_ops,
+-	};
++
+ 	int ret;
+ 
+ 	ctx = kunit_kzalloc(test, sizeof(*ctx), GFP_KERNEL);
+@@ -67,11 +72,20 @@ static int xpon_test_init(struct kunit *test)
+ 	ret = register_netdev(ctx->netdev);
+ 	if (ret)
+ 		goto free;
+-	desc.netdev = ctx->netdev;
+-	ctx->xpon = xpon_device_register(ctx->parent, &desc);
+-	if (!IS_ERR(ctx->xpon))
++	ctx->xpon = xpon_device_alloc(ctx->parent, 0);
++	if (IS_ERR(ctx->xpon)) {
++		ret = PTR_ERR(ctx->xpon);
++		goto unregister;
++	}
++	ret = xpon_device_setup(ctx->xpon, ctx->netdev, &xpon_test_ops,
++				NULL, XPON_MODE_EPON,
++				XPON_MODE_EPON | XPON_MODE_GPON);
++	if (!ret)
++		ret = xpon_device_register_allocated(ctx->xpon);
++	if (!ret)
+ 		return 0;
+-	ret = PTR_ERR(ctx->xpon);
++	xpon_device_free(ctx->xpon);
++unregister:
+ 	unregister_netdev(ctx->netdev);
+ free:
+ 	free_netdev(ctx->netdev);
+

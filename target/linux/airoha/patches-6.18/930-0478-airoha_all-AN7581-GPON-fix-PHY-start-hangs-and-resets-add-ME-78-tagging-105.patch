@@ -1,0 +1,704 @@
+From 00c85584c4f05bd98df620ec3ab5dacf41e8a4f8 Mon Sep 17 00:00:00 2001
+From: idiazraz <muhammadrazman@gmail.com>
+Date: Sat, 31 Oct 2026 16:08:22 +0000
+Subject: [PATCH] AN7581 GPON: fix PHY start hangs and resets, add ME 78
+ tagging (#105)
+
+This gets GPON working on AN7581, tested on the Skyworth SK-G7220 Black (EN7571).
+
+Co-authored-by: idiazraz <100824525+idiazraz@users.noreply.github.com>
+Reviewed-on: https://sirherobrine23.com.br/airoha/kernel/pulls/105
+Co-authored-by: idiazraz <muhammadrazman@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c          | 148 ++++++++++++++++++++--
+ drivers/net/ethernet/airoha/airoha_eth.h          |  10 ++
+ drivers/net/ethernet/airoha/airoha_xpon.c         |  16 +++
+ drivers/net/ethernet/airoha/airoha_xpon_service.c |   5 +-
+ drivers/phy/airoha/xpon/an7581.c                  |  40 +++---
+ include/net/xpon/omci.h                           |   7 +
+ net/xpon/omci/agent.c                             | 140 ++++++++++++++++++++
+ net/xpon/omci/me.c                                |  15 +++
+ net/xpon/omci/me.h                                |   1 +
+ 9 files changed, 348 insertions(+), 34 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -2640,6 +2640,38 @@ airoha_qdma_rx_frame_desc(struct airoha_queue *q,
+ 	return frame_desc;
+ }
+ 
++/*
++ * ME 78 downstream strip: drop the OLT's tag, so untagged pon0 users get
++ * untagged frames, unless a VLAN device (pon0.<VID>, or one on a bridge
++ * above pon0) still wants that VLAN.  Frees the skb only on failure.
++ */
++static struct sk_buff *airoha_xpon_rx_untag(struct airoha_gdm_dev *dev,
++					    struct net_device *netdev,
++					    struct sk_buff *skb)
++{
++	u16 vid = READ_ONCE(dev->xpon_strip_vid);
++	const struct vlan_hdr *vhdr;
++	bool wanted;
++
++	if (!vid || skb->protocol != htons(ETH_P_8021Q) ||
++	    !pskb_may_pull(skb, VLAN_HLEN))
++		return skb;
++	vhdr = (const struct vlan_hdr *)skb->data;
++	if ((ntohs(vhdr->h_vlan_TCI) & VLAN_VID_MASK) != vid)
++		return skb;
++
++	rcu_read_lock();
++	wanted = __vlan_find_dev_deep_rcu(netdev, htons(ETH_P_8021Q), vid);
++	rcu_read_unlock();
++	if (wanted)
++		return skb;
++
++	skb = skb_vlan_untag(skb);
++	if (skb)
++		__vlan_hwaccel_clear_tag(skb);
++	return skb;
++}
++
+ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ {
+ 	enum dma_data_direction dir = page_pool_get_dma_dir(q->page_pool);
+@@ -2886,6 +2918,12 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ 			skb_pull(q->skb, ETH_HLEN);
+ 		}
+ 
++		q->skb = airoha_xpon_rx_untag(dev, netdev, q->skb);
++		if (!q->skb) {
++			done++;
++			continue;
++		}
++
+ 		done++;
+ 		napi_gro_receive(&q->napi, q->skb);
+ 		q->skb = NULL;
+@@ -5035,13 +5073,24 @@ static int airoha_xpon_add_service_locked(struct net_device *netdev,
+ 					  struct airoha_gdm_dev *port,
+ 					  const struct airoha_xpon_service_cfg *cfg)
+ {
++	bool tag_changed = false;
+ 	int ret;
+ 
+ 	spin_lock_bh(&port->xpon_service_lock);
+ 	ret = airoha_xpon_store_service(&port->xpon_services, cfg);
+-	if (ret == -ENOSPC)
++	if (ret == -ENOSPC) {
+ 		airoha_xpon_service_full(netdev, &port->xpon_services, cfg);
++	} else if (!ret && cfg->tag_untagged) {
++		tag_changed = port->xpon_tag_tci != cfg->tag_tci;
++		port->xpon_tag_tci = cfg->tag_tci;
++		WRITE_ONCE(port->xpon_strip_vid, cfg->strip_downstream ?
++			   cfg->tag_tci & VLAN_VID_MASK : 0);
++	}
+ 	spin_unlock_bh(&port->xpon_service_lock);
++	if (tag_changed)
++		netdev_info(netdev, "ME 78: untagged upstream frames get VLAN %u%s\n",
++			    cfg->tag_tci & VLAN_VID_MASK,
++			    cfg->strip_downstream ? ", stripped downstream" : "");
+ 	return ret;
+ }
+ 
+@@ -5053,9 +5102,19 @@ static bool airoha_xpon_remove_service(struct airoha_gdm_dev *port,
+ 	spin_lock_bh(&port->xpon_service_lock);
+ 	i = airoha_xpon_find_cookie(&port->xpon_services, cookie);
+ 	if (i >= 0) {
++		const struct airoha_xpon_service_cfg *rule;
++		bool tagged;
++
++		rule = &port->xpon_services.rules[i];
++		tagged = rule->tag_untagged;
+ 		if (gem_port_id)
+-			*gem_port_id = port->xpon_services.rules[i].gem_port_id;
++			*gem_port_id = rule->gem_port_id;
+ 		airoha_xpon_forget_cookie(&port->xpon_services, cookie);
++		/* The rule goes with its last cookie. */
++		if (tagged && !rule->valid) {
++			port->xpon_tag_tci = 0;
++			WRITE_ONCE(port->xpon_strip_vid, 0);
++		}
+ 	}
+ 	spin_unlock_bh(&port->xpon_service_lock);
+ 	return i >= 0;
+@@ -5099,6 +5158,7 @@ static bool econet_xpon_has_gem_service(struct net_device *netdev,
+ 	spin_lock_bh(&port->xpon_service_lock);
+ 	for (i = 0; i < AIROHA_XPON_MAX_SERVICES; i++)
+ 		if (port->xpon_services.rules[i].valid &&
++		    !port->xpon_services.rules[i].tag_untagged &&
+ 		    port->xpon_services.rules[i].gem_port_id == gem_port_id) {
+ 			found = true;
+ 			break;
+@@ -5117,6 +5177,8 @@ static void econet_xpon_flush_services(struct net_device *netdev)
+ 
+ 	spin_lock_bh(&port->xpon_service_lock);
+ 	memset(&port->xpon_services, 0, sizeof(port->xpon_services));
++	port->xpon_tag_tci = 0;
++	WRITE_ONCE(port->xpon_strip_vid, 0);
+ 	spin_unlock_bh(&port->xpon_service_lock);
+ }
+ 
+@@ -8167,16 +8229,15 @@ static int airoha_dev_set_features(struct net_device *netdev,
+ 	return 0;
+ }
+ 
+-static int
+-airoha_eth_xpon_lookup_service(struct airoha_gdm_dev *dev,
+-			       bool vlan_valid, u16 vlan_id,
+-			       bool pcp_valid, u8 pcp,
+-			       struct airoha_xpon_tx_info *info)
++static const struct airoha_xpon_service_cfg *
++airoha_eth_xpon_match_service(struct airoha_gdm_dev *dev,
++			      bool vlan_valid, u16 vlan_id,
++			      bool pcp_valid, u8 pcp)
+ {
+ 	const struct airoha_xpon_service_cfg *fallback = NULL;
+ 	int i;
+ 
+-	spin_lock_bh(&dev->xpon_service_lock);
++	lockdep_assert_held(&dev->xpon_service_lock);
+ 	for (i = 0; i < AIROHA_XPON_MAX_SERVICES; i++) {
+ 		const struct airoha_xpon_service_cfg *service;
+ 
+@@ -8197,15 +8258,44 @@ airoha_eth_xpon_lookup_service(struct airoha_gdm_dev *dev,
+ 		break;
+ 	}
+ 
+-	if (fallback) {
+-		info->gem_port_id = fallback->gem_port_id;
+-		info->tcont = fallback->tcont;
+-		info->queue = fallback->queue;
++	return fallback;
++}
++
++static int
++airoha_eth_xpon_lookup_service(struct airoha_gdm_dev *dev,
++			       bool vlan_valid, u16 vlan_id,
++			       bool pcp_valid, u8 pcp,
++			       struct airoha_xpon_tx_info *info)
++{
++	const struct airoha_xpon_service_cfg *service = NULL;
++	u16 tci;
++
++	spin_lock_bh(&dev->xpon_service_lock);
++	/*
++	 * ME 78: an untagged frame goes out with the OLT's tag, so it takes the
++	 * path a frame of that VLAN (pon0.<VID>) takes.  Without a service for
++	 * that VLAN it falls back to the untagged lookup, as before ME 78.
++	 */
++	tci = dev->xpon_tag_tci;
++	if (!vlan_valid && tci)
++		service = airoha_eth_xpon_match_service(dev, true,
++				tci & VLAN_VID_MASK, true,
++				(tci & VLAN_PRIO_MASK) >> VLAN_PRIO_SHIFT);
++	info->tag = !!service;
++	info->tag_tci = tci;
++	if (!service)
++		service = airoha_eth_xpon_match_service(dev, vlan_valid,
++							vlan_id, pcp_valid,
++							pcp);
++	if (service) {
++		info->gem_port_id = service->gem_port_id;
++		info->tcont = service->tcont;
++		info->queue = service->queue;
+ 		info->oam = false;
+ 	}
+ 	spin_unlock_bh(&dev->xpon_service_lock);
+ 
+-	return fallback ? 0 : -ENOENT;
++	return service ? 0 : -ENOENT;
+ }
+ 
+ static int airoha_xpon_get_tx_info(struct net_device *netdev, bool vlan_valid,
+@@ -8225,8 +8315,16 @@ static int airoha_xpon_get_tx_info(struct net_device *netdev, bool vlan_valid,
+ 	    dev->xpon_mode != AIROHA_XPON_MODE_GPON)
+ 		return -EOPNOTSUPP;
+ 
+-	return airoha_eth_xpon_lookup_service(dev, vlan_valid, vlan_id,
++	ret = airoha_eth_xpon_lookup_service(dev, vlan_valid, vlan_id,
+ 					     pcp_valid, pcp, info);
++	/*
++	 * Note: a PPE entry does not push the ME 78 tag, so those flows
++	 * stay in software; add the tag to the FOE entry if they need offload.
++	 */
++	if (!ret && info->tag)
++		return -EOPNOTSUPP;
++
++	return ret;
+ }
+ 
+ static int
+@@ -8349,6 +8447,7 @@ static bool airoha_xpon_has_gem_service(struct net_device *netdev,
+ 	spin_lock_bh(&dev->xpon_service_lock);
+ 	for (i = 0; i < AIROHA_XPON_MAX_SERVICES; i++)
+ 		if (dev->xpon_services.rules[i].valid &&
++		    !dev->xpon_services.rules[i].tag_untagged &&
+ 		    dev->xpon_services.rules[i].gem_port_id == gem_port_id) {
+ 			found = true;
+ 			break;
+@@ -8367,6 +8466,8 @@ static void airoha_xpon_flush_services(struct net_device *netdev)
+ 
+ 	spin_lock_bh(&dev->xpon_service_lock);
+ 	memset(&dev->xpon_services, 0, sizeof(dev->xpon_services));
++	dev->xpon_tag_tci = 0;
++	WRITE_ONCE(dev->xpon_strip_vid, 0);
+ 	spin_unlock_bh(&dev->xpon_service_lock);
+ }
+ 
+@@ -8403,6 +8504,13 @@ static netdev_tx_t __airoha_dev_xmit(struct sk_buff *skb,
+ 	    dev->xpon_mode == AIROHA_XPON_MODE_GPON) {
+ 		if (airoha_eth_xpon_classify(dev, skb, &classified))
+ 			goto error;
++		/* Frees the skb on failure; the error path copes with NULL. */
++		if (classified.tag) {
++			skb = vlan_insert_tag(skb, htons(ETH_P_8021Q),
++					      classified.tag_tci);
++			if (!skb)
++				goto error;
++		}
+ 		xpon = &classified;
+ 	}
+ 	/* Logical xPON endpoints can submit directly, bypassing the core's
+@@ -10197,6 +10305,18 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
+ 		netdev->features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
+ 		netdev->vlan_features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
+ 	}
++
++	/*
++	 * The check above never matches the EN7523 PON MAC (GDM2 has nbq 0).
++	 * A multi-descriptor frame queued towards a GPON T-CONT is never
++	 * completed and stalls the upstream for good, so segment and
++	 * checksum in software there too.
++	 */
++	if (of_property_read_bool(np, "airoha,xpon-managed")) {
++		netdev->hw_features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
++		netdev->features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
++		netdev->vlan_features &= ~AIROHA_XPON_TX_OFFLOAD_FEATURES;
++	}
+ 	port->devs[index] = dev;
+ 
+ 	return airoha_setup_phylink(netdev);
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -1082,6 +1082,10 @@ struct airoha_xpon_service_cfg {
+ 	bool pcp_valid;
+ 	bool default_service;
+ 	bool valid;
++	/* ME 78 rule: no GEM path, only the tag for untagged frames */
++	u16 tag_tci;
++	bool tag_untagged;
++	bool strip_downstream;
+ };
+ 
+ struct airoha_xpon_service_table {
+@@ -1106,6 +1110,9 @@ struct airoha_xpon_tx_info {
+ 	u8 tcont;
+ 	u8 queue;
+ 	bool oam;
++	/* insert @tag_tci before transmitting (ME 78) */
++	u16 tag_tci;
++	bool tag;
+ };
+ 
+ struct airoha_gdm_dev {
+@@ -1169,6 +1176,9 @@ struct airoha_gdm_dev {
+ 	/* Protects GPON GEM/T-CONT service classification. */
+ 	spinlock_t xpon_service_lock;
+ 	struct airoha_xpon_service_table xpon_services;
++	/* ME 78: tag for untagged upstream frames, VID to strip downstream */
++	u16 xpon_tag_tci;
++	u16 xpon_strip_vid;
+ };
+ 
+ struct airoha_gdm_port {
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -2096,6 +2096,22 @@ int airoha_gpon_omci_hw_replace_service(
+ 	bool sfu = xpon_device_onu_type(priv->xpon) == XPON_ONU_SFU;
+ 	int ret;
+ 
++	/* ME 78 tag rule: classification only, no GEM or T-CONT of its own. */
++	if (service && service->tag_untagged) {
++		cfg = (struct airoha_xpon_service_cfg) {
++			.cookie = service->cookie,
++			.tag_tci = service->tag_tci,
++			.tag_untagged = true,
++			.strip_downstream = service->strip_downstream,
++		};
++		dev_dbg(priv->dev,
++			"OMCI ME 78 rule %#x: UNI %#x tag untagged upstream with TCI %#x%s\n",
++			service->cookie, service->uni_entity_id,
++			service->tag_tci,
++			service->strip_downstream ? ", strip downstream" : "");
++		return airoha_eth_xpon_add_service(priv->gdm_dev, &cfg);
++	}
++
+ 	if (!service || service->multicast || service->vlan_treatment_valid ||
+ 	    service->direction == OMCI_GEM_PORT_DIRECTION_ANI_TO_UNI)
+ 		return -EOPNOTSUPP;
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon_service.c b/drivers/net/ethernet/airoha/airoha_xpon_service.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon_service.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon_service.c
+@@ -16,7 +16,10 @@ static bool airoha_xpon_rule_eq(const struct airoha_xpon_service_cfg *a,
+ 	       (!a->vlan_valid || a->vlan_id == b->vlan_id) &&
+ 	       a->pcp_valid == b->pcp_valid &&
+ 	       (!a->pcp_valid || a->pcp == b->pcp) &&
+-	       a->default_service == b->default_service;
++	       a->default_service == b->default_service &&
++	       a->tag_untagged == b->tag_untagged &&
++	       (!a->tag_untagged || (a->tag_tci == b->tag_tci &&
++				     a->strip_downstream == b->strip_downstream));
+ }
+ 
+ /* Caller serializes access to the table. */
+diff --git a/drivers/phy/airoha/xpon/an7581.c b/drivers/phy/airoha/xpon/an7581.c
+--- a/drivers/phy/airoha/xpon/an7581.c
++++ b/drivers/phy/airoha/xpon/an7581.c
+@@ -767,8 +767,11 @@ static int an7581_set_tx_enable(struct airoha_xpon_phy *priv, bool enable)
+ 
+ static void an7581_mask_interrupts(struct airoha_xpon_phy *priv)
+ {
+-	/* Link events are polled; never enable an unhandled PHY interrupt. */
+-	airoha_xpon_phy_write(priv, XPON_INT_ENABLE, 0);
++	/*
++	 * Link events are polled; never enable an unhandled PHY interrupt.
++	 * XPON_INT_ENABLE stays at its reset value of 0: on AN7581 a write to
++	 * it resets the board, and a read before init can too.
++	 */
+ 	airoha_xpon_phy_write(priv, AN7581_INT0, 0);
+ 	airoha_xpon_phy_write(priv, AN7581_INT1, 0);
+ }
+@@ -924,7 +927,6 @@ static int an7581_power_off(struct airoha_xpon_phy *priv)
+ 		airoha_xpon_phy_rmw(priv, XPON_PHYFWREADY,
+ 				    XPON_PHYFWREADY_READY, 0);
+ 		airoha_xpon_phy_write(priv, AN7581_PON_CLOCK, 0);
+-		ret = reset_control_assert(priv->reset);
+ 	}
+ 	airoha_xpon_phy_set_vcc_enabled(priv, false);
+ 	an->configured = false;
+@@ -1044,16 +1046,20 @@ static int an7581_power_on(struct phy *phy)
+ 	if (ret)
+ 		goto err_power;
+ 
+-	airoha_xpon_phy_rmw(priv, XPON_PHYFWREADY, XPON_PHYFWREADY_READY, 0);
+-	an7581_mask_interrupts(priv);
++	/* The digital block hangs the bus until the init sequence has run. */
+ 	an7581_run(priv, init);
++	airoha_xpon_phy_rmw(priv, XPON_PHYFWREADY, XPON_PHYFWREADY_READY, 0);
+ 	an7581_mask_interrupts(priv);
+-	ret = read_poll_timeout(airoha_xpon_phy_read, value, value & BIT(16),
+-				100, 100000, false, priv, AN7581_TX_PLL_STATUS);
+-	if (ret) {
+-		dev_err(priv->dev, "GPON TX PLL lock timeout: %#08x\n", value);
++	/* The vendor only reports this bit: it stays low here even at O5. */
++	if (read_poll_timeout(airoha_xpon_phy_read, value, value & BIT(16),
++			      100, 100000, false, priv, AN7581_TX_PLL_STATUS))
++		dev_warn(priv->dev, "GPON TX PLL not locked: %#08x\n", value);
++	an->calibrated = false;
++	an->parked = true;
++	ret = an7581_connect(priv);
++	if (ret && !an7581_los(priv))
+ 		goto err_power;
+-	}
++	/* These writes hang the bus until the RX tables release the digital reset. */
+ 	airoha_xpon_phy_rmw(priv, XPON_PHYSET10, XPON_PHYSET10_GPON,
+ 			    XPON_PHYSET10_GPON);
+ 	airoha_xpon_phy_rmw(priv, XPON_SETTING, XPON_SETTING_INV_MASK,
+@@ -1072,11 +1078,6 @@ static int an7581_power_on(struct phy *phy)
+ 	airoha_xpon_phy_rmw(priv, XPON_GPON_TX_COUNTER_CTRL,
+ 			    BIT(2) | XPON_GPON_TX_COUNTER_ENABLE,
+ 			    BIT(2) | XPON_GPON_TX_COUNTER_ENABLE);
+-	an->calibrated = false;
+-	an->parked = true;
+-	ret = an7581_connect(priv);
+-	if (ret && !an7581_los(priv))
+-		goto err_power;
+ 	if (an7581_los(priv) || ret) {
+ 		usleep_range(1000, 1100);
+ 		an7581_park_rx(priv);
+@@ -1113,7 +1114,6 @@ static int an7581_power_on(struct phy *phy)
+ 	airoha_xpon_phy_set_tx_gpio(priv, false);
+ 	if (an->configured)
+ 		an7581_mask_interrupts(priv);
+-	reset_control_assert(priv->reset);
+ 	/* Never leave the temporary reset-mode selector in the SCU. */
+ 	regmap_update_bits(priv->scu, AN7581_SCU_WAN_CONF, AN7581_SCU_WAN_MASK, 0);
+ 	airoha_xpon_phy_set_vcc_enabled(priv, false);
+@@ -1192,9 +1192,11 @@ static int an7581_probe(struct airoha_xpon_phy *priv, struct platform_device *pd
+ 	if (ret)
+ 		return ret;
+ 	INIT_DELAYED_WORK(&priv->ready_work, an7581_ready_work);
+-	ret = reset_control_assert(priv->reset);
+-	if (ret)
+-		return ret;
++	/*
++	 * Only ever pulse the PHY reset, as the vendor SDK does: an ANA or PMA
++	 * access while it is asserted hangs the bus, and power-on starts with
++	 * those accesses.
++	 */
+ 	return devm_add_action_or_reset(priv->dev, an7581_cleanup, priv);
+ }
+ 
+diff --git a/include/net/xpon/omci.h b/include/net/xpon/omci.h
+--- a/include/net/xpon/omci.h
++++ b/include/net/xpon/omci.h
+@@ -313,6 +313,10 @@ struct omci_telemetry {
+  * @multicast_ani_valid: @multicast_ani_entity_id was profile-resolved
+  * @multicast: service represents a multicast GEM path
+  * @default_service: fallback service when no VLAN/PCP rule matches
++ * @tag_tci: ME 78 upstream tag, used with @tag_untagged
++ * @tag_untagged: not a GEM path but an ME 78 rule: tag untagged upstream
++ *	frames with @tag_tci and classify them as frames of that VLAN
++ * @strip_downstream: ME 78 asks to remove @tag_tci's VLAN downstream
+  */
+ struct omci_service_config {
+ 	u32 cookie;
+@@ -333,6 +337,9 @@ struct omci_service_config {
+ 	bool multicast_ani_valid;
+ 	bool multicast;
+ 	bool default_service;
++	u16 tag_tci;
++	bool tag_untagged;
++	bool strip_downstream;
+ };
+ 
+ struct omci_ani_topology {
+diff --git a/net/xpon/omci/agent.c b/net/xpon/omci/agent.c
+--- a/net/xpon/omci/agent.c
++++ b/net/xpon/omci/agent.c
+@@ -3015,6 +3015,48 @@ static bool omci_agent_vlan_associated(const struct omci_mib_object *object,
+ 	return false;
+ }
+ 
++/*
++ * ME 84 belongs to the bridge port with the same entity ID.  When the
++ * WAN-side port has one that names VLANs, return it, so the LAN-side
++ * filters can be cut down to the VLANs that port admits.  Without this,
++ * a UNI filter on a bridge shared by several GEM IW TPs puts each of its
++ * VLANs on every GEM, and the backend picks whichever table slot it
++ * finds first.
++ */
++static const struct omci_mib_object *
++omci_agent_wan_vlan_filter_locked(struct omci_agent *agent,
++				  u16 bridge_port_entity)
++{
++	const struct omci_mib_object *object;
++	unsigned int i;
++
++	object = omci_mib_lookup(agent, OMCI_CLASS_VLAN_TAGGING_FILTER_DATA,
++				 bridge_port_entity);
++	if (!object || !omci_mib_object_active(agent, object) ||
++	    !object->vlan_filter.valid)
++		return NULL;
++	for (i = 0; i < object->vlan_filter.num_entries; i++)
++		if (omci_agent_service_vlan_valid(
++			    object->vlan_filter.entries[i].vid))
++			return object;
++
++	return NULL;
++}
++
++static bool
++omci_agent_wan_vlan_admits(const struct omci_mib_object *wan_filter, u16 vid)
++{
++	unsigned int i;
++
++	if (!wan_filter || !omci_agent_service_vlan_valid(vid))
++		return true;
++	for (i = 0; i < wan_filter->vlan_filter.num_entries; i++)
++		if (wan_filter->vlan_filter.entries[i].vid == vid)
++			return true;
++
++	return false;
++}
++
+ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 					struct xarray *services,
+ 					const struct omci_mib_object *lan_port,
+@@ -3025,12 +3067,15 @@ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 					bool *default_installed)
+ {
+ 	struct omci_agent *agent = &odev->agent;
++	const struct omci_mib_object *wan_filter;
+ 	struct omci_mib_object *object;
+ 	unsigned long index;
+ 	u16 selector = pcp_valid ? 0x100 | pcp : 0;
+ 	bool installed = false;
+ 	int ret;
+ 
++	wan_filter = omci_agent_wan_vlan_filter_locked(agent,
++						       bridge_port_entity);
+ 	xa_for_each(&agent->mib, index, object) {
+ 		unsigned int i;
+ 
+@@ -3042,6 +3087,10 @@ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 		if (object->class_id == OMCI_CLASS_VLAN_TAGGING_FILTER_DATA &&
+ 		    object->vlan_filter.valid) {
+ 			for (i = 0; i < object->vlan_filter.num_entries; i++) {
++				if (object != wan_filter &&
++				    !omci_agent_wan_vlan_admits(wan_filter,
++					object->vlan_filter.entries[i].vid))
++					continue;
+ 				ret = omci_agent_stage_service_rule_locked(
+ 					odev, services, lan_port->entity_id,
+ 					uni_entity, gem_iwtp_entity, pcp,
+@@ -3159,6 +3208,92 @@ static int omci_agent_resolve_bridge_locked(
+ 	return 0;
+ }
+ 
++static bool omci_agent_tagging_op_matches(const struct omci_mib_object *op,
++					  u16 port_entity, u8 tp_type,
++					  u16 uni_entity)
++{
++	u16 pointer = get_unaligned_be16(op->data + 5);
++
++	/* Association type; 0 (an older OLT leaves it out) means PPTP = ME ID. */
++	switch (op->data[4]) {
++	case 0:
++		return tp_type == OMCI_BRIDGE_TP_PPTP_ETH_UNI &&
++		       op->entity_id == uni_entity;
++	case 3:
++		return pointer == port_entity;
++	case 10:
++		return tp_type == OMCI_BRIDGE_TP_VEIP && pointer == uni_entity;
++	case 11:
++		return tp_type == OMCI_BRIDGE_TP_PPTP_ETH_UNI &&
++		       pointer == uni_entity;
++	default:
++		return false;
++	}
++}
++
++/*
++ * ME 78 (VLAN tagging operation, the pre-ME 171 way) makes the ONU tag a
++ * UNI's upstream frames with one TCI and optionally strip it downstream.
++ * pon0 is the network side and already carries tagged frames as pon0.<VID>,
++ * so the rule only says "tag untagged frames with this TCI"; the backend then
++ * classifies them exactly like pon0.<VID> frames, keeping the GEM choice the
++ * same for both.  pon0 is one host port, so the first enabled UNI with a
++ * tagging ME 78 wins.  Any non-zero upstream mode tags: the Huawei OLT on
++ * TIME sends 0x0f, which G.988 does not define, next to the TCI it wants.
++ */
++static int omci_agent_stage_tagging_op_locked(struct omci_device *odev,
++					      struct xarray *services)
++{
++	struct omci_agent *agent = &odev->agent;
++	struct omci_mib_object *port;
++	struct omci_mib_object *op;
++	unsigned long index;
++	unsigned long op_index;
++
++	xa_for_each(&agent->mib, index, port) {
++		struct omci_service_config service = {};
++		u16 uni_entity;
++		u8 tp_type;
++
++		if (!omci_mib_object_active(agent, port) ||
++		    port->class_id != OMCI_CLASS_MAC_BRIDGE_PORT_CONFIG_DATA)
++			continue;
++		tp_type = port->data[3];
++		uni_entity = get_unaligned_be16(port->data + 4);
++		if ((tp_type != OMCI_BRIDGE_TP_PPTP_ETH_UNI &&
++		     tp_type != OMCI_BRIDGE_TP_VEIP) ||
++		    !omci_agent_uni_enabled(agent, tp_type, uni_entity))
++			continue;
++
++		xa_for_each(&agent->mib, op_index, op) {
++			u16 tci = get_unaligned_be16(op->data + 1);
++
++			if (op->class_id != OMCI_CLASS_VLAN_TAGGING_OPERATION ||
++			    !omci_mib_object_active(agent, op) ||
++			    !omci_agent_tagging_op_matches(op, port->entity_id,
++							   tp_type, uni_entity) ||
++			    !op->data[0] ||
++			    !omci_agent_service_vlan_valid(tci & VLAN_VID_MASK))
++				continue;
++
++			service.uni_entity_id = omci_profile_normalize_uni_entity(
++				agent->profile_effective, uni_entity);
++			service.tag_tci = tci;
++			service.tag_untagged = true;
++			service.strip_downstream = op->data[3] != 0;
++			service.cookie = omci_agent_service_cookie(
++				port->entity_id, op->entity_id, 0, 0x7800);
++			dev_dbg(odev->parent,
++				"OMCI stage ME 78 %#x: UNI %#x LAN port %#x upstream mode %#x TCI %#x downstream mode %#x\n",
++				op->entity_id, uni_entity, port->entity_id,
++				op->data[0], tci, op->data[3]);
++			return omci_agent_stage_service(services, &service);
++		}
++	}
++
++	return 0;
++}
++
+ static int omci_agent_reconcile_services_locked(struct omci_device *odev)
+ {
+ 	struct omci_agent *agent = &odev->agent;
+@@ -3185,6 +3320,10 @@ static int omci_agent_reconcile_services_locked(struct omci_device *odev)
+ 			goto out;
+ 	}
+ 
++	ret = omci_agent_stage_tagging_op_locked(odev, &desired);
++	if (ret)
++		goto out;
++
+ 	ret = omci_agent_apply_services_locked(odev, &desired);
+ 
+ out:
+@@ -4221,6 +4360,7 @@ static int omci_agent_build_response_locked(
+ 		*content_len = 32;
+ 		break;
+ 	case OMCI_MSG_TYPE_MIB_RESET:
++		dev_info(odev->parent, "OMCI MIB reset from the OLT\n");
+ 		if (omci_agent_mib_reset_locked(odev, false, profile_changed))
+ 			content[0] = OMCI_RESULT_PROCESSING_ERROR;
+ 		else
+diff --git a/net/xpon/omci/me.c b/net/xpon/omci/me.c
+--- a/net/xpon/omci/me.c
++++ b/net/xpon/omci/me.c
+@@ -418,6 +418,15 @@ static const struct omci_attr_desc omci_vlan_filter_attrs[] = {
+ 	OMCI_ATTR(13, 25, 1, OMCI_RW_SC),
+ };
+ 
++/* ME 78: upstream mode, upstream TCI, downstream mode, association. */
++static const struct omci_attr_desc omci_vlan_tagging_op_attrs[] = {
++	OMCI_ATTR(15, 0, 1, OMCI_RW_SC),
++	OMCI_ATTR(14, 1, 2, OMCI_RW_SC),
++	OMCI_ATTR(13, 3, 1, OMCI_RW_SC),
++	OMCI_ATTR(12, 4, 1, OMCI_RW_SC),
++	OMCI_ATTR(11, 5, 2, OMCI_RW_SC),
++};
++
+ static const struct omci_attr_desc omci_8021p_mapper_attrs[] = {
+ 	OMCI_ATTR(15, 0, 2, OMCI_RW_SC),
+ 	OMCI_ATTR(14, 2, 2, OMCI_RW_SC),
+@@ -652,6 +661,12 @@ static const struct omci_me_desc omci_me_descs[] = {
+ 		      OMCI_ME_F_DATAPATH, GENMASK(15, 13), GENMASK(15, 13), 26,
+ 		      OMCI_CLASS_CATEGORY_LAYER2, OMCI_CLASS_SUPPORT_PROVISIONED,
+ 		      omci_vlan_filter_attrs),
++	STANDARD_DESC(OMCI_CLASS_VLAN_TAGGING_OPERATION,
++		      "VLAN tagging operation configuration data",
++		      OLT_CREATED_ACTIONS, OMCI_ME_F_DATAPATH,
++		      GENMASK(15, 11), GENMASK(15, 11), 7,
++		      OMCI_CLASS_CATEGORY_LAYER2, OMCI_CLASS_SUPPORT_PROVISIONED,
++		      omci_vlan_tagging_op_attrs),
+ 	STANDARD_DESC(OMCI_CLASS_8021P_MAPPER,
+ 		      "802.1p mapper service profile", OLT_CREATED_ACTIONS,
+ 		      OMCI_ME_F_DATAPATH, GENMASK(15, 3), GENMASK(15, 3), 45,
+diff --git a/net/xpon/omci/me.h b/net/xpon/omci/me.h
+--- a/net/xpon/omci/me.h
++++ b/net/xpon/omci/me.h
+@@ -18,6 +18,7 @@ struct omci_mib_object;
+ #define OMCI_CLASS_MAC_BRIDGE_SERVICE_PROFILE	45
+ #define OMCI_CLASS_MAC_BRIDGE_CONFIG_DATA	46
+ #define OMCI_CLASS_MAC_BRIDGE_PORT_CONFIG_DATA	47
++#define OMCI_CLASS_VLAN_TAGGING_OPERATION	78
+ #define OMCI_CLASS_VLAN_TAGGING_FILTER_DATA	84
+ #define OMCI_CLASS_8021P_MAPPER		130
+ 
+

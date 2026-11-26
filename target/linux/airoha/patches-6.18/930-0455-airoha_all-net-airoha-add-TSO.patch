@@ -1,0 +1,1374 @@
+From b96a2ed313a9aafc6c51c65e2d3619d4aa74d28f Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Mon, 26 Oct 2026 21:13:47 -0300
+Subject: [PATCH] net: airoha: add TSO
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ .../device_drivers/ethernet/airoha/tso.rst         |  78 ++++
+ .../networking/device_drivers/ethernet/index.rst   |   1 +
+ arch/arm/boot/dts/airoha/an7552.dtsi               |   7 +-
+ arch/arm/boot/dts/airoha/en7523.dtsi               |   9 +-
+ arch/arm64/boot/dts/airoha/an7581.dtsi             |   3 +
+ arch/arm64/boot/dts/airoha/an7583.dtsi             |   3 +
+ drivers/net/ethernet/airoha/Kconfig                |   6 +
+ drivers/net/ethernet/airoha/Makefile               |   1 +
+ drivers/net/ethernet/airoha/airoha_eth.c           | 240 +++++++---
+ drivers/net/ethernet/airoha/airoha_eth.h           |  21 +-
+ drivers/net/ethernet/airoha/airoha_tso.c           | 516 +++++++++++++++++++++
+ drivers/net/ethernet/airoha/airoha_tso.h           |  74 +++
+ 12 files changed, 873 insertions(+), 86 deletions(-)
+
+diff --git a/Documentation/networking/device_drivers/ethernet/airoha/tso.rst b/Documentation/networking/device_drivers/ethernet/airoha/tso.rst
+new file mode 100644
+--- /dev/null
++++ b/Documentation/networking/device_drivers/ethernet/airoha/tso.rst
+@@ -0,0 +1,78 @@
++.. SPDX-License-Identifier: GPL-2.0-only
++
++Airoha/EcoNet transmit segmentation
++==================================
++
++``CONFIG_NET_AIROHA_TSO`` enables the native TSO and scatter-gather paths
++for the following SoCs. The option is disabled by default pending board
++validation.
++
++.. list-table::
++   :header-rows: 1
++
++   * - SoC
++     - Version
++     - Datapath
++   * - EN7528
++     - v1
++     - Linked QDMA descriptors; TSO in TX word 1 bit 28
++   * - EN7580
++     - v1
++     - Linked QDMA descriptors; TSO in TX word 0 bit 10
++   * - EN7523
++     - v2
++     - Two PDMA TX rings in the existing FE resource
++
++The SDK EN7528_LE and EN7580 kernel 4.4 profiles select
++``TCSUPPORT_TSO_ENABLE``; EN7523 profiles additionally select
++``TCSUPPORT_TSO_V2_ENABLE``. The v1 transmit routine has explicit EN7580
++handling. The EN7580 kernel 5.4 demo profile leaves TSO disabled. The two
++generations share MSS encoding in the TCP checksum field but do not share
++their TX engine.
++
++The EN7523 path sends nonlinear packets, including ordinary SG packets
++without GSO, through PDMA. Linear packets and optical control frames keep
++using QDMA. Setting only the TSO bit on a fragmented QDMA chain does not
++implement v2. When the option is disabled, EN7523 GDM2 retains software
++segmentation and linear TX.
++
++PDMA completion uses timer-driven TX NAPI, following the polling mode
++selected by the 32-bit SDK. It does not require a new interrupt assignment
++or a device-tree node. Both DONE and the DMA index must indicate completion
++before a buffer is unmapped. Polling continues while descriptors remain,
++including after the final packet of a connection. Interface shutdown and
++PON channel retirement drain PDMA and reset it before releasing buffers
++which have not completed.
++
++EN7523 TSO v2 requires the Ethernet reset named ``tdma``, connected to
++``EN7523_TDMA_RST``. Build and boot the updated device tree together with
++the driver. The older reset named ``pdma`` actually resets QDMA0/LAN on
++this SoC: using it during an interface stop destroys the live LAN queue
++configuration. It must never be used to flush the TSO engine.
++
++Native TSO accepts plain TCP over IPv4 or IPv6, up to 65535 bytes per skb.
++IP options, IPv6 extension headers, tunnels and other GSO types are
++segmented in software. VLAN devices inherit the corresponding TX features.
++
++Board validation
++----------------
++
++Compilation and simulated DMA ownership tests do not establish hardware
++correctness. Test each board and each output path before enabling this
++option in a production configuration:
++
++* Start with checksum offload and SG enabled, with TSO disabled. Exercise
++  both directions, VLAN traffic and concurrent queues.
++* Enable TSO and exercise TCP over IPv4 and IPv6, including local TCP
++  output and forwarding of packets aggregated by GRO.
++* Check the final packet of short connections as well as sustained load.
++  BQL inflight bytes must return to zero after the traffic drains.
++* Repeat interface stop/start and PON session reactivation under load.
++  Validate with and without PPE offload; its conntrack flags alone do not
++  establish that the CPU TX segmentation path was exercised.
++
++On EN7523, disabling only TSO still leaves the SG reassembly path in use.
++To return an enabled build to linear software TX during diagnosis, disable
++SG and TSO together, for example::
++
++  ethtool -K pon0 tso off gso off sg off
+diff --git a/Documentation/networking/device_drivers/ethernet/index.rst b/Documentation/networking/device_drivers/ethernet/index.rst
+--- a/Documentation/networking/device_drivers/ethernet/index.rst
++++ b/Documentation/networking/device_drivers/ethernet/index.rst
+@@ -13,6 +13,7 @@ Contents:
+    3com/3c509
+    3com/vortex
+    airoha/en7580-xgspon
++   airoha/tso
+    amazon/ena
+    altera/altera_tse
+    amd/pds_core
+diff --git a/arch/arm/boot/dts/airoha/an7552.dtsi b/arch/arm/boot/dts/airoha/an7552.dtsi
+--- a/arch/arm/boot/dts/airoha/an7552.dtsi
++++ b/arch/arm/boot/dts/airoha/an7552.dtsi
+@@ -601,8 +601,11 @@ eth: ethernet@1fb50000 {
+ 
+ 		resets = <&scuclk EN7523_FE_RST>,
+ 			 <&scuclk EN7523_FE_PDMA_RST>,
+-			 <&scuclk EN7523_FE_QDMA_RST>;
+-		reset-names = "fe", "pdma", "qdma";
++			 <&scuclk EN7523_FE_QDMA_RST>,
++			 <&scuclk EN7523_GDMP_RST>,
++			 <&scuclk EN7523_TDMA_RST>;
++		reset-names = "fe", "pdma", "qdma",
++			      "gdmp", "tdma";
+ 
+ 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>,
+diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
+--- a/arch/arm/boot/dts/airoha/en7523.dtsi
++++ b/arch/arm/boot/dts/airoha/en7523.dtsi
+@@ -949,13 +949,14 @@ eth: ethernet@1fb50000 {
+ 		resets = <&scuclk EN7523_FE_RST>,
+ 		         <&scuclk EN7523_FE_PDMA_RST>,
+ 		         <&scuclk EN7523_FE_QDMA_RST>,
++		         <&scuclk EN7523_GDMP_RST>,
++		         <&scuclk EN7523_TDMA_RST>,
+ 		         <&scuclk EN7523_DUAL_HSI0_MAC_RST>,
+ 		         <&scuclk EN7523_DUAL_HSI1_MAC_RST>,
+-		         <&scuclk EN7523_HSI_MAC_RST>,
+-		         <&scuclk EN7523_GDMP_RST>;
++		         <&scuclk EN7523_HSI_MAC_RST>;
+ 		reset-names = "fe", "pdma", "qdma",
+-		              "hsi0-mac", "hsi1-mac", "hsi-mac",
+-		              "gdmp";
++		              "gdmp", "tdma",
++		              "hsi0-mac", "hsi1-mac", "hsi-mac";
+ 
+ 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>,
+ 		             <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>,
+diff --git a/arch/arm64/boot/dts/airoha/an7581.dtsi b/arch/arm64/boot/dts/airoha/an7581.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7581.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7581.dtsi
+@@ -909,11 +909,14 @@ eth: ethernet@1fb50000 {
+ 				 <&scuclk EN7581_FE_PDMA_RST>,
+ 				 <&scuclk EN7581_FE_QDMA_RST>,
+ 				 <&scuclk EN7581_XSI_MAC_RST>,
++				 <&scuclk EN7581_GDMP_RST>,
++				 <&scuclk EN7581_TDMA_RST>,
+ 				 <&scuclk EN7581_DUAL_HSI0_MAC_RST>,
+ 				 <&scuclk EN7581_DUAL_HSI1_MAC_RST>,
+ 				 <&scuclk EN7581_HSI_MAC_RST>,
+ 				 <&scuclk EN7581_XFP_MAC_RST>;
+ 			reset-names = "fe", "pdma", "qdma", "xsi-mac",
++				      "gdmp", "tdma",
+ 				      "hsi0-mac", "hsi1-mac", "hsi-mac",
+ 				      "xfp-mac";
+ 
+diff --git a/arch/arm64/boot/dts/airoha/an7583.dtsi b/arch/arm64/boot/dts/airoha/an7583.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7583.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7583.dtsi
+@@ -691,10 +691,13 @@ eth: ethernet@1fb50000 {
+ 			resets = <&scuclk AN7583_FE_RST>,
+ 				 <&scuclk AN7583_FE_PDMA_RST>,
+ 				 <&scuclk AN7583_FE_QDMA_RST>,
++				 <&scuclk AN7583_GDMP_RST>,
++				 <&scuclk AN7583_TDMA_RST>,
+ 				 <&scuclk AN7583_DUAL_HSI0_MAC_RST>,
+ 				 <&scuclk AN7583_DUAL_HSI1_MAC_RST>,
+ 				 <&scuclk AN7583_XFP_MAC_RST>;
+ 			reset-names = "fe", "pdma", "qdma",
++				      "gdmp", "tdma",
+ 				      "hsi0-mac", "hsi1-mac",
+ 				      "xfp-mac";
+ 
+diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
+--- a/drivers/net/ethernet/airoha/Kconfig
++++ b/drivers/net/ethernet/airoha/Kconfig
+@@ -28,6 +28,12 @@ config NET_AIROHA
+ 	  This driver supports the gigabit ethernet MACs in the
+ 	  Airoha and Econet SoC family.
+ 
++config NET_AIROHA_TSO
++	bool "TSO transmit offload"
++	depends on NET_AIROHA
++	help
++	  Enable TCP segmentation and scatter-gather on TSO v1 and the TSO v2.
++
+ config NET_AIROHA_PPE_DEBUGFS
+ 	bool
+ 	default y
+diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
+--- a/drivers/net/ethernet/airoha/Makefile
++++ b/drivers/net/ethernet/airoha/Makefile
+@@ -8,6 +8,7 @@ airoha-eth-y := airoha_eth.o airoha_ppe.o airoha_xpon_service.o
+ airoha-eth-$(CONFIG_NET_AIROHA_PPE_DEBUGFS) += airoha_ppe_debugfs.o
+ airoha-eth-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed.o airoha_wed_debugfs.o
+ airoha-eth-$(CONFIG_NET_AIROHA_WHNAT) += airoha_whnat.o
++airoha-eth-$(CONFIG_NET_AIROHA_TSO) += airoha_tso.o
+ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
+ obj-$(CONFIG_AIROHA_XPON) += airoha-xpon.o
+ airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_omci.o
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -59,6 +59,7 @@
+ 
+ #include "airoha_eth.h"
+ #include "airoha_regs.h"
++#include "airoha_tso.h"
+ #include "airoha_wed.h"
+ #include "airoha_whnat.h"
+ 
+@@ -860,6 +861,18 @@ static irqreturn_t econet_irq_handler(int irq_num, void *dev_instance)
+ 	return IRQ_HANDLED;
+ }
+ 
++static void econet_tx_unmap(struct airoha_qdma_mips *qdma,
++			    struct econet_q_tx_ent *e)
++{
++	if (e->dma_map_page)
++		dma_unmap_page(qdma->qdma->eth->dev, e->dma_addr, e->dma_len,
++			       DMA_TO_DEVICE);
++	else
++		dma_unmap_single(qdma->qdma->eth->dev, e->dma_addr, e->dma_len,
++				 DMA_TO_DEVICE);
++	e->dma_len = 0;
++}
++
+ static int econet_poll_tx_complete(struct napi_struct *napi, int budget)
+ {
+ 	struct qregs_doneq_state state;
+@@ -883,43 +896,40 @@ static int econet_poll_tx_complete(struct napi_struct *napi, int budget)
+ 		u32 index, qid, val = done_q->q[head];
+ 		struct econet_q_tx_ent *e;
+ 		struct econet_q_tx *q;
+-		struct netdev_queue *txq;
+ 		struct sk_buff *skb;
+ 		struct desc desc;
+ 
+ 		if (val == 0xffffffffU)
+ 			break;
+ 
+-		done_q->q[head] = 0xffffffffU; /* mark as done */
+-		head = (head + 1) % done_q->size;
+-		irq_queued--;
+-		done++;
+-
+ 		qid = FIELD_GET(EN751221_QDMA_IRQ_RING_IDX_MASK, val);
+ 		if (WARN_ON_ONCE(qid >= ARRAY_SIZE(qdma->q_tx)))
+-			continue;
++			goto consume;
+ 
+ 		q = &qdma->q_tx[qid];
+ 		if (WARN_ON_ONCE(!q->ndesc))
+-			continue;
++			goto consume;
+ 
+ 		index = FIELD_GET(EN751221_QDMA_IRQ_DESC_IDX_MASK, val);
+ 		if (WARN_ON_ONCE(index >= q->ndesc))
+-			continue;
+-
+-		guard(spinlock)(&q->lock_bh);
+-
+-		desc = q->desc[index];
++			goto consume;
+ 
+-		if (WARN_ON_ONCE(!is_desc_info_done(&desc.info) &&
+-				 !is_desc_info_dropped(&desc.info)))
+-			continue;
++		spin_lock(&q->lock_bh);
+ 
+ 		e = &q->entry[index];
++		if (WARN_ON_ONCE(!e->dma_len))
++			goto unlock_consume;
++		desc.info = READ_ONCE(q->desc[index].info);
++		if (!is_desc_info_done(&desc.info) &&
++		    !is_desc_info_dropped(&desc.info)) {
++			/* Keep this completion queued until writeback is visible. */
++			spin_unlock(&q->lock_bh);
++			break;
++		}
++		dma_rmb();
+ 		skb = e->skb;
+ 
+-		dma_unmap_single(qdma->qdma->eth->dev, e->dma_addr, e->dma_len,
+-				 DMA_TO_DEVICE);
++		econet_tx_unmap(qdma, e);
+ 		memset(e, 0, sizeof(*e));
+ 
+ 		/* Completion ring can report out of order when hw QoS is
+@@ -932,16 +942,18 @@ static int econet_poll_tx_complete(struct napi_struct *napi, int budget)
+ 		q->freelist_tail = index;
+ 		q->free_count++;
+ 
++		/* Intermediate TSO/SG descriptors do not own the skb. */
++		if (!skb)
++			goto unlock_consume;
++
+ 		/* Frames handed to the PPE by WHNAT have no netdev. */
+ 		if (!skb->dev) {
+ 			airoha_whnat_complete();
+ 			dev_kfree_skb_any(skb);
+-			continue;
++			goto unlock_consume;
+ 		}
+ 
+-		txq = netdev_get_tx_queue(skb->dev,
+-					  skb_get_queue_mapping(skb));
+-		netdev_tx_completed_queue(txq, 1, skb->len);
++		airoha_tx_complete(skb);
+ 		/* Every net_device TX queue of this conduit (one per DSA user
+ 		 * port through tag_mtk's queue_mapping, hashed for the rest)
+ 		 * funnels into the same hardware ring, so the gating resource
+@@ -955,6 +967,13 @@ static int econet_poll_tx_complete(struct napi_struct *napi, int budget)
+ 		wake_dev = skb->dev;
+ 
+ 		dev_kfree_skb_any(skb);
++unlock_consume:
++		spin_unlock(&q->lock_bh);
++consume:
++		WRITE_ONCE(done_q->q[head], U32_MAX);
++		head = (head + 1) % done_q->size;
++		irq_queued--;
++		done++;
+ 	}
+ 
+ 	/* Freed at least one ring slot: wake every TX queue of the conduit so
+@@ -1003,50 +1022,66 @@ static int econet_qdma_xmit_mips(struct airoha_qdma_mips *qdma, struct sk_buff *
+ 		   union desc_msg *msg, int qid)
+ {
+ 	struct econet_q_tx *q = &qdma->q_tx[qid];
+-	int len = skb_headlen(skb);
+-	struct econet_q_tx_ent *e;
++	unsigned int n = 1 + skb_shinfo(skb)->nr_frags, i, j;
++	unsigned int reserve = airoha_tso_version(qdma->qdma->eth) ==
++			       AIROHA_TSO_V1 ? MAX_SKB_FRAGS + 1 : 1;
++	u16 indices[MAX_SKB_FRAGS + 1];
+ 	u16 index, next_index;
+-	struct desc *desc;
+-	dma_addr_t addr;
+-	int ret;
+ 
+ 	guard(spinlock_bh)(&q->lock_bh);
+ 
+-	/*
+-	 * Only a completion of a netdev's own frame wakes its stopped queue,
+-	 * so frames without a netdev (WHNAT) must leave it some descriptors.
+-	 */
+-	if (!skb->dev && q->free_count <= AIROHA_WHNAT_TX_RESERVE)
++	if (!skb_headlen(skb) || skb_has_frag_list(skb))
++		return -EINVAL;
++	if (n > 1 && airoha_tso_version(qdma->qdma->eth) != AIROHA_TSO_V1)
++		return -EOPNOTSUPP;
++	/* Leave one sentinel, plus a reserve for netdevs when WHNAT sends. */
++	if (!skb->dev && q->free_count <= AIROHA_WHNAT_TX_RESERVE + n - 1)
+ 		return -EAGAIN;
+-
+-	index = q->freelist_head;
+-	if (index == 0xffff)
++	if (q->free_count <= n)
+ 		return -EBUSY;
+ 
+-	e = &q->entry[index];
+-	next_index = e->freelist_next;
+-	if (next_index == 0xffff)
+-		return -EBUSY;
+-
+-	addr = dma_map_single(qdma->qdma->eth->dev, skb->data, len, DMA_TO_DEVICE);
+-	ret = dma_mapping_error(qdma->qdma->eth->dev, addr);
+-	if (unlikely(ret))
+-		return ret;
++	index = q->freelist_head;
++	/* Walk the free chain without publishing anything. A failed map must
++	 * leave the sentinel, free list, CPU index and BQL unchanged.
++	 */
++	for (i = 0; i < n; i++) {
++		struct econet_q_tx_ent *e = &q->entry[index];
++		struct desc *desc = &q->desc[index];
++		u32 info;
++
++		indices[i] = index;
++		next_index = e->freelist_next;
++		e->dma_map_page = i != 0;
++		if (i) {
++			skb_frag_t *frag = &skb_shinfo(skb)->frags[i - 1];
+ 
+-	desc = &q->desc[index];
+-	WRITE_ONCE(desc->pkt_addr, addr);
+-	WRITE_ONCE(desc->info, ((struct desc_info) {
+-		.word = FIELD_PREP(DESC_INFO_PKT_LEN_MASK, len)
+-	}));
+-	WRITE_ONCE(desc->next_idx, next_index);
+-	for (int i = 0; i < ARRAY_SIZE(desc->msg.raw); i++)
+-		WRITE_ONCE(desc->msg.raw[i], msg->raw[i]);
+-
+-	e->skb = skb;
+-	e->dma_addr = addr;
+-	e->dma_len = len;
+-	q->freelist_head = next_index;
+-	q->free_count--;
++			e->dma_len = skb_frag_size(frag);
++			e->dma_addr = skb_frag_dma_map(qdma->qdma->eth->dev, frag,
++						       0, e->dma_len, DMA_TO_DEVICE);
++		} else {
++			e->dma_len = skb_headlen(skb);
++			e->dma_addr = dma_map_single(qdma->qdma->eth->dev,
++						     skb->data, e->dma_len,
++						     DMA_TO_DEVICE);
++		}
++		if (dma_mapping_error(qdma->qdma->eth->dev, e->dma_addr)) {
++			e->dma_addr = 0;
++			e->dma_len = 0;
++			goto unmap;
++		}
++		info = FIELD_PREP(DESC_INFO_PKT_LEN_MASK, e->dma_len);
++		if (i + 1 < n)
++			info |= DESC_INFO_NLS;
++		WRITE_ONCE(desc->pkt_addr, lower_32_bits(e->dma_addr));
++		WRITE_ONCE(desc->info, ((struct desc_info) { .word = info }));
++		WRITE_ONCE(desc->next_idx, next_index);
++		for (j = 0; j < ARRAY_SIZE(desc->msg.raw); j++)
++			WRITE_ONCE(desc->msg.raw[j], msg->raw[j]);
++		e->skb = i + 1 == n ? skb : NULL;
++		index = next_index;
++	}
++	q->freelist_head = index;
++	q->free_count -= n;
+ 
+ 	if (skb->dev) {
+ 		/*
+@@ -1067,10 +1102,18 @@ static int econet_qdma_xmit_mips(struct airoha_qdma_mips *qdma, struct sk_buff *
+ 	 * MIPS even though the descriptor ring itself is dma_alloc_coherent().
+ 	 */
+ 	dma_wmb();
+-	econet_wreg((u32)next_index, &q->qchain_regs->tx_cpui);
++	econet_wreg((u32)index, &q->qchain_regs->tx_cpui);
+ 
+-	return q->entry[next_index].freelist_next == 0xffff ?
+-		EBUSY : 0;
++	return q->free_count <= reserve ? EBUSY : 0;
++unmap:
++	while (i--) {
++		struct econet_q_tx_ent *e = &q->entry[indices[i]];
++
++		econet_tx_unmap(qdma, e);
++		e->dma_addr = 0;
++		e->skb = NULL;
++	}
++	return -ENOMEM;
+ }
+ 
+ /* Init functions, no locks, assumed non-concurrent */
+@@ -1936,11 +1979,10 @@ static void econet_qdma_cleanup_tx(struct airoha_qdma_mips *qdma)
+ 		for (j = 0; j < q->ndesc; j++) {
+ 			struct econet_q_tx_ent *e = &q->entry[j];
+ 
+-			if (!e->dma_addr)
++			if (!e->dma_len)
+ 				continue;
+ 
+-			dma_unmap_single(qdma->qdma->eth->dev, e->dma_addr,
+-					 e->dma_len, DMA_TO_DEVICE);
++			econet_tx_unmap(qdma, e);
+ 			dev_kfree_skb_any(e->skb);
+ 			memset(e, 0, sizeof(*e));
+ 
+@@ -3090,10 +3132,7 @@ static int airoha_qdma_tx_napi_poll(struct napi_struct *napi, int budget)
+ 		q->queued--;
+ 
+ 		if (skb) {
+-			struct netdev_queue *txq;
+-
+-			txq = skb_get_tx_queue(skb->dev, skb);
+-			netdev_tx_completed_queue(txq, 1, skb->len);
++			airoha_tx_complete(skb);
+ 			dev_kfree_skb_any(skb);
+ 		}
+ 
+@@ -4173,10 +4212,18 @@ static netdev_tx_t __econet_qdma_xmit(struct sk_buff *skb, struct net_device *de
+ 
+ 	txq = netdev_get_tx_queue(dev, qid);
+ 
+-	/* Non-linear skbs are unsupported, we shouldn't get them but
+-	 * if we do, we'll attempt to linearize. */
+-	if (skb_linearize(skb))
++	/* Only the v1 engines accept chained payload descriptors. */
++	if ((airoha_tso_version(port->eth) != AIROHA_TSO_V1 ||
++	     (xpon && xpon_info.oam) || skb_has_frag_list(skb)) &&
++	    skb_linearize(skb))
+ 		goto drop;
++	if (skb_is_gso(skb)) {
++		if (airoha_tso_version(port->eth) != AIROHA_TSO_V1 ||
++		    (xpon && xpon_info.oam) || airoha_tso_prepare(skb))
++			goto drop;
++		/* EN7528: TSO is word 1 bit 28, not word 0 bit 10. */
++		msg.etx.bitfield_1 |= EN7528_ETX_TSO | ETX_TCO | ETX_ICO;
++	}
+ 
+ 	/*
+ 	 * Keep the EN751221 PWAN descriptor layout unchanged, but make sure
+@@ -5129,7 +5176,9 @@ static int airoha_retire_channel(struct net_device *netdev,
+ {
+ 	struct airoha_gdm_common *common = airoha_gdm_common_from_netdev(netdev);
+ 	struct airoha_retire_txbuf txbuf;
++	struct airoha_gdm_dev *dev;
+ 	struct airoha_eth *eth;
++	bool stopped;
+ 	u32 hwf;
+ 	int ret;
+ 
+@@ -5138,6 +5187,7 @@ static int airoha_retire_channel(struct net_device *netdev,
+ 	if (channel >= 32)
+ 		return -EINVAL;
+ 
++	dev = container_of(common, struct airoha_gdm_dev, common);
+ 	eth = common->eth;
+ 	if (airoha_is(eth, econet_en751221) && airoha_pse_iq_abnormal(eth)) {
+ 		netdev_info(netdev,
+@@ -5146,6 +5196,12 @@ static int airoha_retire_channel(struct net_device *netdev,
+ 		return 0;
+ 	}
+ 
++	stopped = READ_ONCE(dev->xpon_tx_stopped);
++	if (airoha_tso_version(eth) == AIROHA_TSO_V2) {
++		WRITE_ONCE(dev->xpon_tx_stopped, true);
++		synchronize_net();
++		airoha_tso_flush(eth, NULL);
++	}
+ 	hwf = airoha_fe_rr(eth, REG_CDM_HWF_CHN_EN(2));
+ 	airoha_fe_wr(eth, REG_CDM_HWF_CHN_EN(2), hwf & ~BIT(channel));
+ 	airoha_retire_txbuf_limit(eth, &txbuf);
+@@ -5156,6 +5212,8 @@ static int airoha_retire_channel(struct net_device *netdev,
+ 	airoha_retire_txbuf_restore(eth, &txbuf);
+ 	airoha_fe_wr(eth, REG_CDM_HWF_CHN_EN(2), hwf);
+ 
++	if (airoha_tso_version(eth) == AIROHA_TSO_V2)
++		WRITE_ONCE(dev->xpon_tx_stopped, stopped);
+ 	return ret;
+ }
+ 
+@@ -5255,6 +5313,7 @@ static void airoha_retire_all(struct net_device *netdev)
+ 	 */
+ 	WRITE_ONCE(dev->xpon_tx_stopped, true);
+ 	synchronize_net();
++	airoha_tso_flush(eth, NULL);
+ 
+ 	if (eth->channel_retire)
+ 		airoha_retire_release_all(eth, netdev,
+@@ -7455,6 +7514,7 @@ static int airoha_dev_stop(struct net_device *netdev)
+ 	airoha_gdm_xdsl_stop(dev);
+ 	airoha_gdm_xpon_stop(dev);
+ 	netif_tx_disable(netdev);
++	airoha_tso_flush(dev->eth, netdev);
+ 	qdma = airoha_qdma_deref(dev);
+ 	airoha_gdm_update_hw_stats(dev);
+ 
+@@ -7853,8 +7913,8 @@ int airoha_get_fe_port(struct airoha_gdm_dev *dev)
+ static bool airoha_gdm2_needs_linear_tx(const struct airoha_gdm_dev *dev)
+ {
+ 	return airoha_is(dev->eth, airoha_en7523) &&
+-	       (dev->flags & AIROHA_PRIV_F_XPON_MANAGED) &&
+-	       dev->port->id == AIROHA_GDM2_IDX;
++	        dev->port->id == AIROHA_GDM2_IDX &&
++	        airoha_tso_version(dev->eth) != AIROHA_TSO_V2;
+ }
+ 
+ static netdev_features_t airoha_dev_fix_features(struct net_device *netdev,
+@@ -8190,7 +8250,8 @@ static netdev_tx_t __airoha_dev_xmit(struct sk_buff *skb,
+ 
+ 	/* TSO: fill MSS info in tcp checksum field */
+ 	if (!xpon_oam && skb_is_gso(skb)) {
+-		if (skb_cow_head(skb, 0))
++		if (airoha_tso_version(dev->eth) != AIROHA_TSO_NONE ?
++		    airoha_tso_prepare(skb) : skb_cow_head(skb, 0))
+ 			goto error;
+ 
+ 		if (skb_shinfo(skb)->gso_type & (SKB_GSO_TCPV4 |
+@@ -8227,6 +8288,15 @@ static netdev_tx_t __airoha_dev_xmit(struct sk_buff *skb,
+ 	if (xpon_oam)
+ 		msg1 |= QDMA_ETH_TXMSG_NO_DROP;
+ 
++	if (!xpon_oam && airoha_tso_version(dev->eth) == AIROHA_TSO_V2 &&
++	    (skb_is_nonlinear(skb) || skb_is_gso(skb))) {
++		netdev_tx_t ret;
++
++		ret = airoha_tso_xmit(skb, netdev, qdma->id, msg0, msg1);
++		rcu_read_unlock();
++		return ret;
++	}
++
+ 	q = &qdma->q_tx[qid];
+ 	if (WARN_ON_ONCE(!q->ndesc))
+ 		goto error;
+@@ -8305,6 +8375,7 @@ static netdev_tx_t __airoha_dev_xmit(struct sk_buff *skb,
+ 		q->txq_stopped = true;
+ 	}
+ 
++	dma_wmb();
+ 	if (netif_xmit_stopped(txq) || !netdev_xmit_more())
+ 		airoha_qdma_rmw(qdma, REG_TX_CPU_IDX(qid),
+ 				TX_RING_CPU_IDX_MASK,
+@@ -8419,7 +8490,9 @@ static int airoha_xpon_xmit_oam(struct net_device *netdev, struct sk_buff *skb,
+ 	 */
+ 	skb->dev = netdev;
+ 	skb_set_queue_mapping(skb, 7);
++	__netif_tx_lock_bh(skb_get_tx_queue(netdev, skb));
+ 	ret = __airoha_dev_xmit(skb, netdev, &info);
++	__netif_tx_unlock_bh(netdev_get_tx_queue(netdev, 7));
+ 	return ret == NETDEV_TX_BUSY ? -EBUSY : 0;
+ }
+ 
+@@ -9459,6 +9532,7 @@ static const struct net_device_ops airoha_netdev_ops = {
+ 	.ndo_change_mtu		= airoha_gdm_dev_change_mtu,
+ 	.ndo_select_queue	= airoha_dev_select_queue,
+ 	.ndo_fix_features	= airoha_dev_fix_features,
++	.ndo_features_check	= airoha_tso_features_check,
+ 	.ndo_set_features	= airoha_dev_set_features,
+ 	.ndo_start_xmit		= airoha_dev_xmit,
+ 	.ndo_get_stats64	= airoha_gdm_dev_get_stats64,
+@@ -9774,6 +9848,12 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
+ 		netdev->features &= ~unsupported;
+ 		netdev->vlan_features &= ~unsupported;
+ 	}
++	if (airoha_tso_version(eth) != AIROHA_TSO_NONE) {
++		netdev->hw_features |= AIROHA_QDMA_TSO_HW_FEATURES;
++		netdev->features |= AIROHA_QDMA_TSO_HW_FEATURES;
++		netdev->vlan_features |= AIROHA_QDMA_TSO_HW_FEATURES;
++		netif_set_tso_max_size(netdev, U16_MAX);
++	}
+ 
+ 	netdev->watchdog_timeo = 5 * HZ;
+ 	SET_NETDEV_DEV(netdev, eth->dev);
+@@ -9812,11 +9892,12 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
+ 	u64_stats_init(&dev->stats.syncp);
+ 	dev->port = port;
+ 	dev->eth = eth;
++	spin_lock_init(&dev->tx_complete_lock);
+ 	dev->nbq = nbq;
+ 	/* EN7523 GDM2 stalls with SG chains submitted to the WAN QDMA.
+ 	 * The vendor TSO v2 path handles nonlinear packets through a separate
+-	 * PDMA engine. Use software segmentation and linearization until that
+-	 * path is implemented, including for VLAN upper devices.
++	 * PDMA engine. Keep software segmentation and linearization when the
++	 * TSO v2 option is disabled, including for VLAN upper devices.
+ 	 */
+ 	if (airoha_gdm2_needs_linear_tx(dev)) {
+ 		netdev->hw_features &= ~AIROHA_QDMA_TSO_HW_FEATURES;
+@@ -10100,6 +10181,7 @@ static void airoha_eth_cleanup(struct airoha_eth *eth)
+ 		}
+ 	}
+ 
++	airoha_tso_cleanup(eth);
+ 	if (test_bit(DEV_STATE_INITIALIZED, &eth->state))
+ 		airoha_hw_cleanup(eth);
+ 
+@@ -10850,6 +10932,10 @@ static int airoha_eth_probe(struct platform_device *pdev)
+ 		}
+ 	}
+ 
++	err = airoha_tso_init(eth);
++	if (err)
++		goto error;
++
+ 	/* FE error is a distinct interrupt on EN7516/EN7527/EN7528 and the
+ 	 * newer Airoha FE. Do not depend on its positional index in the IRQ
+ 	 * array; EN751221 legitimately has no separate FE-error line.
+@@ -11205,7 +11291,6 @@ void airoha_eth_xdsl_update_link(struct net_device *netdev,
+ EXPORT_SYMBOL_GPL(airoha_eth_xdsl_update_link);
+ 
+ static const struct of_device_id airoha_eth_of_match[] = {
+-	{ .compatible = "airoha,an7552-eth", .data = &an7552_soc_data },
+ 	{ .compatible = "econet,en751221-eth", .data = &econet_en751221_soc_data },
+ 	{ .compatible = "econet,en751627-eth", .data = &econet_en7528_soc_data },
+ 	{ .compatible = "econet,en7528-eth", .data = &econet_en7528_soc_data },
+@@ -11213,6 +11298,7 @@ static const struct of_device_id airoha_eth_of_match[] = {
+ 	{ .compatible = "airoha,en7523-eth", .data = &airoha_en7523_soc_data },
+ 	{ .compatible = "airoha,en7581-eth", .data = &airoha_en7581_soc_data },
+ 	{ .compatible = "airoha,an7583-eth", .data = &airoha_an7583_soc_data },
++	{ .compatible = "airoha,an7552-eth", .data = &an7552_soc_data },
+ 	{ /* sentinel */ }
+ };
+ MODULE_DEVICE_TABLE(of, airoha_eth_of_match);
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -1103,6 +1103,8 @@ struct airoha_gdm_dev {
+ 		struct gdm __iomem *econet_regs;
+ 	};
+ 	spinlock_t reg_lock;
++	/* QDMA and TSO v2 can complete the same netdev queue concurrently. */
++	spinlock_t tx_complete_lock;
+ 	bool g2_stats;
+ 	u8 fport;
+ 
+@@ -1337,6 +1339,14 @@ struct airoha_eth_soc_data {
+ 	} ops;
+ };
+ 
++struct airoha_tso;
++
++enum airoha_tso_version {
++	AIROHA_TSO_NONE,
++	AIROHA_TSO_V1,
++	AIROHA_TSO_V2,
++};
++
+ struct airoha_eth {
+ 	struct device *dev;
+ 
+@@ -1357,6 +1367,7 @@ struct airoha_eth {
+ 	struct reset_control_bulk_data *xsi_rsts;
+ 
+ 	struct net_device *napi_dev;
++	struct airoha_tso *tso;
+ 	int fe_irq;
+ 
+ 	struct airoha_qdma qdma[AIROHA_MAX_NUM_QDMA];
+@@ -1413,19 +1424,20 @@ static inline bool airoha_is_lan_gdm_dev(struct airoha_gdm_dev *dev)
+ 	return !(dev->flags & AIROHA_PRIV_F_WAN);
+ }
+ 
+-#define airoha_is(eth, ...)                                        \
++#define get_airoha_target(_eth)		(_eth)->soc->version
++#define airoha_is(_eth, ...)                                        \
+ 	({                                                         \
+ 		const enum airoha_ids _ids[] = { __VA_ARGS__, 0 }; \
+ 		bool _found = false;                               \
+ 		for (int _i = 0; _ids[_i] != 0; _i++) {            \
+-			if (_ids[_i] == (eth)->soc->version) {     \
++			if (_ids[_i] == get_airoha_target(_eth)) {     \
+ 				_found = true;                     \
+ 				break;                             \
+ 			}                                          \
+ 		}                                                  \
+ 		_found;                                            \
+ 	})
+-
++	
+ static inline bool airoha_is_econet(struct airoha_eth *eth)
+ {
+ 	return airoha_is(eth, econet_en751221, econet_en7528, econet_en7580);
+@@ -1725,6 +1737,8 @@ enum etx_vlan_type {
+ #define ETX_UCO BIT(30)
+ #define ETX_TCO BIT(29)
+ #define ETX_SCO BIT(28)
++/* EN7528 reuses bit 28 for TSO v1. */
++#define EN7528_ETX_TSO BIT(28)
+ #define ETX_UDF_PMAP_MASK GENMASK(27, 22)
+ #define ETX_FPORT_MASK GENMASK(21, 19)
+ #define ETX_VLAN_EN BIT(18)
+@@ -5047,6 +5061,7 @@ struct econet_q_tx_ent {
+ 	dma_addr_t dma_addr;
+ 	u16 dma_len;
+ 	u16 freelist_next;
++	bool dma_map_page;
+ };
+ 
+ struct econet_q_tx {
+diff --git a/drivers/net/ethernet/airoha/airoha_tso.c b/drivers/net/ethernet/airoha/airoha_tso.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/airoha/airoha_tso.c
+@@ -0,0 +1,516 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* EcoNet QDMA TSO v1 and EN7523 PDMA TSO v2. */
++#include <linux/delay.h>
++#include <linux/hrtimer.h>
++#include <linux/ip.h>
++#include <linux/ipv6.h>
++#include <linux/reset.h>
++#include <linux/tcp.h>
++#include <net/ip.h>
++#include <net/ipv6.h>
++
++#include "airoha_tso.h"
++#include "airoha_regs.h"
++
++#define TSO_RINGS		2
++#define TSO_DESCS		1024
++#define TSO_RING_BASE(n)	(0x800 + (n) * 0x10)
++#define TSO_RING_SIZE(n)	(0x804 + (n) * 0x10)
++#define TSO_RING_CPU(n)		(0x808 + (n) * 0x10)
++#define TSO_RING_DMA(n)		(0x80c + (n) * 0x10)
++#define TSO_GLO_CFG		0xa04
++#define TSO_TX_ENABLE		BIT(0)
++#define TSO_DELAY_INT		0xa0c
++#define TSO_INT_STATUS		0xa20
++#define TSO_INT_MASK		0xa28
++#define TSO_POLL_NS		(100 * NSEC_PER_USEC)
++
++struct airoha_tso_entry {
++	dma_addr_t dma;
++	u32 len;
++	bool page;
++	struct sk_buff *skb;
++};
++
++struct airoha_tso_ring {
++	/* Protect descriptor ownership and producer/reclaim indices. */
++	spinlock_t lock;
++	struct airoha_qdma_desc *desc;
++	dma_addr_t dma;
++	struct airoha_tso_entry *entry;
++	u16 head, tail, queued;
++};
++
++struct airoha_tso {
++	struct airoha_eth *eth;
++	struct reset_control *rst;
++	struct airoha_tso_ring ring[TSO_RINGS];
++	struct napi_struct napi;
++	struct hrtimer timer;
++	/* Serialize flush and reset of the shared PDMA engine. */
++	struct mutex mutex;
++	bool running;
++	bool napi_enabled;
++	bool programmed;
++	u8 next_ring;
++};
++
++enum airoha_tso_version airoha_tso_version(struct airoha_eth *eth)
++{
++	if (!IS_ENABLED(CONFIG_NET_AIROHA_TSO))
++		return AIROHA_TSO_NONE;
++
++	switch (get_airoha_target(eth)) {
++	case econet_en751627:
++	case econet_en7528:
++	case econet_en7580:
++		return AIROHA_TSO_V1;
++	case airoha_en7523:
++	case airoha_en7581:
++	case airoha_an7583:
++	case airoha_an7552:
++		return AIROHA_TSO_V2;
++	default:
++		break;
++	}
++
++	return AIROHA_TSO_NONE;
++}
++
++/* Restrict the hardware parser to plain TCP/IP. The core segments other
++ * GSO types, tunnels, IP options and extension headers in software.
++ */
++static bool airoha_tso_valid(struct sk_buff *skb)
++{
++	unsigned int type = skb_shinfo(skb)->gso_type;
++	unsigned int off = skb_network_offset(skb);
++	unsigned int transport = skb_transport_offset(skb);
++	struct ipv6hdr ip6h, *ip6;
++	struct tcphdr th, *tcp;
++	struct iphdr iph, *ip;
++
++	if (skb->encapsulation || skb_has_frag_list(skb) ||
++	    skb->len > U16_MAX || !skb_shinfo(skb)->gso_size ||
++	    (type & ~(SKB_GSO_TCPV4 | SKB_GSO_TCPV6 | SKB_GSO_DODGY)) ||
++	    (type & (SKB_GSO_TCPV4 | SKB_GSO_TCPV6)) ==
++	    (SKB_GSO_TCPV4 | SKB_GSO_TCPV6))
++		return false;
++	tcp = skb_header_pointer(skb, transport, sizeof(th), &th);
++	if (!tcp || tcp->doff < 5 || transport + tcp->doff * 4 > skb->len)
++		return false;
++	if (type & SKB_GSO_TCPV4) {
++		ip = skb_header_pointer(skb, off, sizeof(iph), &iph);
++		return ip && ip->version == 4 && ip->ihl == 5 &&
++		       ip->protocol == IPPROTO_TCP && !ip_is_fragment(ip) &&
++		       skb_transport_offset(skb) == off + sizeof(iph);
++	}
++	if (type & SKB_GSO_TCPV6) {
++		ip6 = skb_header_pointer(skb, off, sizeof(ip6h), &ip6h);
++		return ip6 && ip6->version == 6 && ip6->nexthdr == IPPROTO_TCP &&
++		       skb_transport_offset(skb) == off + sizeof(ip6h);
++	}
++	return false;
++}
++
++netdev_features_t airoha_tso_features_check(struct sk_buff *skb,
++					    struct net_device *dev,
++					    netdev_features_t features)
++{
++	struct airoha_gdm_dev *gdm = netdev_priv(dev);
++
++	if (airoha_tso_version(gdm->eth) != AIROHA_TSO_NONE &&
++	    skb_is_gso(skb) && !airoha_tso_valid(skb))
++		features &= ~NETIF_F_GSO_MASK;
++	return features;
++}
++
++int airoha_tso_prepare(struct sk_buff *skb)
++{
++	unsigned int len;
++
++	if (!skb_is_gso(skb))
++		return 0;
++	if (!airoha_tso_valid(skb))
++		return -EOPNOTSUPP;
++	len = skb_transport_offset(skb) + sizeof(struct tcphdr);
++	if (skb_ensure_writable(skb, len))
++		return -ENOMEM;
++	len = skb_transport_offset(skb) + tcp_hdrlen(skb);
++	if (!pskb_may_pull(skb, len))
++		return -ENOMEM;
++	/* The SDK passes the MSS in the TCP checksum field. */
++	tcp_hdr(skb)->check = htons(skb_shinfo(skb)->gso_size);
++	return 0;
++}
++
++void airoha_tx_complete(struct sk_buff *skb)
++{
++	struct airoha_gdm_dev *dev = netdev_priv(skb->dev);
++
++	spin_lock_bh(&dev->tx_complete_lock);
++	netdev_tx_completed_queue(skb_get_tx_queue(skb->dev, skb), 1, skb->len);
++	spin_unlock_bh(&dev->tx_complete_lock);
++}
++
++static void airoha_tso_unmap(struct airoha_tso *tso,
++			     struct airoha_tso_entry *e)
++{
++	if (e->page)
++		dma_unmap_page(tso->eth->dev, e->dma, e->len, DMA_TO_DEVICE);
++	else
++		dma_unmap_single(tso->eth->dev, e->dma, e->len, DMA_TO_DEVICE);
++	if (e->skb) {
++		struct net_device *dev = e->skb->dev;
++
++		airoha_tx_complete(e->skb);
++		dev_kfree_skb_any(e->skb);
++		dev_put(dev);
++	}
++	memset(e, 0, sizeof(*e));
++}
++
++/* Recycle in order only after both DMA_IDX and DONE have passed the entry.
++ * Never discard a completion just because descriptor writeback is late.
++ */
++static int airoha_tso_reap(struct airoha_tso *tso, int id, int budget)
++{
++	struct airoha_tso_ring *q = &tso->ring[id];
++	u32 dma = airoha_fe_rr(tso->eth, TSO_RING_DMA(id));
++	int done = 0;
++
++	if (unlikely(dma >= TSO_DESCS))
++		return 0;
++	spin_lock_bh(&q->lock);
++	while (q->queued && q->tail != dma && done < budget) {
++		struct airoha_qdma_desc *d = &q->desc[q->tail];
++
++		if (!(le32_to_cpu(READ_ONCE(d->ctrl)) & QDMA_DESC_DONE_MASK))
++			break;
++		dma_rmb();
++		airoha_tso_unmap(tso, &q->entry[q->tail]);
++		q->tail = (q->tail + 1) % TSO_DESCS;
++		q->queued--;
++		done++;
++	}
++	spin_unlock_bh(&q->lock);
++	return done;
++}
++
++static bool airoha_tso_pending(struct airoha_tso *tso)
++{
++	return READ_ONCE(tso->ring[0].queued) ||
++	       READ_ONCE(tso->ring[1].queued);
++}
++
++static void airoha_tso_wake(struct airoha_tso *tso,
++			    struct net_device *stopping)
++{
++	int i, j;
++
++	for (i = 0; i < tso->eth->soc->max_gdm_ports; i++) {
++		struct airoha_gdm_port *port = tso->eth->ports[i];
++
++		if (!port)
++			continue;
++		for (j = 0; j < ARRAY_SIZE(port->devs); j++) {
++			struct airoha_gdm_dev *dev = port->devs[j];
++
++			if (dev && dev->common.netdev != stopping &&
++			    netif_running(dev->common.netdev) &&
++			    !READ_ONCE(dev->xpon_tx_stopped))
++				netif_tx_wake_all_queues(dev->common.netdev);
++		}
++	}
++}
++
++static enum hrtimer_restart airoha_tso_timer(struct hrtimer *timer)
++{
++	struct airoha_tso *tso = container_of(timer, struct airoha_tso, timer);
++
++	if (READ_ONCE(tso->running))
++		napi_schedule(&tso->napi);
++	return HRTIMER_NORESTART;
++}
++
++static int airoha_tso_poll(struct napi_struct *napi, int budget)
++{
++	struct airoha_tso *tso = container_of(napi, struct airoha_tso, napi);
++	int done = 0, i;
++
++	if (!budget)
++		return 0;
++	for (i = 0; i < TSO_RINGS && done < budget; i++)
++		done += airoha_tso_reap(tso, (tso->next_ring + i) % TSO_RINGS,
++				       budget - done);
++	tso->next_ring ^= 1;
++	if (done)
++		airoha_tso_wake(tso, NULL);
++	if (done < budget && napi_complete_done(napi, 0) &&
++	    READ_ONCE(tso->running) && airoha_tso_pending(tso))
++		hrtimer_start(&tso->timer, ns_to_ktime(TSO_POLL_NS), HRTIMER_MODE_REL);
++	return done;
++}
++
++netdev_tx_t airoha_tso_xmit(struct sk_buff *skb, struct net_device *dev,
++			    unsigned int ring, u32 msg0, u32 msg1)
++{
++	struct airoha_gdm_dev *gdm = netdev_priv(dev);
++	struct airoha_tso *tso = gdm->eth->tso;
++	struct netdev_queue *txq = skb_get_tx_queue(dev, skb);
++	struct airoha_tso_ring *q;
++	unsigned int n = 1 + skb_shinfo(skb)->nr_frags, i;
++	u16 index;
++
++	if (unlikely(!tso || ring >= TSO_RINGS || !skb_headlen(skb) ||
++		     skb_has_frag_list(skb) || skb->len > U16_MAX))
++		goto drop;
++	q = &tso->ring[ring];
++	spin_lock_bh(&q->lock);
++	if (!READ_ONCE(tso->running) || q->queued + n >= TSO_DESCS) {
++		netif_tx_stop_queue(txq);
++		spin_unlock_bh(&q->lock);
++		return NETDEV_TX_BUSY;
++	}
++	index = q->head;
++	for (i = 0; i < n; i++) {
++		struct airoha_tso_entry *e = &q->entry[index];
++		struct airoha_qdma_desc *d = &q->desc[index];
++		u32 ctrl;
++
++		e->page = i != 0;
++		if (i) {
++			skb_frag_t *frag = &skb_shinfo(skb)->frags[i - 1];
++
++			e->len = skb_frag_size(frag);
++			e->dma = skb_frag_dma_map(tso->eth->dev, frag, 0,
++						  e->len, DMA_TO_DEVICE);
++		} else {
++			e->len = skb_headlen(skb);
++			e->dma = dma_map_single(tso->eth->dev, skb->data,
++						e->len, DMA_TO_DEVICE);
++		}
++		if (dma_mapping_error(tso->eth->dev, e->dma)) {
++			memset(e, 0, sizeof(*e));
++			goto unmap;
++		}
++		index = (index + 1) % TSO_DESCS;
++		ctrl = e->len | (i + 1 < n ? QDMA_DESC_MORE_MASK : 0);
++		WRITE_ONCE(d->addr, cpu_to_le32(lower_32_bits(e->dma)));
++		WRITE_ONCE(d->data, cpu_to_le32(index));
++		WRITE_ONCE(d->msg0, cpu_to_le32(msg0));
++		/* SDK tso_transmit_packet(): preserve the nine-bit destination
++		 * (GDM + NBQ), and route the assembled packet via HWF.
++		 */
++		WRITE_ONCE(d->msg1, cpu_to_le32(msg1 | QDMA_ETH_TXMSG_HWF_MASK));
++		WRITE_ONCE(d->msg2, 0);
++		WRITE_ONCE(d->msg3, 0);
++		WRITE_ONCE(d->ctrl, cpu_to_le32(ctrl));
++	}
++	q->entry[(index + TSO_DESCS - 1) % TSO_DESCS].skb = skb;
++	dev_hold(dev);
++	q->head = index;
++	q->queued += n;
++	skb_tx_timestamp(skb);
++	netdev_tx_sent_queue(txq, skb->len);
++	if (TSO_DESCS - q->queued <= MAX_SKB_FRAGS + 1)
++		netif_tx_stop_queue(txq);
++	dma_wmb();
++	airoha_fe_wr(tso->eth, TSO_RING_CPU(ring), q->head);
++	spin_unlock_bh(&q->lock);
++	napi_schedule(&tso->napi);
++	return NETDEV_TX_OK;
++
++unmap:
++	/* The CPU index and BQL have not been published. Roll back only the
++	 * successful maps; ownership of the skb remains with this function.
++	 */
++	while (i--) {
++		index = (index + TSO_DESCS - 1) % TSO_DESCS;
++		airoha_tso_unmap(tso, &q->entry[index]);
++	}
++	spin_unlock_bh(&q->lock);
++drop:
++	dev->stats.tx_dropped++;
++	dev_kfree_skb_any(skb);
++	return NETDEV_TX_OK;
++}
++
++static void airoha_tso_program(struct airoha_tso *tso)
++{
++	int i, j;
++
++	airoha_fe_wr(tso->eth, TSO_INT_MASK, 0);
++	airoha_fe_wr(tso->eth, TSO_DELAY_INT, 0);
++	airoha_fe_wr(tso->eth, TSO_INT_STATUS, GENMASK(1, 0));
++	for (i = 0; i < TSO_RINGS; i++) {
++		struct airoha_tso_ring *q = &tso->ring[i];
++
++		q->head = 0;
++		q->tail = 0;
++		q->queued = 0;
++		memset(q->desc, 0, sizeof(*q->desc) * TSO_DESCS);
++		for (j = 0; j < TSO_DESCS; j++)
++			q->desc[j].ctrl = cpu_to_le32(QDMA_DESC_DONE_MASK);
++		airoha_fe_wr(tso->eth, TSO_RING_BASE(i), lower_32_bits(q->dma));
++		airoha_fe_wr(tso->eth, TSO_RING_SIZE(i), TSO_DESCS);
++		airoha_fe_wr(tso->eth, TSO_RING_CPU(i), 0);
++		airoha_fe_wr(tso->eth, TSO_RING_DMA(i), 0);
++	}
++	dma_wmb();
++	airoha_fe_set(tso->eth, TSO_GLO_CFG, TSO_TX_ENABLE);
++	tso->programmed = true;
++}
++
++/* Stop producers before draining, including during ndo_stop/BQL reset and
++ * GPON retirement. A timed-out engine is reset before any map is released.
++ */
++static int airoha_tso_quiesce(struct airoha_tso *tso)
++{
++	unsigned long timeout = jiffies + msecs_to_jiffies(100);
++	int i, err;
++
++	WRITE_ONCE(tso->running, false);
++	for (i = 0; i < TSO_RINGS; i++) {
++		spin_lock_bh(&tso->ring[i].lock);
++		spin_unlock_bh(&tso->ring[i].lock);
++	}
++	hrtimer_cancel(&tso->timer);
++	if (tso->napi_enabled)
++		napi_disable(&tso->napi);
++	tso->napi_enabled = false;
++	/* NAPI may have rearmed the timer while it was being disabled. */
++	hrtimer_cancel(&tso->timer);
++	do {
++		for (i = 0; i < TSO_RINGS; i++)
++			airoha_tso_reap(tso, i, TSO_DESCS);
++		if (!airoha_tso_pending(tso))
++			break;
++		usleep_range(100, 200);
++	} while (time_before(jiffies, timeout));
++	airoha_fe_clear(tso->eth, TSO_GLO_CFG, TSO_TX_ENABLE);
++	airoha_fe_rr(tso->eth, TSO_GLO_CFG);
++	/* The EN7523 reset named "pdma" is QDMA0/LAN, not this engine.
++	 * Only the dedicated TDMA reset can stop TSO without losing the
++	 * QDMA queue configuration while the Ethernet interfaces are live.
++	 */
++	err = reset_control_assert(tso->rst);
++	if (err)
++		return err;
++	usleep_range(1000, 2000);
++	tso->programmed = false;
++	for (i = 0; i < TSO_RINGS; i++) {
++		struct airoha_tso_ring *q = &tso->ring[i];
++
++		while (q->queued) {
++			airoha_tso_unmap(tso, &q->entry[q->tail]);
++			q->tail = (q->tail + 1) % TSO_DESCS;
++			q->queued--;
++		}
++	}
++	return 0;
++}
++
++void airoha_tso_flush(struct airoha_eth *eth, struct net_device *stopping)
++{
++	struct airoha_tso *tso = eth->tso;
++	int err;
++
++	if (!tso)
++		return;
++	mutex_lock(&tso->mutex);
++	if (!tso->running)
++		goto out;
++	err = airoha_tso_quiesce(tso);
++	if (!err)
++		err = reset_control_deassert(tso->rst);
++	if (err) {
++		dev_err(eth->dev, "TSO v2 reset failed: %d; TX remains disabled\n", err);
++		goto out;
++	}
++	airoha_tso_program(tso);
++	napi_enable(&tso->napi);
++	tso->napi_enabled = true;
++	WRITE_ONCE(tso->running, true);
++	airoha_tso_wake(tso, stopping);
++out:
++	mutex_unlock(&tso->mutex);
++}
++
++void airoha_tso_cleanup(struct airoha_eth *eth)
++{
++	struct airoha_tso *tso = eth->tso;
++	int i;
++
++	if (!tso)
++		return;
++	if (tso->programmed && airoha_tso_quiesce(tso)) {
++		/* Retain DMA buffers rather than free memory still owned by a
++		 * controller which could not be stopped/reset.
++		 */
++		dev_err(eth->dev, "TSO v2 failed to stop; retaining DMA buffers\n");
++		netif_napi_del(&tso->napi);
++		eth->tso = NULL;
++		return;
++	}
++	netif_napi_del(&tso->napi);
++	for (i = 0; i < TSO_RINGS; i++) {
++		struct airoha_tso_ring *q = &tso->ring[i];
++
++		if (q->desc)
++			dma_free_coherent(eth->dev, sizeof(*q->desc) * TSO_DESCS,
++					  q->desc, q->dma);
++		kfree(q->entry);
++	}
++	eth->tso = NULL;
++	kfree(tso);
++}
++
++int airoha_tso_init(struct airoha_eth *eth)
++{
++	struct reset_control *rst;
++	struct airoha_tso *tso;
++	int i, err = -ENOMEM;
++
++	if (airoha_tso_version(eth) != AIROHA_TSO_V2)
++		return 0;
++	rst = devm_reset_control_get_exclusive(eth->dev, "tdma");
++	if (IS_ERR(rst))
++		return dev_err_probe(eth->dev, PTR_ERR(rst),
++				     "TSO v2 requires the dedicated tdma reset\n");
++	tso = kzalloc(sizeof(*tso), GFP_KERNEL);
++	if (!tso)
++		return -ENOMEM;
++	tso->eth = eth;
++	tso->rst = rst;
++	eth->tso = tso;
++	mutex_init(&tso->mutex);
++	hrtimer_setup(&tso->timer, airoha_tso_timer, CLOCK_MONOTONIC,
++		      HRTIMER_MODE_REL);
++	netif_napi_add_tx(eth->napi_dev, &tso->napi, airoha_tso_poll);
++	for (i = 0; i < TSO_RINGS; i++) {
++		struct airoha_tso_ring *q = &tso->ring[i];
++
++		spin_lock_init(&q->lock);
++		q->entry = kcalloc(TSO_DESCS, sizeof(*q->entry), GFP_KERNEL);
++		q->desc = dma_alloc_coherent(eth->dev,
++					     sizeof(*q->desc) * TSO_DESCS,
++					     &q->dma, GFP_KERNEL);
++		if (!q->entry || !q->desc)
++			goto error;
++	}
++	err = reset_control_assert(tso->rst);
++	if (err)
++		goto error;
++	usleep_range(1000, 2000);
++	err = reset_control_deassert(tso->rst);
++	if (err)
++		goto error;
++	airoha_tso_program(tso);
++	napi_enable(&tso->napi);
++	tso->napi_enabled = true;
++	WRITE_ONCE(tso->running, true);
++	return 0;
++error:
++	airoha_tso_cleanup(eth);
++	return err;
++}
+diff --git a/drivers/net/ethernet/airoha/airoha_tso.h b/drivers/net/ethernet/airoha/airoha_tso.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/airoha/airoha_tso.h
+@@ -0,0 +1,74 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _AIROHA_TSO_H
++#define _AIROHA_TSO_H
++
++#include <linux/errno.h>
++
++#include "airoha_eth.h"
++
++/* Build airoha_tso.o only when CONFIG_NET_AIROHA_TSO is enabled. */
++#ifdef CONFIG_NET_AIROHA_TSO
++enum airoha_tso_version airoha_tso_version(struct airoha_eth *eth);
++netdev_features_t airoha_tso_features_check(struct sk_buff *skb,
++					    struct net_device *dev,
++					    netdev_features_t features);
++int airoha_tso_prepare(struct sk_buff *skb);
++void airoha_tx_complete(struct sk_buff *skb);
++int airoha_tso_init(struct airoha_eth *eth);
++void airoha_tso_cleanup(struct airoha_eth *eth);
++void airoha_tso_flush(struct airoha_eth *eth, struct net_device *stopping);
++netdev_tx_t airoha_tso_xmit(struct sk_buff *skb, struct net_device *dev,
++			    unsigned int ring, u32 msg0, u32 msg1);
++#else
++static inline enum airoha_tso_version
++airoha_tso_version(struct airoha_eth *eth)
++{
++	return AIROHA_TSO_NONE;
++}
++
++static inline netdev_features_t
++airoha_tso_features_check(struct sk_buff *skb, struct net_device *dev,
++			  netdev_features_t features)
++{
++	return features;
++}
++
++static inline int airoha_tso_prepare(struct sk_buff *skb)
++{
++	return skb_is_gso(skb) ? -EOPNOTSUPP : 0;
++}
++
++/* QDMA still needs BQL completion accounting with TSO disabled. */
++static inline void airoha_tx_complete(struct sk_buff *skb)
++{
++	struct airoha_gdm_dev *dev = netdev_priv(skb->dev);
++
++	spin_lock_bh(&dev->tx_complete_lock);
++	netdev_tx_completed_queue(skb_get_tx_queue(skb->dev, skb), 1, skb->len);
++	spin_unlock_bh(&dev->tx_complete_lock);
++}
++
++static inline int airoha_tso_init(struct airoha_eth *eth)
++{
++	return 0;
++}
++
++static inline void airoha_tso_cleanup(struct airoha_eth *eth)
++{
++}
++
++static inline void airoha_tso_flush(struct airoha_eth *eth,
++				    struct net_device *stopping)
++{
++}
++
++static inline netdev_tx_t
++airoha_tso_xmit(struct sk_buff *skb, struct net_device *dev,
++		unsigned int ring, u32 msg0, u32 msg1)
++{
++	/* Unreachable with AIROHA_TSO_NONE; leave skb ownership to the caller. */
++	return NETDEV_TX_BUSY;
++}
++#endif
++
++#endif /* _AIROHA_TSO_H */
+

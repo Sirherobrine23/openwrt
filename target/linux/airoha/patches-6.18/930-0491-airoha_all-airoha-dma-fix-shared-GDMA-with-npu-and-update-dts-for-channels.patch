@@ -1,0 +1,637 @@
+From a5941b50a0460d5a6c5b508a992e4b8492655837 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sat, 14 Nov 2026 18:00:40 -0300
+Subject: [PATCH] airoha: dma: fix shared GDMA with npu and update dts for
+ channels
+
+---
+ arch/arm/boot/dts/airoha/an7552.dtsi    | 37 +++++++++++++++
+ arch/arm/boot/dts/airoha/en7523.dtsi    | 44 ++++++++++++++++-
+ arch/arm64/boot/dts/airoha/an7581.dtsi  | 50 +++++++++++++++++++-
+ arch/arm64/boot/dts/airoha/an7583.dtsi  | 48 +++++++++++++++++++
+ arch/mips/boot/dts/econet/en751221.dtsi | 46 ++++++++++++++++++
+ arch/mips/boot/dts/econet/en751627.dtsi | 34 +++++++++++++
+ arch/mips/boot/dts/econet/en7528.dtsi   | 34 +++++++++++++
+ arch/mips/boot/dts/econet/en7580.dtsi   | 34 +++++++++++++
+ drivers/dma/airoha-gdma.c               | 84 +++++++++++++++++++++++++++++----
+ 9 files changed, 398 insertions(+), 13 deletions(-)
+
+diff --git a/arch/arm/boot/dts/airoha/an7552.dtsi b/arch/arm/boot/dts/airoha/an7552.dtsi
+--- a/arch/arm/boot/dts/airoha/an7552.dtsi
++++ b/arch/arm/boot/dts/airoha/an7552.dtsi
+@@ -6,6 +6,7 @@
+ #include <dt-bindings/reset/airoha,en7523-reset.h>
+ #include <dt-bindings/leds/common.h>
+ #include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
+ #include <dt-bindings/soc/airoha,scu-ssr.h>
+ #include <dt-bindings/thermal/thermal.h>
+ #include <dt-bindings/phy/phy.h>
+@@ -308,6 +309,42 @@ gdma: dma-controller@1fb30000 {
+ 
+ 		#dma-cells = <1>;
+ 		dma-channels = <8>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		gdma_channel0: dma-channel@0 {
++			reg = <0>;
++			airoha,npu-gdma;
++		};
++
++		gdma_channel1: dma-channel@1 {
++			reg = <1>;
++			airoha,npu-gdma;
++		};
++
++		gdma_channel2: dma-channel@2 {
++			reg = <2>;
++		};
++
++		gdma_channel3: dma-channel@3 {
++			reg = <3>;
++		};
++
++		gdma_channel4: dma-channel@4 {
++			reg = <4>;
++		};
++
++		gdma_channel5: dma-channel@5 {
++			reg = <5>;
++		};
++
++		gdma_channel6: dma-channel@6 {
++			reg = <6>;
++		};
++
++		gdma_channel7: dma-channel@7 {
++			reg = <7>;
++		};
+ 	};
+ 
+ 	hsdma: dma-controller@1fa01800 {
+diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
+--- a/arch/arm/boot/dts/airoha/en7523.dtsi
++++ b/arch/arm/boot/dts/airoha/en7523.dtsi
+@@ -6,6 +6,7 @@
+ #include <dt-bindings/reset/airoha,en7523-reset.h>
+ #include <dt-bindings/leds/common.h>
+ #include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
+ #include <dt-bindings/soc/airoha,scu-ssr.h>
+ #include <dt-bindings/thermal/thermal.h>
+ #include <dt-bindings/phy/phy.h>
+@@ -39,12 +40,12 @@ npu_pkt: npu-pkt@84d00000 {
+ 
+ 		qdma0_buf: qdma0-buf@86400000 {
+ 			no-map;
+-			reg = <0x86400000 0x02000000>;
++			reg = <0x86400000 0x01000000>;
+ 		};
+ 
+ 		qdma1_buf: qdma1-buf@88400000 {
+ 			no-map;
+-			reg = <0x88400000 0x01000000>;
++			reg = <0x88400000 0x00800000>;
+ 		};
+ 	};
+ 
+@@ -612,6 +613,42 @@ gdma: dma-controller@1fb30000 {
+ 
+ 		#dma-cells = <1>;
+ 		dma-channels = <8>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		gdma_channel0: dma-channel@0 {
++			reg = <0>;
++			airoha,npu-gdma;
++		};
++
++		gdma_channel1: dma-channel@1 {
++			reg = <1>;
++			airoha,npu-gdma;
++		};
++
++		gdma_channel2: dma-channel@2 {
++			reg = <2>;
++		};
++
++		gdma_channel3: dma-channel@3 {
++			reg = <3>;
++		};
++
++		gdma_channel4: dma-channel@4 {
++			reg = <4>;
++		};
++
++		gdma_channel5: dma-channel@5 {
++			reg = <5>;
++		};
++
++		gdma_channel6: dma-channel@6 {
++			reg = <6>;
++		};
++
++		gdma_channel7: dma-channel@7 {
++			reg = <7>;
++		};
+ 	};
+ 
+ 	hsdma: dma-controller@1fa01800 {
+@@ -942,6 +979,9 @@ npu: npu@1e800000 {
+ 		interrupt-names = "mbox", "wlan0", "wlan1", "wlan2",
+ 				  "wlan3", "wlan4", "wlan5";
+ 
++		resets = <&scuclk EN7523_NPU_RST>;
++		reset-names = "npu";
++
+ 		airoha,scu = <&scuclk>;
+ 		memory-region = <&npu_binary>, <&npu_pkt>;
+ 		memory-region-names = "binary", "pkt";
+diff --git a/arch/arm64/boot/dts/airoha/an7581.dtsi b/arch/arm64/boot/dts/airoha/an7581.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7581.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7581.dtsi
+@@ -557,6 +557,54 @@ pbus_csr: syscon@1fbe3400 {
+ 			reg = <0x0 0x1fbe3400 0x0 0xff>;
+ 		};
+ 
++		gdma: dma-controller@1fb30000 {
++			compatible = "airoha,an7581-gdma", "airoha,en7523-gdma";
++			reg = <0x0 0x1fb30000 0x0 0x1000>;
++
++			resets = <&scuclk EN7581_GDMA_RST>;
++
++			#dma-cells = <1>;
++			dma-channels = <8>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++
++			gdma_channel0: dma-channel@0 {
++				reg = <0>;
++				airoha,npu-gdma;
++			};
++
++			gdma_channel1: dma-channel@1 {
++				reg = <1>;
++				airoha,npu-gdma;
++			};
++
++			gdma_channel2: dma-channel@2 {
++				reg = <2>;
++			};
++
++			gdma_channel3: dma-channel@3 {
++				reg = <3>;
++			};
++
++			gdma_channel4: dma-channel@4 {
++				reg = <4>;
++			};
++
++			gdma_channel5: dma-channel@5 {
++				reg = <5>;
++			};
++
++			gdma_channel6: dma-channel@6 {
++				reg = <6>;
++			};
++
++			gdma_channel7: dma-channel@7 {
++				reg = <7>;
++			};
++		};
++
+ 		scuclk: clock-controller@1fb00000 {
+ 			compatible = "airoha,en7581-scu", "syscon";
+ 			reg = <0x0 0x1fb00000 0x0 0x970>;
+@@ -1000,7 +1048,7 @@ pcie2_slot2: pcie@2,0 {
+ 		};
+ 
+ 		npu: npu@1e900000 {
+-			compatible = "airoha,en7581-npu", "airoha,en7581-npu";
++			compatible = "airoha,en7581-npu", "airoha,an7581-npu";
+ 			reg = <0x0 0x1e900000 0x0 0x313000>;
+ 
+ 			interrupts = <GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>,
+diff --git a/arch/arm64/boot/dts/airoha/an7583.dtsi b/arch/arm64/boot/dts/airoha/an7583.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7583.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7583.dtsi
+@@ -366,6 +366,54 @@ pbus_csr: syscon@1fbe3400 {
+ 			reg = <0x0 0x1fbe3400 0x0 0xff>;
+ 		};
+ 
++		gdma: dma-controller@1fb30000 {
++			compatible = "airoha,an7583-gdma", "airoha,en7523-gdma";
++			reg = <0x0 0x1fb30000 0x0 0x1000>;
++
++			resets = <&scuclk AN7583_GDMA_RST>;
++
++			#dma-cells = <1>;
++			dma-channels = <8>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++
++			gdma_channel0: dma-channel@0 {
++				reg = <0>;
++				airoha,npu-gdma;
++			};
++
++			gdma_channel1: dma-channel@1 {
++				reg = <1>;
++				airoha,npu-gdma;
++			};
++
++			gdma_channel2: dma-channel@2 {
++				reg = <2>;
++			};
++
++			gdma_channel3: dma-channel@3 {
++				reg = <3>;
++			};
++
++			gdma_channel4: dma-channel@4 {
++				reg = <4>;
++			};
++
++			gdma_channel5: dma-channel@5 {
++				reg = <5>;
++			};
++
++			gdma_channel6: dma-channel@6 {
++				reg = <6>;
++			};
++
++			gdma_channel7: dma-channel@7 {
++				reg = <7>;
++			};
++		};
++
+ 		scuclk: system-controller@1fb00000 {
+ 			compatible = "airoha,an7583-scu", "syscon";
+ 			reg = <0x0 0x1fb00000 0x0 0x970>;
+diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
+--- a/arch/mips/boot/dts/econet/en751221.dtsi
++++ b/arch/mips/boot/dts/econet/en751221.dtsi
+@@ -155,6 +155,52 @@ scu_efuse: syscon@1fbf8200 {
+ 			reg = <0x1fbf8200 0x1c>;
+ 		};
+ 
++		gdma: dma-controller@1fb30000 {
++			compatible = "econet,en751221-gdma";
++			reg = <0x1fb30000 0x1000>;
++
++			resets = <&scuclk EN751221_GDMA_RST>;
++
++			#dma-cells = <1>;
++			dma-channels = <8>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++
++			gdma_channel0: dma-channel@0 {
++				reg = <0>;
++			};
++
++			gdma_channel1: dma-channel@1 {
++				reg = <1>;
++			};
++
++			gdma_channel2: dma-channel@2 {
++				reg = <2>;
++			};
++
++			gdma_channel3: dma-channel@3 {
++				reg = <3>;
++			};
++
++			gdma_channel4: dma-channel@4 {
++				reg = <4>;
++			};
++
++			gdma_channel5: dma-channel@5 {
++				reg = <5>;
++			};
++
++			gdma_channel6: dma-channel@6 {
++				reg = <6>;
++			};
++
++			gdma_channel7: dma-channel@7 {
++				reg = <7>;
++			};
++		};
++
+ 		scuclk: system-controller@1fb00000 {
+ 			compatible = "econet,en751221-scu", "syscon";
+ 			reg = <0x1fb00000 0x1000>;
+diff --git a/arch/mips/boot/dts/econet/en751627.dtsi b/arch/mips/boot/dts/econet/en751627.dtsi
+--- a/arch/mips/boot/dts/econet/en751627.dtsi
++++ b/arch/mips/boot/dts/econet/en751627.dtsi
+@@ -455,6 +455,40 @@ gdma: dma-controller@1fb30000 {
+ 
+ 			#dma-cells = <1>;
+ 			dma-channels = <8>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			gdma_channel0: dma-channel@0 {
++				reg = <0>;
++			};
++
++			gdma_channel1: dma-channel@1 {
++				reg = <1>;
++			};
++
++			gdma_channel2: dma-channel@2 {
++				reg = <2>;
++			};
++
++			gdma_channel3: dma-channel@3 {
++				reg = <3>;
++			};
++
++			gdma_channel4: dma-channel@4 {
++				reg = <4>;
++			};
++
++			gdma_channel5: dma-channel@5 {
++				reg = <5>;
++			};
++
++			gdma_channel6: dma-channel@6 {
++				reg = <6>;
++			};
++
++			gdma_channel7: dma-channel@7 {
++				reg = <7>;
++			};
+ 		};
+ 
+ 		xpon_phy: phy@1faf0000 {
+diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
+--- a/arch/mips/boot/dts/econet/en7528.dtsi
++++ b/arch/mips/boot/dts/econet/en7528.dtsi
+@@ -177,6 +177,40 @@ gdma: dma-controller@1fb30000 {
+ 
+ 			#dma-cells = <1>;
+ 			dma-channels = <8>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			gdma_channel0: dma-channel@0 {
++				reg = <0>;
++			};
++
++			gdma_channel1: dma-channel@1 {
++				reg = <1>;
++			};
++
++			gdma_channel2: dma-channel@2 {
++				reg = <2>;
++			};
++
++			gdma_channel3: dma-channel@3 {
++				reg = <3>;
++			};
++
++			gdma_channel4: dma-channel@4 {
++				reg = <4>;
++			};
++
++			gdma_channel5: dma-channel@5 {
++				reg = <5>;
++			};
++
++			gdma_channel6: dma-channel@6 {
++				reg = <6>;
++			};
++
++			gdma_channel7: dma-channel@7 {
++				reg = <7>;
++			};
+ 		};
+ 
+ 		pcie_phy1: pcie-phy@1fac0000 {
+diff --git a/arch/mips/boot/dts/econet/en7580.dtsi b/arch/mips/boot/dts/econet/en7580.dtsi
+--- a/arch/mips/boot/dts/econet/en7580.dtsi
++++ b/arch/mips/boot/dts/econet/en7580.dtsi
+@@ -806,6 +806,40 @@ gdma: dma-controller@1fb30000 {
+ 
+ 			#dma-cells = <1>;
+ 			dma-channels = <8>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			gdma_channel0: dma-channel@0 {
++				reg = <0>;
++			};
++
++			gdma_channel1: dma-channel@1 {
++				reg = <1>;
++			};
++
++			gdma_channel2: dma-channel@2 {
++				reg = <2>;
++			};
++
++			gdma_channel3: dma-channel@3 {
++				reg = <3>;
++			};
++
++			gdma_channel4: dma-channel@4 {
++				reg = <4>;
++			};
++
++			gdma_channel5: dma-channel@5 {
++				reg = <5>;
++			};
++
++			gdma_channel6: dma-channel@6 {
++				reg = <6>;
++			};
++
++			gdma_channel7: dma-channel@7 {
++				reg = <7>;
++			};
+ 		};
+ 
+ 		hsdma: dma-controller@1fa01800 {
+diff --git a/drivers/dma/airoha-gdma.c b/drivers/dma/airoha-gdma.c
+--- a/drivers/dma/airoha-gdma.c
++++ b/drivers/dma/airoha-gdma.c
+@@ -17,6 +17,7 @@
+ #include "virt-dma.h"
+ 
+ #define GDMA_CHANNELS		8
++#define GDMA_CHANNEL_MASK	GENMASK(GDMA_CHANNELS - 1, 0)
+ #define GDMA_SRC(id)		((id) * 0x10)
+ #define GDMA_DST(id)		(GDMA_SRC(id) + 0x04)
+ #define GDMA_CTRL0(id)		(GDMA_SRC(id) + 0x08)
+@@ -60,6 +61,7 @@ struct airoha_gdma {
+ 	const struct airoha_gdma_soc *soc;
+ 	struct reset_control *reset;
+ 	struct airoha_gdma_chan chan[GDMA_CHANNELS];
++	u32 channel_mask;
+ 	int irq;
+ };
+ 
+@@ -175,6 +177,10 @@ static irqreturn_t airoha_gdma_irq(int irq, void *data)
+ 
+ 	for (i = 0; i < GDMA_CHANNELS; i++) {
+ 		struct airoha_gdma_chan *chan = &gdma->chan[i];
++
++		/* Firmware polls its own completion bits. */
++		if (!(gdma->channel_mask & BIT(i)))
++			continue;
+ 		spin_lock(&chan->vc.lock);
+ 
+ 		/* Read and acknowledge under the lock also used for cancellation. */
+@@ -315,12 +321,56 @@ static void airoha_gdma_cleanup_channels(struct airoha_gdma *gdma)
+ 	unsigned int i;
+ 
+ 	for (i = 0; i < GDMA_CHANNELS; i++) {
++		if (!(gdma->channel_mask & BIT(i)))
++			continue;
+ 		airoha_gdma_free_chan_resources(&gdma->chan[i].vc.chan);
+ 		tasklet_kill(&gdma->chan[i].vc.task);
+ 		list_del(&gdma->chan[i].vc.chan.device_node);
+ 	}
+ }
+ 
++static int airoha_gdma_parse_channels(struct device *dev,
++				      struct airoha_gdma *gdma)
++{
++	u32 seen = 0;
++
++	gdma->channel_mask = GDMA_CHANNEL_MASK;
++	for_each_available_child_of_node_scoped(dev->of_node, child) {
++		u32 id;
++
++		if (of_property_count_u32_elems(child, "reg") != 1 ||
++		    of_property_read_u32(child, "reg", &id) ||
++		    id >= GDMA_CHANNELS)
++			return dev_err_probe(dev, -EINVAL,
++					     "invalid channel number in %pOF\n", child);
++		if (seen & BIT(id))
++			return dev_err_probe(dev, -EINVAL,
++					     "duplicate channel %u\n", id);
++		seen |= BIT(id);
++
++		if (of_property_read_bool(child, "airoha,npu-gdma"))
++			gdma->channel_mask &= ~BIT(id);
++	}
++
++	return 0;
++}
++
++static struct dma_chan *airoha_gdma_of_xlate(struct of_phandle_args *spec,
++					     struct of_dma *ofdma)
++{
++	struct airoha_gdma *gdma = ofdma->of_dma_data;
++	u32 id;
++
++	if (spec->args_count != 1)
++		return NULL;
++	id = spec->args[0];
++	if (id >= GDMA_CHANNELS || !(gdma->channel_mask & BIT(id)))
++		return NULL;
++
++	/* DMAengine numbers registered channels densely, unlike hardware IDs. */
++	return dma_get_slave_channel(&gdma->chan[id].vc.chan);
++}
++
+ static int airoha_gdma_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+@@ -337,6 +387,10 @@ static int airoha_gdma_probe(struct platform_device *pdev)
+ 	if (!gdma->soc)
+ 		return -ENODEV;
+ 
++	ret = airoha_gdma_parse_channels(dev, gdma);
++	if (ret)
++		return ret;
++
+ 	gdma->base = devm_platform_ioremap_resource(pdev, 0);
+ 	if (IS_ERR(gdma->base))
+ 		return PTR_ERR(gdma->base);
+@@ -344,18 +398,23 @@ static int airoha_gdma_probe(struct platform_device *pdev)
+ 	gdma->irq = platform_get_irq_optional(pdev, 0);
+ 	if (gdma->irq < 0 && gdma->irq != -ENXIO && gdma->irq != -ENODEV)
+ 		return dev_err_probe(dev, gdma->irq, "error on get gdma irq");
++	if (!gdma->channel_mask)
++		gdma->irq = -ENXIO;
+ 
+ 	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(gdma->soc->address_bits));
+ 	if (ret)
+ 		return ret;
+ 
+-	gdma->reset = devm_reset_control_get_optional_exclusive(dev, NULL);
+-	if (IS_ERR(gdma->reset))
+-		return dev_err_probe(dev, PTR_ERR(gdma->reset), 
+-				     "error on get reset controller");
+-	ret = reset_control_reset(gdma->reset);
+-	if (ret)
+-		return ret;
++	/* A global reset would also stop channels owned by the NPU. */
++	if (gdma->channel_mask == GDMA_CHANNEL_MASK) {
++		gdma->reset = devm_reset_control_get_optional_exclusive(dev, NULL);
++		if (IS_ERR(gdma->reset))
++			return dev_err_probe(dev, PTR_ERR(gdma->reset),
++					     "error on get reset controller");
++		ret = reset_control_reset(gdma->reset);
++		if (ret)
++			return ret;
++	}
+ 
+ 	dma = &gdma->dma;
+ 	dma->dev = dev;
+@@ -373,6 +432,8 @@ static int airoha_gdma_probe(struct platform_device *pdev)
+ 	for (i = 0; i < GDMA_CHANNELS; i++) {
+ 		struct airoha_gdma_chan *chan = &gdma->chan[i];
+ 
++		if (!(gdma->channel_mask & BIT(i)))
++			continue;
+ 		chan->gdma = gdma;
+ 		chan->id = i;
+ 		chan->vc.desc_free = airoha_gdma_desc_free;
+@@ -383,7 +444,7 @@ static int airoha_gdma_probe(struct platform_device *pdev)
+ 		airoha_gdma_write(gdma, GDMA_CTRL1(i), GDMA_CTRL1_MASK);
+ 	}
+ 
+-	airoha_gdma_write(gdma, GDMA_DONE, GENMASK(GDMA_CHANNELS - 1, 0));
++	airoha_gdma_write(gdma, GDMA_DONE, gdma->channel_mask);
+ 	if (gdma->irq >= 0) {
+ 		ret = devm_request_irq(dev, gdma->irq, airoha_gdma_irq, 0,
+ 				       dev_name(dev), gdma);
+@@ -395,12 +456,14 @@ static int airoha_gdma_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		goto err_irq;
+ 
+-	ret = of_dma_controller_register(dev->of_node, of_dma_xlate_by_chan_id, dma);
++	ret = of_dma_controller_register(dev->of_node, airoha_gdma_of_xlate, gdma);
+ 	if (ret)
+ 		goto err_unregister;
+ 
+ 	platform_set_drvdata(pdev, gdma);
+-	dev_info(dev, "8 GDMA memcpy channels (%s completion)\n",
++	dev_info(dev, "%u GDMA memcpy channels, %u reserved for NPU (%s completion)\n",
++		 hweight32(gdma->channel_mask),
++		 GDMA_CHANNELS - hweight32(gdma->channel_mask),
+ 		 gdma->irq >= 0 ? "IRQ" : "polled");
+ 
+ 	return 0;
+@@ -426,6 +489,7 @@ static void airoha_gdma_remove(struct platform_device *pdev)
+ 		devm_free_irq(&pdev->dev, gdma->irq, gdma);
+ 
+ 	airoha_gdma_cleanup_channels(gdma);
++	/* The reset handle is only acquired when all channels belong to Linux. */
+ 	reset_control_assert(gdma->reset);
+ }
+ 
+

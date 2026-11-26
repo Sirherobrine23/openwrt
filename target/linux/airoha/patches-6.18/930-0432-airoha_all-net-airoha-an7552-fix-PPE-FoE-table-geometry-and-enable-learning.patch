@@ -1,0 +1,90 @@
+From 5c8379c72461c0be54bf35cadba6a20cc33bb950 Mon Sep 17 00:00:00 2001
+From: AK Sharma <maskachoska@yahoo.com>
+Date: Sat, 24 Oct 2026 21:26:59 +0530
+Subject: [PATCH] net: airoha: an7552: fix PPE FoE table geometry and enable
+ learning
+
+The AN7552 PPE reports DRAM FoE hashes in the 0x4000.. range (the vendor
+SDK's hwnat_dram_idx_base) and, with TB_BASE pointing past the SRAM shadow,
+accesses the DRAM entry for hash h at foe_dma + h * entry size. The driver
+sized the table as SRAM + DRAM entries (16896) and folded DRAM hashes into
+a compact index, so committed entries were never found by the hardware
+and, once learning is enabled, the PPE writes UNBIND entries up to ~1.27
+MiB past the end of the FoE allocation, corrupting kernel memory.
+
+Size the AN7552 table as 0x4000 + DRAM entries and index it directly by
+hash, as the vendor hw_nat driver does.
+
+The bind limits also reset to zero, which keeps the PPE from learning any
+entry (TB_USED stays 0 and every flow is reported as UN_HIT). Program the
+AN7552 SDK values (BIND_LIMIT0 0x0fa00fa0, BIND_LIMIT1 0x00011f40).
+
+Tested on a Nokia AOT4221NK (AN7552): a NAT'd LAN->WAN TCP flow binds in
+hardware, only ~100 of ~150k packets reach the CPU over 20 s, softirq time
+drops to zero and no memory corruption is observed.
+
+Signed-off-by: AK Sharma <maskachoska@yahoo.com>
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_ppe.c  | 22 +++++++++++++++++++++-
+ drivers/net/ethernet/airoha/airoha_regs.h |  1 +
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -100,7 +100,7 @@ static int airoha_ppe_hw_to_sw_idx(struct airoha_ppe *ppe, u32 hw_idx,
+ {
+ 	u32 sram_num_entries = airoha_ppe_get_total_sram_num_entries(ppe);
+ 	u32 dram_num_entries = ppe->common.eth->soc->ppe_dram_entries;
+-	u32 ppe_num_entries = sram_num_entries + dram_num_entries;
++	u32 ppe_num_entries = airoha_ppe_get_total_num_entries(ppe);
+ 
+ 	if (!airoha_is(ppe->common.eth, airoha_en7523)) {
+ 		if (hw_idx >= ppe_num_entries)
+@@ -138,6 +138,14 @@ u32 airoha_ppe_get_total_num_entries(struct airoha_ppe *ppe)
+ {
+ 	u32 sram_num_entries = airoha_ppe_get_total_sram_num_entries(ppe);
+ 
++	/* With TB_BASE pointing past the SRAM shadow, the AN7552 PPE accesses
++	 * the DRAM entry for hash h at TB_BASE + (h - sram_num_entries) * size,
++	 * so the table must cover the whole hash range up to the DRAM end.
++	 */
++	if (airoha_is(ppe->common.eth, airoha_an7552))
++		return AN7552_PPE_DRAM_IDX_BASE +
++		       ppe->common.eth->soc->ppe_dram_entries;
++
+ 	return sram_num_entries + ppe->common.eth->soc->ppe_dram_entries;
+ }
+ 
+@@ -415,6 +423,18 @@ static void airoha_ppe_hw_init(struct airoha_ppe *ppe)
+ 			airoha_fe_clear(eth, REG_PPE_TB_CFG(i),
+ 					PPE_TB_CFG_FIN_FAST_RP_MASK);
+ 
++		/* The bind limits reset to zero, which keeps the AN7552 PPE
++		 * from learning any entry. Use the AN7552 SDK values.
++		 */
++		if (airoha_is(eth, airoha_an7552)) {
++			airoha_fe_wr(eth, REG_PPE_BIND_LIMIT0(i),
++				     FIELD_PREP(PPE_BIND_LIMIT0_HALF_MASK, 4000) |
++				     FIELD_PREP(PPE_BIND_LIMIT0_QUARTER_MASK, 4000));
++			airoha_fe_wr(eth, REG_PPE_BIND_LIMIT1(i),
++				     FIELD_PREP(PPE_BIND_LIMIT1_NON_L4_MASK, 1) |
++				     FIELD_PREP(PPE_BIND_LIMIT1_FULL_MASK, 8000));
++		}
++
+ 		airoha_fe_rmw(eth, REG_PPE_BIND_RATE(i),
+ 			      PPE_BIND_RATE_L2B_BIND_MASK |
+ 			      PPE_BIND_RATE_BIND_MASK,
+diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
+--- a/drivers/net/ethernet/airoha/airoha_regs.h
++++ b/drivers/net/ethernet/airoha/airoha_regs.h
+@@ -454,6 +454,7 @@
+ #define EN7581_PPE_DRAM_HASH0_MODE_MASK		GENMASK(23, 20)
+ #define EN7523_PPE_DRAM_TABLE_EN_MASK		BIT(30)
+ #define EN7581_PPE_DRAM_TABLE_EN_MASK		BIT(16)
++#define AN7552_PPE_DRAM_IDX_BASE		0x400
+ #define EN7523_PPE_SRAM_HASH1_MODE_MASK		GENMASK(23, 22)
+ #define EN7581_PPE_SRAM_HASH1_MODE_MASK		GENMASK(15, 12)
+ #define EN7523_PPE_SRAM_HASH1_EN_MASK		BIT(29)
+

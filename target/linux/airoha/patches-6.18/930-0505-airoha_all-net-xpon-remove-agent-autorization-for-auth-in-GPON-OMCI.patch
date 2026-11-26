@@ -1,0 +1,648 @@
+From cf03bc2edb7f7930643d9eea623cb1a4172e6276 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Fri, 20 Nov 2026 14:47:32 -0300
+Subject: [PATCH] net: xpon: remove agent autorization for auth in GPON/OMCI
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_xpon.c |   6 +-
+ include/net/xpon.h                        |  11 +-
+ include/uapi/linux/xpon.h                 |   3 +
+ net/xpon/activation.c                     | 174 ++++--------------------------
+ net/xpon/core.c                           |  11 --
+ net/xpon/genl.c                           |  66 +-----------
+ net/xpon/internal.h                       |  12 +--
+ net/xpon/sysfs.c                          |  57 +---------
+ net/xpon/tests.c                          |  42 ++++----
+ 9 files changed, 56 insertions(+), 326 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -2649,7 +2649,6 @@ static void gpon_cb_state_changed(void *hw_priv, enum gpon_state state)
+ 	 */
+ 	switch (state) {
+ 	case GPON_O2_STANDBY:
+-		xpon_device_activation_request(priv->xpon);
+ 		phy_state = AIROHA_XPON_PHY_GPON_OPER_DISABLED;
+ 		break;
+ 	case GPON_O3_SERIAL_NUMBER:
+@@ -4430,9 +4429,12 @@ static const struct airoha_gpon_omci_hw_ops airoha_gpon_omci_hw_ops = {
+ static int airoha_gpon_set_admin(struct xpon_device *xpon, bool up)
+ {
+ 	struct xpon_priv *priv = xpon_device_priv(xpon);
++	int ret = 0;
+ 
++	if (!up)
++		ret = airoha_xpon_tx_enable(priv, false);
+ 	omci_device_set_admin(priv->omci.odev, up);
+-	return 0;
++	return ret;
+ }
+ 
+ static void airoha_gpon_deactivate(struct xpon_device *xpon)
+diff --git a/include/net/xpon.h b/include/net/xpon.h
+--- a/include/net/xpon.h
++++ b/include/net/xpon.h
+@@ -243,12 +243,12 @@ struct xpon_device_ops {
+ };
+ 
+ /**
+- * struct xpon_activation_ops - administrative activation interlock
+- * @set_admin: start or suspend the protocol agent, independently of MAC RX
+- * @deactivate: discard the active session and return to discovery
++ * struct xpon_activation_ops - interface-driven PON activation
++ * @set_admin: start or stop protocol services and gate optical TX on DOWN
++ * @deactivate: queue an asynchronous session reset on interface DOWN
+  *
+- * Callbacks may sleep. They must not call back into activation policy or
+- * acquire RTNL or wait for protocol work. deactivate() queues FSM reset.
++ * Callbacks may sleep but must not acquire RTNL, wait for the protocol FSM,
++ * or call back into the activation helper.
+  */
+ struct xpon_activation_ops {
+ 	int (*set_admin)(struct xpon_device *xpon, bool up);
+@@ -260,7 +260,6 @@ int xpon_device_activation_attach(struct xpon_device *xpon,
+ 				  const struct xpon_activation_ops *ops);
+ void xpon_device_activation_detach(struct xpon_device *xpon);
+ bool xpon_device_activation_allowed(struct xpon_device *xpon);
+-void xpon_device_activation_request(struct xpon_device *xpon);
+ 
+ /* Each physical BOB/LDDLA may support a different set of PON modes. */
+ struct xpon_optical_path {
+diff --git a/include/uapi/linux/xpon.h b/include/uapi/linux/xpon.h
+--- a/include/uapi/linux/xpon.h
++++ b/include/uapi/linux/xpon.h
+@@ -28,6 +28,7 @@ enum xpon_link_state {
+ #define XPON_CAP_OAM		(1U << 1)
+ #define XPON_CAP_REPORT		(1U << 2)
+ #define XPON_CAP_LINK_ADMIN	(1U << 3)
++/* Reserved for compatibility; no agent-controlled activation is advertised. */
+ #define XPON_CAP_ACTIVATION	(1U << 4)
+ 
+ /* Each mode is a single bit; capability masks combine these values. */
+@@ -82,6 +83,7 @@ enum xpon_cmd {
+ 	XPON_CMD_OAM_RX,
+ 	XPON_CMD_REPORT_GET,
+ 	XPON_CMD_REPORT_SET,
++	/* Legacy command numbers; the kernel no longer implements them. */
+ 	XPON_CMD_AGENT_BIND,
+ 	XPON_CMD_AGENT_UNBIND,
+ 	XPON_CMD_ACTIVATION_SET,
+@@ -125,6 +127,7 @@ enum xpon_attr {
+ 	XPON_ATTR_REPORT_SET,
+ 	XPON_ATTR_THRESHOLD_TQ,
+ 	XPON_ATTR_MAX_REPORT_SETS,
++	/* Reserved legacy agent-activation attributes. */
+ 	XPON_ATTR_ACTIVATION, /* u8, approved */
+ 	XPON_ATTR_ACTIVATION_PENDING, /* u8, awaiting approval */
+ 	XPON_ATTR_ACTIVATION_OWNER, /* u32, agent portid (zero for sysfs) */
+diff --git a/net/xpon/activation.c b/net/xpon/activation.c
+--- a/net/xpon/activation.c
++++ b/net/xpon/activation.c
+@@ -1,87 +1,28 @@
+ // SPDX-License-Identifier: GPL-2.0-only
+-/* Administrative activation policy, independent of the PON wire protocol. */
++/* GPON activation follows the administrative state of the PON netdevice. */
+ 
+-#include <linux/jiffies.h>
+ #include <linux/module.h>
+ #include <linux/netdevice.h>
+ 
+ #include "internal.h"
+ 
+-#define XPON_DEACTIVATION_DELAY_MS 5000
+-
+ static void xpon_activation_changed(struct xpon_device *xpon)
+ {
+ 	xpon_device_report_event(xpon, XPON_EVENT_ACTIVATION);
+ }
+ 
+-static void xpon_activation_revoke(struct xpon_device *xpon)
+-{
+-	lockdep_assert_held(&xpon->activation_lock);
+-
+-	WRITE_ONCE(xpon->activation_allowed, false);
+-	if (xpon->activation_approved) {
+-		xpon->activation_approved = false;
+-		xpon->activation_reset_pending = true;
+-		mod_delayed_work(system_wq, &xpon->activation_work, 0);
+-	}
+-	xpon->activation_cookie++;
+-	xpon_activation_changed(xpon);
+-}
+-
+-static void xpon_activation_work(struct work_struct *work)
+-{
+-	struct xpon_device *xpon = container_of(to_delayed_work(work),
+-					       struct xpon_device, activation_work);
+-
+-	mutex_lock(&xpon->activation_lock);
+-	if (!xpon->activation_ops)
+-		goto out;
+-
+-	if (!xpon->activation_admin_up && xpon->activation_approved) {
+-		WRITE_ONCE(xpon->activation_allowed, false);
+-		xpon->activation_approved = false;
+-		xpon->activation_cookie++;
+-		xpon->activation_reset_pending = true;
+-	}
+-	if (xpon->activation_reset_pending) {
+-		xpon->activation_ops->deactivate(xpon);
+-		xpon->activation_reset_pending = false;
+-		xpon_activation_changed(xpon);
+-	}
+-out:
+-	mutex_unlock(&xpon->activation_lock);
+-}
+-
+ void xpon_activation_init(struct xpon_device *xpon)
+ {
+ 	mutex_init(&xpon->activation_lock);
+-	INIT_DELAYED_WORK(&xpon->activation_work, xpon_activation_work);
+ }
+ 
+ bool xpon_device_activation_allowed(struct xpon_device *xpon)
+ {
+-	return xpon && READ_ONCE(xpon->activation_allowed);
++	return xpon && READ_ONCE(xpon->activation_admin_up) &&
++	       netif_running(xpon->netdev);
+ }
+ EXPORT_SYMBOL_GPL(xpon_device_activation_allowed);
+ 
+-/* A new discovery cycle requires a fresh decision from a bound agent. */
+-void xpon_device_activation_request(struct xpon_device *xpon)
+-{
+-	if (!xpon)
+-		return;
+-
+-	mutex_lock(&xpon->activation_lock);
+-	if (xpon->activation_ops && xpon->activation_owner &&
+-	    xpon->activation_approved) {
+-		WRITE_ONCE(xpon->activation_allowed, false);
+-		xpon->activation_approved = false;
+-		xpon->activation_cookie++;
+-		xpon_activation_changed(xpon);
+-	}
+-	mutex_unlock(&xpon->activation_lock);
+-}
+-EXPORT_SYMBOL_GPL(xpon_device_activation_request);
+-
+ int xpon_device_activation_attach(struct xpon_device *xpon,
+ 				  const struct xpon_activation_ops *ops)
+ {
+@@ -95,14 +36,14 @@ int xpon_device_activation_attach(struct xpon_device *xpon,
+ 		ret = -EBUSY;
+ 		goto out;
+ 	}
+-	if (xpon->netdev->flags & IFF_UP) {
++
++	if (netif_running(xpon->netdev)) {
+ 		ret = ops->set_admin(xpon, true);
+ 		if (ret)
+ 			goto out;
+ 		xpon->activation_admin_up = true;
+ 	}
+ 	xpon->activation_ops = ops;
+-	xpon->activation_cookie++;
+ 	xpon_activation_changed(xpon);
+ out:
+ 	mutex_unlock(&xpon->activation_lock);
+@@ -116,17 +57,13 @@ void xpon_device_activation_detach(struct xpon_device *xpon)
+ 		return;
+ 
+ 	mutex_lock(&xpon->activation_lock);
+-	WRITE_ONCE(xpon->activation_allowed, false);
+-	if (xpon->activation_ops && xpon->activation_admin_up)
++	if (xpon->activation_ops) {
++		WRITE_ONCE(xpon->activation_admin_up, false);
+ 		xpon->activation_ops->set_admin(xpon, false);
++	}
+ 	xpon->activation_ops = NULL;
+-	xpon->activation_admin_up = false;
+-	xpon->activation_approved = false;
+-	xpon->activation_reset_pending = false;
+-	xpon->activation_owner = 0;
+-	xpon->activation_cookie++;
++	xpon_activation_changed(xpon);
+ 	mutex_unlock(&xpon->activation_lock);
+-	cancel_delayed_work_sync(&xpon->activation_work);
+ }
+ EXPORT_SYMBOL_GPL(xpon_device_activation_detach);
+ 
+@@ -139,93 +76,22 @@ void xpon_activation_admin(struct xpon_device *xpon, bool up)
+ 		goto out;
+ 
+ 	if (!up)
+-		WRITE_ONCE(xpon->activation_allowed, false);
+-	ret = xpon->activation_ops->set_admin(xpon, up);
+-	if (ret) {
+-		dev_err(xpon->parent, "failed to change protocol admin state: %d\n", ret);
+-		goto out;
+-	}
+-	xpon->activation_admin_up = up;
+-	WRITE_ONCE(xpon->activation_allowed, up && xpon->activation_approved);
+-	xpon->activation_cookie++;
+-	if (!up && xpon->activation_approved && !xpon->activation_reset_pending)
+-		mod_delayed_work(system_wq, &xpon->activation_work,
+-				 msecs_to_jiffies(XPON_DEACTIVATION_DELAY_MS));
+-	else if (up && !xpon->activation_reset_pending)
+-		cancel_delayed_work(&xpon->activation_work);
+-	xpon_activation_changed(xpon);
+-out:
+-	mutex_unlock(&xpon->activation_lock);
+-}
++		WRITE_ONCE(xpon->activation_admin_up, false);
+ 
+-int xpon_activation_bind(struct xpon_device *xpon, u32 owner, bool bind)
+-{
+-	int ret = 0;
++	ret = xpon->activation_ops->set_admin(xpon, up);
++	if (ret)
++		dev_err(xpon->parent,
++			"failed to change PON administrative state: %d\n", ret);
+ 
+-	mutex_lock(&xpon->activation_lock);
+-	if (!xpon->activation_ops) {
+-		ret = -EOPNOTSUPP;
+-		goto out;
+-	}
+-	if (!owner) {
+-		ret = -EINVAL;
+-		goto out;
+-	}
+-	if (bind) {
+-		if (xpon->activation_owner == owner)
+-			goto out;
+-		if (xpon->activation_owner) {
+-			ret = -EBUSY;
+-			goto out;
+-		}
+-		xpon->activation_owner = owner;
++	if (up) {
++		if (!ret)
++			WRITE_ONCE(xpon->activation_admin_up, true);
+ 	} else {
+-		if (xpon->activation_owner != owner) {
+-			ret = -EPERM;
+-			goto out;
+-		}
+-		xpon->activation_owner = 0;
++		/* The provider must queue teardown, not wait for its FSM. */
++		xpon->activation_ops->deactivate(xpon);
+ 	}
+-	xpon_activation_revoke(xpon);
+-out:
+-	mutex_unlock(&xpon->activation_lock);
+-	return ret;
+-}
+ 
+-int xpon_activation_set(struct xpon_device *xpon, u32 owner, u32 cookie,
+-			bool enable)
+-{
+-	int ret = 0;
+-
+-	mutex_lock(&xpon->activation_lock);
+-	if (!xpon->activation_ops) {
+-		ret = -EOPNOTSUPP;
+-		goto out;
+-	}
+-	if (owner != xpon->activation_owner) {
+-		ret = -EPERM;
+-		goto out;
+-	}
+-	if (owner && cookie != xpon->activation_cookie) {
+-		ret = -ESTALE;
+-		goto out;
+-	}
+-	if (enable) {
+-		if (!xpon->activation_admin_up) {
+-			ret = -ENETDOWN;
+-			goto out;
+-		}
+-		if (xpon->activation_reset_pending) {
+-			ret = -EAGAIN;
+-			goto out;
+-		}
+-		xpon->activation_approved = true;
+-		WRITE_ONCE(xpon->activation_allowed, true);
+-		xpon_activation_changed(xpon);
+-	} else {
+-		xpon_activation_revoke(xpon);
+-	}
++	xpon_activation_changed(xpon);
+ out:
+ 	mutex_unlock(&xpon->activation_lock);
+-	return ret;
+ }
+diff --git a/net/xpon/core.c b/net/xpon/core.c
+--- a/net/xpon/core.c
++++ b/net/xpon/core.c
+@@ -834,17 +834,6 @@ struct xpon_device *xpon_device_find_by_ifindex(u32 ifindex)
+ 	return NULL;
+ }
+ 
+-/* NETLINK_URELEASE only supplies a portid, not a device identifier. */
+-void xpon_activation_release(u32 owner)
+-{
+-	struct xpon_device *xpon;
+-
+-	mutex_lock(&xpon_devices_lock);
+-	list_for_each_entry(xpon, &xpon_devices, list)
+-		xpon_activation_bind(xpon, owner, false);
+-	mutex_unlock(&xpon_devices_lock);
+-}
+-
+ void xpon_device_put(struct xpon_device *xpon)
+ {
+ 	if (xpon)
+diff --git a/net/xpon/genl.c b/net/xpon/genl.c
+--- a/net/xpon/genl.c
++++ b/net/xpon/genl.c
+@@ -2,11 +2,9 @@
+ 
+ #include <linux/etherdevice.h>
+ #include <linux/module.h>
+-#include <linux/netlink.h>
+ #include <linux/rtnetlink.h>
+ #include <net/genetlink.h>
+ #include <net/net_namespace.h>
+-#include <net/netlink.h>
+ #include <net/xpon/oam.h>
+ 
+ #include "internal.h"
+@@ -25,8 +23,6 @@ static const struct nla_policy xpon_genl_policy[XPON_ATTR_MAX + 1] = {
+ 	[XPON_ATTR_REPORT_SETS] = { .type = NLA_U8 },
+ 	[XPON_ATTR_REPORT_SET] = { .type = NLA_U8 },
+ 	[XPON_ATTR_THRESHOLD_TQ] = { .type = NLA_U32 },
+-	[XPON_ATTR_ACTIVATION] = NLA_POLICY_MAX(NLA_U8, 1),
+-	[XPON_ATTR_ACTIVATION_COOKIE] = { .type = NLA_U32 },
+ };
+ 
+ static struct genl_family xpon_genl_family;
+@@ -51,25 +47,6 @@ static int xpon_genl_put_state(struct sk_buff *msg, struct xpon_device *xpon)
+ 	}
+ 	if (xpon->oam)
+ 		caps |= XPON_CAP_OAM;
+-	mutex_lock(&xpon->activation_lock);
+-	if (xpon->activation_ops) {
+-		bool pending = xpon->activation_admin_up &&
+-			       !xpon->activation_approved &&
+-			       !xpon->activation_reset_pending;
+-
+-		caps |= XPON_CAP_ACTIVATION;
+-		if (nla_put_u8(msg, XPON_ATTR_ACTIVATION,
+-			       xpon->activation_approved) ||
+-		    nla_put_u8(msg, XPON_ATTR_ACTIVATION_PENDING, pending) ||
+-		    nla_put_u32(msg, XPON_ATTR_ACTIVATION_OWNER,
+-				xpon->activation_owner) ||
+-		    nla_put_u32(msg, XPON_ATTR_ACTIVATION_COOKIE,
+-				xpon->activation_cookie)) {
+-			mutex_unlock(&xpon->activation_lock);
+-			return -EMSGSIZE;
+-		}
+-	}
+-	mutex_unlock(&xpon->activation_lock);
+ 	if (nla_put_u32(msg, XPON_ATTR_IFINDEX, xpon->netdev->ifindex) ||
+ 	    nla_put_u32(msg, XPON_ATTR_MODE, state.mode) ||
+ 	    nla_put_u32(msg, XPON_ATTR_AVAILABLE_MODES, xpon->modes) ||
+@@ -178,20 +155,6 @@ static int xpon_genl_doit(struct sk_buff *skb, struct genl_info *info)
+ 		goto unlock;
+ 	}
+ 	switch (cmd) {
+-	case XPON_CMD_AGENT_BIND:
+-	case XPON_CMD_AGENT_UNBIND:
+-		ret = xpon_activation_bind(xpon, info->snd_portid,
+-					   cmd == XPON_CMD_AGENT_BIND);
+-		goto out;
+-	case XPON_CMD_ACTIVATION_SET:
+-		if (!a[XPON_ATTR_ACTIVATION] || !a[XPON_ATTR_ACTIVATION_COOKIE]) {
+-			ret = -EINVAL;
+-			goto out;
+-		}
+-		ret = xpon_activation_set(xpon, info->snd_portid,
+-					  nla_get_u32(a[XPON_ATTR_ACTIVATION_COOKIE]),
+-					  nla_get_u8(a[XPON_ATTR_ACTIVATION]));
+-		goto out;
+ 	case XPON_CMD_SET_MODE:
+ 		ret = a[XPON_ATTR_MODE] ?
+ 			      xpon_device_set_mode(
+@@ -407,9 +370,6 @@ static const struct genl_ops xpon_genl_ops[] = {
+ 	XPON_OP(XPON_CMD_OAM_TX, GENL_ADMIN_PERM),
+ 	XPON_OP(XPON_CMD_REPORT_GET, 0),
+ 	XPON_OP(XPON_CMD_REPORT_SET, GENL_ADMIN_PERM),
+-	XPON_OP(XPON_CMD_AGENT_BIND, GENL_ADMIN_PERM),
+-	XPON_OP(XPON_CMD_AGENT_UNBIND, GENL_ADMIN_PERM),
+-	XPON_OP(XPON_CMD_ACTIVATION_SET, GENL_ADMIN_PERM),
+ };
+ 
+ static const struct genl_multicast_group xpon_mcgrps[] = {
+@@ -473,36 +433,12 @@ void xpon_genl_oam_receive(struct xpon_device *xpon, u32 id,
+ }
+ EXPORT_SYMBOL_GPL(xpon_genl_oam_receive);
+ 
+-static int xpon_netlink_notify(struct notifier_block *nb, unsigned long state,
+-			       void *data)
+-{
+-	struct netlink_notify *notify = data;
+-
+-	if (state == NETLINK_URELEASE && notify->protocol == NETLINK_GENERIC &&
+-	    net_eq(notify->net, &init_net))
+-		xpon_activation_release(notify->portid);
+-	return NOTIFY_DONE;
+-}
+-
+-static struct notifier_block xpon_netlink_nb = {
+-	.notifier_call = xpon_netlink_notify,
+-};
+-
+ int xpon_genl_init(void)
+ {
+-	int ret;
+-
+-	ret = netlink_register_notifier(&xpon_netlink_nb);
+-	if (ret)
+-		return ret;
+-	ret = genl_register_family(&xpon_genl_family);
+-	if (ret)
+-		netlink_unregister_notifier(&xpon_netlink_nb);
+-	return ret;
++	return genl_register_family(&xpon_genl_family);
+ }
+ 
+ void xpon_genl_exit(void)
+ {
+ 	genl_unregister_family(&xpon_genl_family);
+-	netlink_unregister_notifier(&xpon_netlink_nb);
+ }
+diff --git a/net/xpon/internal.h b/net/xpon/internal.h
+--- a/net/xpon/internal.h
++++ b/net/xpon/internal.h
+@@ -79,16 +79,10 @@ struct xpon_device {
+ 	u8 pon_led_mode;
+ 	u8 los_led_mode;
+ 
+-	/* Policy is serialized independently of protocol mode transitions. */
++	/* Activation follows IFF_UP; the provider handles TX and FSM teardown. */
+ 	struct mutex activation_lock;
+-	struct delayed_work activation_work;
+ 	const struct xpon_activation_ops *activation_ops;
+-	u32 activation_owner;
+-	u32 activation_cookie;
+ 	bool activation_admin_up;
+-	bool activation_approved;
+-	bool activation_allowed;
+-	bool activation_reset_pending;
+ 
+ 	void *omci;
+ 	void *oam;
+@@ -98,10 +92,6 @@ extern struct class *xpon_class;
+ 
+ void xpon_activation_init(struct xpon_device *xpon);
+ void xpon_activation_admin(struct xpon_device *xpon, bool up);
+-int xpon_activation_set(struct xpon_device *xpon, u32 owner, u32 cookie,
+-			bool enable);
+-int xpon_activation_bind(struct xpon_device *xpon, u32 owner, bool bind);
+-void xpon_activation_release(u32 owner);
+ 
+ int xpon_sysfs_init(void);
+ void xpon_sysfs_exit(void);
+diff --git a/net/xpon/sysfs.c b/net/xpon/sysfs.c
+--- a/net/xpon/sysfs.c
++++ b/net/xpon/sysfs.c
+@@ -209,59 +209,13 @@ static ssize_t activation_show(struct device *dev,
+ {
+ 	struct xpon_device *xpon = dev_get_drvdata(dev);
+ 
+-	return sysfs_emit(buf, "%u\n", READ_ONCE(xpon->activation_approved));
++	return sysfs_emit(buf, "%u\n",
++			  xpon_device_activation_allowed(xpon));
+ }
+-
+-static ssize_t activation_store(struct device *dev,
+-				struct device_attribute *attr,
+-				const char *buf, size_t count)
+-{
+-	struct xpon_device *xpon = dev_get_drvdata(dev);
+-	bool enable;
+-	int ret;
+-
+-	ret = kstrtobool(buf, &enable);
+-	if (ret)
+-		return ret;
+-	rtnl_lock();
+-	ret = xpon_activation_set(xpon, 0, 0, enable);
+-	rtnl_unlock();
+-	return ret ? ret : count;
+-}
+-static DEVICE_ATTR_RW(activation);
+-
+-static ssize_t activation_pending_show(struct device *dev,
+-				       struct device_attribute *attr, char *buf)
+-{
+-	struct xpon_device *xpon = dev_get_drvdata(dev);
+-	bool pending;
+-
+-	mutex_lock(&xpon->activation_lock);
+-	pending = xpon->activation_ops && xpon->activation_admin_up &&
+-		  !xpon->activation_approved && !xpon->activation_reset_pending;
+-	mutex_unlock(&xpon->activation_lock);
+-	return sysfs_emit(buf, "%u\n", pending);
+-}
+-static DEVICE_ATTR_RO(activation_pending);
+-
+-static ssize_t activation_owner_show(struct device *dev,
+-				     struct device_attribute *attr, char *buf)
+-{
+-	struct xpon_device *xpon = dev_get_drvdata(dev);
+-	const char *owner;
+-
+-	mutex_lock(&xpon->activation_lock);
+-	owner = xpon->activation_owner ? "agent" :
+-		(xpon->activation_approved ? "sysfs" : "none");
+-	mutex_unlock(&xpon->activation_lock);
+-	return sysfs_emit(buf, "%s\n", owner);
+-}
+-static DEVICE_ATTR_RO(activation_owner);
++static DEVICE_ATTR_RO(activation);
+ 
+ static struct attribute *xpon_attrs[] = {
+ 	&dev_attr_activation.attr,
+-	&dev_attr_activation_pending.attr,
+-	&dev_attr_activation_owner.attr,
+ 	&dev_attr_mode_available.attr,
+ 	&dev_attr_mode_current.attr,
+ 	&dev_attr_xepon_profile.attr,
+@@ -381,11 +335,8 @@ void xpon_sysfs_notify(struct xpon_device *xpon, unsigned long changed)
+ {
+ 	if (!xpon->class_dev)
+ 		return;
+-	if (changed & XPON_EVENT_ACTIVATION) {
++	if (changed & XPON_EVENT_ACTIVATION)
+ 		sysfs_notify(&xpon->class_dev->kobj, NULL, "activation");
+-		sysfs_notify(&xpon->class_dev->kobj, NULL, "activation_pending");
+-		sysfs_notify(&xpon->class_dev->kobj, NULL, "activation_owner");
+-	}
+ 	if (changed & XPON_EVENT_MODE)
+ 		sysfs_notify(&xpon->class_dev->kobj, NULL, "mode_current");
+ 	if (changed & XPON_EVENT_REGISTRATION)
+diff --git a/net/xpon/tests.c b/net/xpon/tests.c
+--- a/net/xpon/tests.c
++++ b/net/xpon/tests.c
+@@ -282,38 +282,32 @@ static void xpon_test_activation_policy(struct kunit *test)
+ {
+ 	struct xpon_test_context *ctx = test->priv;
+ 	struct xpon_device *xpon = ctx->xpon;
+-	u32 cookie;
++	int ret;
+ 
+ 	KUNIT_ASSERT_EQ(test, xpon_device_activation_attach(xpon,
+ 							    &xpon_test_activation_ops), 0);
+ 	KUNIT_EXPECT_FALSE(test, xpon_device_activation_allowed(xpon));
+-	KUNIT_EXPECT_EQ(test, xpon_activation_set(xpon, 0, 0, true), -ENETDOWN);
+-	xpon_activation_admin(xpon, true);
+-	KUNIT_ASSERT_EQ(test, xpon_activation_set(xpon, 0, 0, true), 0);
++
++	rtnl_lock();
++	ret = dev_open(ctx->netdev, NULL);
++	rtnl_unlock();
++	KUNIT_ASSERT_EQ(test, ret, 0);
+ 	KUNIT_EXPECT_TRUE(test, xpon_device_activation_allowed(xpon));
+-	xpon_activation_admin(xpon, false);
++
++	rtnl_lock();
++	dev_close(ctx->netdev);
++	rtnl_unlock();
+ 	KUNIT_EXPECT_FALSE(test, xpon_device_activation_allowed(xpon));
+-	xpon_activation_admin(xpon, true);
++
++	rtnl_lock();
++	ret = dev_open(ctx->netdev, NULL);
++	rtnl_unlock();
++	KUNIT_ASSERT_EQ(test, ret, 0);
+ 	KUNIT_EXPECT_TRUE(test, xpon_device_activation_allowed(xpon));
+-	xpon_activation_admin(xpon, false);
+-	flush_delayed_work(&xpon->activation_work);
+-	xpon_activation_admin(xpon, true);
+-	KUNIT_EXPECT_FALSE(test, xpon_device_activation_allowed(xpon));
+ 
+-	KUNIT_ASSERT_EQ(test, xpon_activation_bind(xpon, 42, true), 0);
+-	cookie = xpon->activation_cookie;
+-	KUNIT_EXPECT_EQ(test, xpon_activation_set(xpon, 0, 0, true), -EPERM);
+-	KUNIT_EXPECT_EQ(test, xpon_activation_set(xpon, 42, cookie - 1, true),
+-			-ESTALE);
+-	KUNIT_ASSERT_EQ(test, xpon_activation_set(xpon, 42, cookie, true), 0);
+-	xpon_device_activation_request(xpon);
+-	KUNIT_EXPECT_FALSE(test, xpon_device_activation_allowed(xpon));
+-	KUNIT_EXPECT_EQ(test, xpon_activation_set(xpon, 42, cookie, true),
+-			-ESTALE);
+-	KUNIT_ASSERT_EQ(test, xpon_activation_set(xpon, 42,
+-						  xpon->activation_cookie, true), 0);
+-	KUNIT_ASSERT_EQ(test, xpon_activation_bind(xpon, 42, false), 0);
+-	flush_delayed_work(&xpon->activation_work);
++	rtnl_lock();
++	dev_close(ctx->netdev);
++	rtnl_unlock();
+ 	KUNIT_EXPECT_FALSE(test, xpon_device_activation_allowed(xpon));
+ 	xpon_device_activation_detach(xpon);
+ }

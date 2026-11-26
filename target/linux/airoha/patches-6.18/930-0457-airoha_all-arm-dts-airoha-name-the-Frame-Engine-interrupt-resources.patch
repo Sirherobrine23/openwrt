@@ -1,0 +1,56 @@
+From 8ef8fe6f674ad5ec72a3178eed261e3e2f04399e Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Mon, 26 Oct 2026 22:35:51 -0300
+Subject: [PATCH] arm: dts: airoha: name the Frame Engine interrupt resources
+
+EN7523, EN7581 and AN7583 already describe FE error and PDMA interrupts,
+but lack interrupt-names. Name the existing resources so the Ethernet
+driver can request fe-error while preserving every IRQ number and index.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm/boot/dts/airoha/en7523.dtsi   | 3 +++
+ arch/arm64/boot/dts/airoha/an7581.dtsi | 3 +++
+ arch/arm64/boot/dts/airoha/an7583.dtsi | 3 +++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
+--- a/arch/arm/boot/dts/airoha/en7523.dtsi
++++ b/arch/arm/boot/dts/airoha/en7523.dtsi
+@@ -968,6 +968,9 @@ eth: ethernet@1fb50000 {
+ 		             <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
+ 		             <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>,
+ 		             <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "lan0", "lan1", "lan2", "lan3",
++				  "wan0", "wan1", "wan2", "wan3",
++				  "fe-error", "pdma";
+ 
+ 		memory-region = <&qdma0_buf>, <&qdma1_buf>;
+ 		memory-region-names = "qdma0-buf", "qdma1-buf";
+diff --git a/arch/arm64/boot/dts/airoha/an7581.dtsi b/arch/arm64/boot/dts/airoha/an7581.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7581.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7581.dtsi
+@@ -930,6 +930,9 @@ eth: ethernet@1fb50000 {
+ 				     <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
+ 				     <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>,
+ 				     <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "lan0", "lan1", "lan2", "lan3",
++					  "wan0", "wan1", "wan2", "wan3",
++					  "fe-error", "pdma";
+ 
+ 			memory-region = <&qdma0_buf>, <&qdma1_buf>;
+ 			memory-region-names = "qdma0-buf", "qdma1-buf";
+diff --git a/arch/arm64/boot/dts/airoha/an7583.dtsi b/arch/arm64/boot/dts/airoha/an7583.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7583.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7583.dtsi
+@@ -711,6 +711,9 @@ eth: ethernet@1fb50000 {
+ 				     <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
+ 				     <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>,
+ 				     <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "lan0", "lan1", "lan2", "lan3",
++					  "wan0", "wan1", "wan2", "wan3",
++					  "fe-error", "pdma";
+ 
+ 			memory-region = <&qdma0_buf>, <&qdma1_buf>;
+ 			memory-region-names = "qdma0-buf", "qdma1-buf";
+

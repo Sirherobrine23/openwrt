@@ -1,0 +1,1453 @@
+From 81d655fbe969cd2233a72f70eec9fef4ffe9c579 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 4 Nov 2026 14:11:00 -0300
+Subject: [PATCH] xpon: omci: process vlan and add callbacks for net drivers
+
+---
+ include/net/xpon.h            |  77 ++++++
+ include/net/xpon/omci.h       |   5 +
+ net/xpon/core.c               |  39 +++
+ net/xpon/omci/agent.c         | 102 ++++----
+ net/xpon/omci/internal.h      |  16 ++
+ net/xpon/omci/services.c      | 312 ++++++++++++++++++++++-
+ net/xpon/omci/services_test.c | 564 ++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 1065 insertions(+), 50 deletions(-)
+
+diff --git a/include/net/xpon.h b/include/net/xpon.h
+--- a/include/net/xpon.h
++++ b/include/net/xpon.h
+@@ -103,6 +103,63 @@ struct xpon_report_config {
+ 	u8 queue;
+ };
+ 
++enum xpon_vlan_tag_mode {
++	XPON_VLAN_SINGLE_TAG,
++	XPON_VLAN_DOUBLE_TAG,
++	XPON_VLAN_UNTAGGED,
++};
++
++/**
++ * struct xpon_vlan_rule - match existing VLAN tags and modify the first tag
++ * @tpid: first tag protocol to match, or zero for any VLAN protocol
++ * @new_tpid: replacement first tag protocol, or zero to preserve it
++ * @tci: host-order first tag TCI bits to match
++ * @tci_mask: significant bits in @tci
++ * @new_tci: replacement host-order first tag TCI bits
++ * @new_tci_mask: bits to replace; all other bits are preserved
++ * @inner_tpid: second tag protocol to match, or zero for any VLAN protocol
++ * @inner_tci: host-order second tag TCI bits to match
++ * @inner_tci_mask: significant bits in @inner_tci
++ * @tag_mode: required tag count; zero defaults to a single tag
++ * @drop: discard a matching frame instead of modifying it
++ *
++ * Modification preserves the tag count. With two tags, the second tag is
++ * matched but never changed. Untagged rules can only discard frames.
++ */
++struct xpon_vlan_rule {
++	__be16 tpid;
++	__be16 new_tpid;
++	u16 tci;
++	u16 tci_mask;
++	u16 new_tci;
++	u16 new_tci_mask;
++	__be16 inner_tpid;
++	u16 inner_tci;
++	u16 inner_tci_mask;
++	u8 tag_mode;
++	bool drop;
++};
++
++/**
++ * struct xpon_vlan_config - bidirectional VLAN rewrite for one PON service
++ * @cookie: stable rule identifier, independent of hardware table indices
++ * @port_id: provider port identifier (normalized UNI entity for OMCI)
++ * @wire_id: GEM port or LLID identifying the downstream service
++ * @priority: rule precedence, lower values match first
++ * @upstream: customer-to-network translation, before service classification
++ * @downstream: network-to-customer translation, after wire-ID classification
++ * @downstream_valid: apply @downstream; otherwise downstream is transparent
++ */
++struct xpon_vlan_config {
++	u32 cookie;
++	u16 port_id;
++	u16 wire_id;
++	u16 priority;
++	struct xpon_vlan_rule upstream;
++	struct xpon_vlan_rule downstream;
++	bool downstream_valid;
++};
++
+ /**
+  * struct xpon_device_limits - limits for a single PON mode
+  * @max_links: maximum number of LLIDs (zero for protocols without LLIDs)
+@@ -137,6 +194,9 @@ struct xpon_device_limits {
+  * @hw_fallback: recover a safe mode after either transition callback fails;
+  *               report the mode actually recovered in @recovered
+  * @get_mode: read the hardware-selected mode
++ * @validate_vlans: optional read-only validation of the complete VLAN rule set
++ * @replace_vlan: atomically add or replace a VLAN rewrite by cookie
++ * @delete_vlan: remove both directions of a VLAN rewrite by cookie
+  *
+  * Mode changes run under the core mode_lock with the lower netdev stopped and
+  * without logical endpoints. Callers with live netdev/OAM consumers must hold
+@@ -145,6 +205,12 @@ struct xpon_device_limits {
+  * and re-registration inside its callbacks. Callbacks must not recursively
+  * request another mode change. Returning failure from hw_fallback leaves the
+  * device faulted; it cannot be switched again without reinitialization.
++ *
++ * VLAN callbacks are an optional group: implement all three to opt in. They
++ * run in sleepable context, serialized by the provisioning caller, without
++ * mode_lock. Providers must synchronize with their datapath and quiesce the
++ * provisioning caller before mode teardown. A failed replacement must leave
++ * the old rule intact. Deleting an absent cookie may return -ENOENT.
+  */
+ struct xpon_device_ops {
+ 	int (*get_limits)(struct xpon_device *xpon, enum xpon_mode mode,
+@@ -157,6 +223,11 @@ struct xpon_device_ops {
+ 			   enum xpon_mode *recovered);
+ 	int (*set_mode)(struct xpon_device *xpon, enum xpon_mode mode);
+ 	int (*get_mode)(struct xpon_device *xpon, enum xpon_mode *mode);
++	int (*validate_vlans)(struct xpon_device *xpon,
++			      const struct xpon_vlan_config *configs, size_t count);
++	int (*replace_vlan)(struct xpon_device *xpon,
++			    const struct xpon_vlan_config *config);
++	int (*delete_vlan)(struct xpon_device *xpon, u32 cookie);
+ 	/* NETDEV_TX_BUSY leaves the skb with the caller. */
+ 	netdev_tx_t (*xmit)(struct xpon_device *xpon, struct sk_buff *skb,
+ 			    const struct xpon_endpoint_config *config);
+@@ -208,6 +279,12 @@ int xpon_device_set_xepon_profile(struct xpon_device *xpon,
+ int xpon_device_get_limits(struct xpon_device *xpon,
+ 			   struct xpon_device_limits *limits);
+ int xpon_device_get_hw_mode(struct xpon_device *xpon, enum xpon_mode *mode);
++bool xpon_device_has_vlan_ops(struct xpon_device *xpon);
++int xpon_device_validate_vlans(struct xpon_device *xpon,
++			       const struct xpon_vlan_config *configs, size_t count);
++int xpon_device_replace_vlan(struct xpon_device *xpon,
++			     const struct xpon_vlan_config *config);
++int xpon_device_delete_vlan(struct xpon_device *xpon, u32 cookie);
+ /* Borrowed active optical frontend, owned by the xPON core. */
+ struct optical_frontend *xpon_device_optical_frontend(struct xpon_device *xpon);
+ /* Borrowed candidate frontend; intended for use inside mode callbacks. */
+diff --git a/include/net/xpon/omci.h b/include/net/xpon/omci.h
+--- a/include/net/xpon/omci.h
++++ b/include/net/xpon/omci.h
+@@ -4,6 +4,7 @@
+ 
+ #include <linux/bits.h>
+ #include <linux/types.h>
++#include <net/xpon.h>
+ #include <uapi/linux/omci.h>
+ 
+ struct device;
+@@ -317,6 +318,8 @@ struct omci_telemetry {
+  * @tag_untagged: not a GEM path but an ME 78 rule: tag untagged upstream
+  *	frames with @tag_tci and classify them as frames of that VLAN
+  * @strip_downstream: ME 78 asks to remove @tag_tci's VLAN downstream
++ * @vlan: normalized single-tag rewrite for an opted-in xPON provider
++ * @vlan_rewrite: @vlan is applied through xpon_device_ops VLAN callbacks
+  */
+ struct omci_service_config {
+ 	u32 cookie;
+@@ -340,6 +343,8 @@ struct omci_service_config {
+ 	u16 tag_tci;
+ 	bool tag_untagged;
+ 	bool strip_downstream;
++	struct xpon_vlan_config vlan;
++	bool vlan_rewrite;
+ };
+ 
+ struct omci_ani_topology {
+diff --git a/net/xpon/core.c b/net/xpon/core.c
+--- a/net/xpon/core.c
++++ b/net/xpon/core.c
+@@ -146,6 +146,45 @@ void xpon_device_free(struct xpon_device *xpon)
+ }
+ EXPORT_SYMBOL_GPL(xpon_device_free);
+ 
++bool xpon_device_has_vlan_ops(struct xpon_device *xpon)
++{
++	return xpon && xpon->ops && xpon->ops->validate_vlans &&
++	       xpon->ops->replace_vlan && xpon->ops->delete_vlan;
++}
++EXPORT_SYMBOL_GPL(xpon_device_has_vlan_ops);
++
++int xpon_device_validate_vlans(struct xpon_device *xpon,
++			       const struct xpon_vlan_config *configs, size_t count)
++{
++	if (count && !configs)
++		return -EINVAL;
++	if (!xpon_device_has_vlan_ops(xpon))
++		return count ? -EOPNOTSUPP : 0;
++	return xpon->ops->validate_vlans(xpon, configs, count);
++}
++EXPORT_SYMBOL_GPL(xpon_device_validate_vlans);
++
++int xpon_device_replace_vlan(struct xpon_device *xpon,
++			     const struct xpon_vlan_config *config)
++{
++	if (!config || !config->cookie)
++		return -EINVAL;
++	if (!xpon_device_has_vlan_ops(xpon))
++		return -EOPNOTSUPP;
++	return xpon->ops->replace_vlan(xpon, config);
++}
++EXPORT_SYMBOL_GPL(xpon_device_replace_vlan);
++
++int xpon_device_delete_vlan(struct xpon_device *xpon, u32 cookie)
++{
++	if (!cookie)
++		return -EINVAL;
++	if (!xpon_device_has_vlan_ops(xpon))
++		return -EOPNOTSUPP;
++	return xpon->ops->delete_vlan(xpon, cookie);
++}
++EXPORT_SYMBOL_GPL(xpon_device_delete_vlan);
++
+ /* Describe the board's optical paths in optical-frontend-names. */
+ static unsigned long xpon_optical_named_modes(const char *name,
+ 					      unsigned long all_modes)
+diff --git a/net/xpon/omci/agent.c b/net/xpon/omci/agent.c
+--- a/net/xpon/omci/agent.c
++++ b/net/xpon/omci/agent.c
+@@ -378,36 +378,6 @@ static bool omci_ext_vlan_rule_is_delete(const u8 *raw)
+ 	return true;
+ }
+ 
+-static void omci_ext_vlan_parse_rule(struct omci_extended_vlan_rule *rule,
+-				     const u8 *raw)
+-{
+-	u32 word;
+-
+-	memcpy(rule->raw, raw, sizeof(rule->raw));
+-	word = get_unaligned_be32(raw);
+-	rule->filter_outer_pbit = (word >> 28) & 0xf;
+-	rule->filter_outer_vid = (word >> 15) & 0x1fff;
+-	rule->filter_outer_tpid_dei = (word >> 12) & 0x7;
+-
+-	word = get_unaligned_be32(raw + 4);
+-	rule->filter_inner_pbit = (word >> 28) & 0xf;
+-	rule->filter_inner_vid = (word >> 15) & 0x1fff;
+-	rule->filter_inner_tpid_dei = (word >> 12) & 0x7;
+-	rule->filter_ethertype = word & 0xf;
+-
+-	word = get_unaligned_be32(raw + 8);
+-	rule->tags_to_remove = (word >> 30) & 0x3;
+-	rule->treat_outer_pbit = (word >> 16) & 0xf;
+-	rule->treat_outer_vid = (word >> 3) & 0x1fff;
+-	rule->treat_outer_tpid_dei = word & 0x7;
+-
+-	word = get_unaligned_be32(raw + 12);
+-	rule->treat_inner_pbit = (word >> 16) & 0xf;
+-	rule->treat_inner_vid = (word >> 3) & 0x1fff;
+-	rule->treat_inner_tpid_dei = word & 0x7;
+-	rule->delete = omci_ext_vlan_rule_is_delete(raw);
+-}
+-
+ static int omci_ext_vlan_update_rule(struct omci_extended_vlan *vlan,
+ 				     const u8 *raw)
+ {
+@@ -2800,8 +2770,7 @@ static int omci_agent_clear_services_locked(struct omci_device *odev)
+ 
+ 	xa_for_each(&agent->services, index, state) {
+ 		if (odev->ops->delete_service) {
+-			ret = odev->ops->delete_service(odev,
+-							state->config.cookie);
++			ret = omci_service_delete(odev, &state->config);
+ 			if (ret && ret != -ENOENT && !first_error)
+ 				first_error = ret;
+ 		}
+@@ -2883,6 +2852,7 @@ static int omci_agent_stage_service_rule_locked(
+ 	struct omci_device *odev, struct xarray *services, u16 lan_port_entity,
+ 	u16 uni_entity, u16 gem_iwtp_entity, u8 mapper_pcp,
+ 	bool mapper_pcp_valid, const struct omci_vlan_filter_entry *filter,
++	const struct omci_extended_vlan *ext_vlan,
+ 	const struct omci_extended_vlan_rule *ext_rule, u16 selector,
+ 	bool *default_installed, bool multicast, u16 ani_entity_id,
+ 	bool ani_valid)
+@@ -2961,17 +2931,48 @@ static int omci_agent_stage_service_rule_locked(
+ 
+ 		omci_profile_normalize_vlan_rule(agent->profile_effective,
+ 						 &rule);
++		if (xpon_device_has_vlan_ops(odev->xpon)) {
++			int ret;
++
++			/* The mapper classifies the priority after VLAN treatment. */
++			if (mapper_pcp_valid) {
++				u8 pcp = rule.treat_inner_pbit;
++
++				if (pcp == 8)
++					pcp = rule.filter_inner_pbit;
++				if (pcp <= 7 && pcp != mapper_pcp)
++					return 0;
++				if (rule.treat_inner_pbit == 8 && pcp > 7 &&
++				    rule.filter_inner_pbit != 15)
++					rule.filter_inner_pbit = mapper_pcp;
++			}
++			ret = omci_vlan_parse_rewrite(ext_vlan, &rule, &service.vlan);
++			if (ret)
++				return ret;
++			service.vlan_rewrite = true;
++		}
+ 		memcpy(service.vlan_treatment, rule.raw + 8,
+ 		       sizeof(service.vlan_treatment));
+ 
+ 		/*
+ 		 * pon0 exposes the ANI/network side of the service.  Class 171
+ 		 * therefore selects the VLAN after the OMCI treatment, not the
+-		 * customer-side filter VLAN.  Userspace creates that network VLAN
+-		 * directly (for example pon0.1894), so the backend only needs the
+-		 * resulting classifier and does not need to rewrite the skb.
++		 * customer-side filter VLAN. Legacy providers expect userspace to
++		 * create that network VLAN directly (for example pon0.1894).
++		 * Providers with VLAN callbacks rewrite before this classifier.
+ 		 */
+-		if (omci_agent_service_vlan_valid(rule.treat_inner_vid)) {
++		if (service.vlan_rewrite) {
++			const struct xpon_vlan_rule *up = &service.vlan.upstream;
++
++			/* Use the post-rewrite VID, including a priority tag (VID 0). */
++			if (up->new_tci_mask & VLAN_VID_MASK) {
++				service.vlan_id = up->new_tci & VLAN_VID_MASK;
++				network_vlan = true;
++			} else if (up->tci_mask & VLAN_VID_MASK) {
++				service.vlan_id = up->tci & VLAN_VID_MASK;
++				network_vlan = true;
++			}
++		} else if (omci_agent_service_vlan_valid(rule.treat_inner_vid)) {
+ 			service.vlan_id = rule.treat_inner_vid;
+ 			network_vlan = true;
+ 		} else if (omci_agent_service_vlan_valid(
+@@ -2998,21 +2999,33 @@ static int omci_agent_stage_service_rule_locked(
+ 			service.pcp_valid = true;
+ 			service.queue = rule.filter_outer_pbit;
+ 		}
++		if (service.vlan_rewrite &&
++		    (service.vlan.upstream.new_tci_mask & VLAN_PRIO_MASK)) {
++			service.pcp = service.vlan.upstream.new_tci >> VLAN_PRIO_SHIFT;
++			service.pcp_valid = true;
++		}
+ 
+ 		/*
+ 		 * Preparatory Class 171 rules can describe only a customer-side
+ 		 * rewrite and still carry no host-facing VLAN.  They are valid OMCI
+ 		 * state, but they must not make the whole mapper Set fail.
+ 		 */
+-		if (!network_vlan)
++		if (!network_vlan && !service.vlan_rewrite)
+ 			return -EOPNOTSUPP;
+ 	}
+-	if (!service.vlan_valid && !service.pcp_valid && !*default_installed) {
++	if ((!service.vlan_rewrite || !service.vlan.upstream.drop) &&
++	    !service.vlan_valid && !service.pcp_valid && !*default_installed) {
+ 		service.default_service = true;
+ 		*default_installed = true;
+ 	}
+ 	service.cookie = omci_agent_service_cookie(
+ 		lan_port_entity, gem_ctp_entity, service.gem_port_id, selector);
++	if (service.vlan_rewrite) {
++		service.vlan.cookie = service.cookie;
++		service.vlan.port_id = service.uni_entity_id;
++		service.vlan.wire_id = service.gem_port_id;
++		service.vlan.priority |= selector;
++	}
+ 
+ 	/*
+ 	 * Trace every rule the resolver wants, not only the ones the backend
+@@ -3097,7 +3110,7 @@ omci_agent_wan_vlan_admits(const struct omci_mib_object *wan_filter, u16 vid)
+ 	return false;
+ }
+ 
+-static int omci_agent_stage_path_locked(struct omci_device *odev,
++int omci_agent_stage_path_locked(struct omci_device *odev,
+ 					struct xarray *services,
+ 					const struct omci_mib_object *lan_port,
+ 					u16 uni_entity, u16 bridge_port_entity,
+@@ -3110,7 +3123,8 @@ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 	const struct omci_mib_object *wan_filter;
+ 	struct omci_mib_object *object;
+ 	unsigned long index;
+-	u16 selector = pcp_valid ? 0x100 | pcp : 0;
++	/* Keep mapper priority separate from the VLAN table's row index. */
++	u16 selector = pcp_valid ? (pcp + 1) << 8 : 0;
+ 	bool installed = false;
+ 	int ret;
+ 
+@@ -3135,7 +3149,7 @@ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 					odev, services, lan_port->entity_id,
+ 					uni_entity, gem_iwtp_entity, pcp,
+ 					pcp_valid,
+-					&object->vlan_filter.entries[i], NULL,
++					&object->vlan_filter.entries[i], NULL, NULL,
+ 					selector + i + 1, default_installed,
+ 					multicast, ani_entity_id, ani_valid);
+ 				if (ret == -EOPNOTSUPP)
+@@ -3151,10 +3165,12 @@ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 					odev, services, lan_port->entity_id,
+ 					uni_entity, gem_iwtp_entity, pcp,
+ 					pcp_valid, NULL,
++					&object->extended_vlan,
+ 					&object->extended_vlan.rules[i],
+ 					selector + i + 0x20, default_installed,
+ 					multicast, ani_entity_id, ani_valid);
+-				if (ret == -EOPNOTSUPP)
++				if (ret == -EOPNOTSUPP &&
++				    !xpon_device_has_vlan_ops(odev->xpon))
+ 					continue;
+ 				if (ret)
+ 					return ret;
+@@ -3168,7 +3184,7 @@ static int omci_agent_stage_path_locked(struct omci_device *odev,
+ 
+ 	return omci_agent_stage_service_rule_locked(
+ 		odev, services, lan_port->entity_id, uni_entity,
+-		gem_iwtp_entity, pcp, pcp_valid, NULL, NULL, selector,
++		gem_iwtp_entity, pcp, pcp_valid, NULL, NULL, NULL, selector,
+ 		default_installed, multicast, ani_entity_id, ani_valid);
+ }
+ 
+diff --git a/net/xpon/omci/internal.h b/net/xpon/omci/internal.h
+--- a/net/xpon/omci/internal.h
++++ b/net/xpon/omci/internal.h
+@@ -53,6 +53,22 @@ struct omci_service_state {
+ 
+ int omci_agent_apply_services_locked(struct omci_device *odev,
+ 				     struct xarray *desired);
++int omci_service_delete(struct omci_device *odev,
++			const struct omci_service_config *config);
++void omci_ext_vlan_parse_rule(struct omci_extended_vlan_rule *rule,
++			      const u8 *raw);
++int omci_vlan_parse_rewrite(const struct omci_extended_vlan *vlan,
++			    const struct omci_extended_vlan_rule *rule,
++			    struct xpon_vlan_config *config);
++
++int omci_agent_stage_path_locked(struct omci_device *odev,
++				 struct xarray *services,
++				 const struct omci_mib_object *lan_port,
++				 u16 uni_entity, u16 bridge_port_entity,
++				 u16 service_entity, u16 gem_iwtp_entity,
++				 u8 pcp, bool pcp_valid, bool multicast,
++				 u16 ani_entity_id, bool ani_valid,
++				 bool *default_installed);
+ 
+ struct omci_agent_config {
+ 	u8 serial_number[8];
+diff --git a/net/xpon/omci/services.c b/net/xpon/omci/services.c
+--- a/net/xpon/omci/services.c
++++ b/net/xpon/omci/services.c
+@@ -2,11 +2,240 @@
+ /* Reconcile normalized OMCI services with a hardware provider. */
+ 
+ #include <linux/errno.h>
++#include <linux/if_vlan.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
++#include <linux/unaligned.h>
+ 
+ #include "internal.h"
+ 
++void omci_ext_vlan_parse_rule(struct omci_extended_vlan_rule *rule,
++			      const u8 *raw)
++{
++	u32 word;
++
++	memcpy(rule->raw, raw, sizeof(rule->raw));
++	word = get_unaligned_be32(raw);
++	rule->filter_outer_pbit = (word >> 28) & 0xf;
++	rule->filter_outer_vid = (word >> 15) & 0x1fff;
++	rule->filter_outer_tpid_dei = (word >> 12) & 0x7;
++
++	word = get_unaligned_be32(raw + 4);
++	rule->filter_inner_pbit = (word >> 28) & 0xf;
++	rule->filter_inner_vid = (word >> 15) & 0x1fff;
++	rule->filter_inner_tpid_dei = (word >> 12) & 0x7;
++	rule->filter_ethertype = word & 0xf;
++
++	word = get_unaligned_be32(raw + 8);
++	rule->tags_to_remove = (word >> 30) & 0x3;
++	rule->treat_outer_pbit = (word >> 16) & 0xf;
++	rule->treat_outer_vid = (word >> 3) & 0x1fff;
++	rule->treat_outer_tpid_dei = word & 0x7;
++
++	word = get_unaligned_be32(raw + 12);
++	rule->treat_inner_pbit = (word >> 16) & 0xf;
++	rule->treat_inner_vid = (word >> 3) & 0x1fff;
++	rule->treat_inner_tpid_dei = word & 0x7;
++	rule->delete = !memchr_inv(raw + 8, 0xff, 8);
++}
++
++static int omci_vlan_match(const struct omci_extended_vlan *vlan,
++			   const struct omci_extended_vlan_rule *rule,
++			   struct xpon_vlan_rule *up)
++{
++	if (rule->filter_inner_vid < VLAN_VID_MASK) {
++		up->tci = rule->filter_inner_vid;
++		up->tci_mask = VLAN_VID_MASK;
++	} else if (rule->filter_inner_vid != 4096) {
++		return -EINVAL;
++	}
++	if (rule->filter_inner_pbit <= 7) {
++		up->tci |= rule->filter_inner_pbit << VLAN_PRIO_SHIFT;
++		up->tci_mask |= VLAN_PRIO_MASK;
++	} else if (rule->filter_inner_pbit != 8 &&
++		   rule->filter_inner_pbit != 14) {
++		return -EINVAL;
++	}
++
++	switch (rule->filter_inner_tpid_dei) {
++	case 0:
++		break;
++	case 4:
++		up->tpid = htons(ETH_P_8021Q);
++		break;
++	case 5:
++	case 6:
++	case 7:
++		if (!vlan->input_tpid)
++			return -EINVAL;
++		up->tpid = htons(vlan->input_tpid);
++		if (rule->filter_inner_tpid_dei >= 6) {
++			up->tci_mask |= VLAN_CFI_MASK;
++			if (rule->filter_inner_tpid_dei == 7)
++				up->tci |= VLAN_CFI_MASK;
++		}
++		break;
++	default:
++		return -EINVAL;
++	}
++	return 0;
++}
++
++static int omci_vlan_treatment(const struct omci_extended_vlan *vlan,
++			       const struct omci_extended_vlan_rule *rule,
++			       struct xpon_vlan_rule *up)
++{
++	if (rule->treat_inner_vid < VLAN_VID_MASK) {
++		up->new_tci = rule->treat_inner_vid;
++		up->new_tci_mask = VLAN_VID_MASK;
++	} else if (rule->treat_inner_vid == 4097) {
++		return -EOPNOTSUPP; /* No outer tag to copy. */
++	} else if (rule->treat_inner_vid != 4096) {
++		return -EINVAL;
++	}
++	if (rule->treat_inner_pbit <= 7) {
++		up->new_tci |= rule->treat_inner_pbit << VLAN_PRIO_SHIFT;
++		up->new_tci_mask |= VLAN_PRIO_MASK;
++	} else if (rule->treat_inner_pbit == 9 ||
++		   rule->treat_inner_pbit == 10) {
++		return -EOPNOTSUPP; /* Outer-tag copy and DSCP mapping. */
++	} else if (rule->treat_inner_pbit != 8) {
++		return -EINVAL;
++	}
++
++	switch (rule->treat_inner_tpid_dei) {
++	case 0:
++		break; /* Copy TPID and DEI from the existing inner tag. */
++	case 2:
++	case 6:
++	case 7:
++		if (!vlan->output_tpid)
++			return -EINVAL;
++		up->new_tpid = htons(vlan->output_tpid);
++		if (rule->treat_inner_tpid_dei >= 6) {
++			up->new_tci_mask |= VLAN_CFI_MASK;
++			if (rule->treat_inner_tpid_dei == 7)
++				up->new_tci |= VLAN_CFI_MASK;
++		}
++		break;
++	case 4:
++		up->new_tpid = htons(ETH_P_8021Q);
++		up->new_tci_mask |= VLAN_CFI_MASK;
++		break;
++	case 1:
++	case 3:
++		return -EOPNOTSUPP; /* No outer tag to copy. */
++	default:
++		return -EINVAL;
++	}
++	return 0;
++}
++
++int omci_vlan_parse_rewrite(const struct omci_extended_vlan *vlan,
++			    const struct omci_extended_vlan_rule *rule,
++			    struct xpon_vlan_config *config)
++{
++	struct xpon_vlan_config parsed = {};
++	struct xpon_vlan_rule *up = &parsed.upstream;
++	struct xpon_vlan_rule *down = &parsed.downstream;
++	struct omci_extended_vlan_rule first;
++	int ret;
++
++	if (!vlan || !rule || !config)
++		return -EINVAL;
++	if (rule->delete || rule->filter_ethertype || vlan->downstream_mode > 1)
++		return -EOPNOTSUPP;
++	first = *rule;
++	if (rule->filter_outer_pbit != 15) {
++		struct xpon_vlan_rule inner = {};
++
++		if (rule->filter_inner_pbit == 15)
++			return -EOPNOTSUPP;
++		up->tag_mode = XPON_VLAN_DOUBLE_TAG;
++		ret = omci_vlan_match(vlan, rule, &inner);
++		if (ret)
++			return ret;
++		up->inner_tpid = inner.tpid;
++		up->inner_tci = inner.tci;
++		up->inner_tci_mask = inner.tci_mask;
++		first.filter_inner_pbit = rule->filter_outer_pbit;
++		first.filter_inner_vid = rule->filter_outer_vid;
++		first.filter_inner_tpid_dei = rule->filter_outer_tpid_dei;
++	} else if (rule->filter_inner_pbit == 15) {
++		up->tag_mode = XPON_VLAN_UNTAGGED;
++	}
++	if (up->tag_mode != XPON_VLAN_UNTAGGED) {
++		ret = omci_vlan_match(vlan, &first, up);
++		if (ret)
++			return ret;
++	}
++	if (rule->filter_inner_pbit == 14 || rule->filter_outer_pbit == 14)
++		parsed.priority = BIT(15);
++	/* Discard rows are policies, not forwarding services or inverse rules. */
++	if (rule->tags_to_remove == 3) {
++		up->drop = true;
++		*config = parsed;
++		return 0;
++	}
++	/* Replace the first tag; insertion and removal remain unsupported. */
++	if (up->tag_mode == XPON_VLAN_UNTAGGED || rule->tags_to_remove != 1 ||
++	    rule->treat_outer_pbit != 15 || rule->treat_inner_pbit == 15)
++		return -EOPNOTSUPP;
++	if (up->tag_mode == XPON_VLAN_DOUBLE_TAG) {
++		/* OMCI names the emitted tag "inner", although it replaces outer. */
++		switch (first.treat_inner_tpid_dei) {
++		case 1: /* Copy the original outer TPID and DEI. */
++			first.treat_inner_tpid_dei = 0;
++			break;
++		case 3: /* Output TPID, preserving the original outer DEI. */
++			first.treat_inner_tpid_dei = 2;
++			break;
++		case 0:
++		case 2:
++			return -EOPNOTSUPP; /* Would copy DEI from the untouched inner tag. */
++		}
++		if (first.treat_inner_pbit == 8)
++			return -EOPNOTSUPP; /* Would copy priority from the inner tag. */
++		if (first.treat_inner_pbit == 9)
++			first.treat_inner_pbit = 8;
++		if (first.treat_inner_vid == 4096)
++			return -EOPNOTSUPP; /* Would copy VID from the inner tag. */
++		if (first.treat_inner_vid == 4097)
++			first.treat_inner_vid = 4096;
++	}
++	ret = omci_vlan_treatment(vlan, &first, up);
++	if (ret)
++		return ret;
++	if (vlan->downstream_mode == 0) {
++		if (up->new_tpid && !up->tpid)
++			return -EOPNOTSUPP;
++		/* SDK inverse: match the emitted values, restore exact input bits,
++		 * and copy fields which were wildcarded upstream (notably PCP).
++		 */
++		*down = *up;
++		down->tpid = up->new_tpid ?: up->tpid;
++		down->new_tpid = up->new_tpid ? up->tpid : 0;
++		down->tci_mask = up->tci_mask | up->new_tci_mask;
++		down->tci = (up->tci & ~up->new_tci_mask) | up->new_tci;
++		down->new_tci_mask = up->new_tci_mask & up->tci_mask;
++		down->new_tci = up->tci & down->new_tci_mask;
++		parsed.downstream_valid = true;
++	}
++	*config = parsed;
++	return 0;
++}
++
++static bool omci_vlan_rule_equal(const struct xpon_vlan_rule *a,
++				 const struct xpon_vlan_rule *b)
++{
++	return a->tpid == b->tpid && a->new_tpid == b->new_tpid &&
++	       a->tci == b->tci && a->tci_mask == b->tci_mask &&
++	       a->new_tci == b->new_tci && a->new_tci_mask == b->new_tci_mask &&
++	       a->inner_tpid == b->inner_tpid && a->inner_tci == b->inner_tci &&
++	       a->inner_tci_mask == b->inner_tci_mask && a->tag_mode == b->tag_mode &&
++	       a->drop == b->drop;
++}
++
+ static bool omci_service_equal(const struct omci_service_config *a,
+ 			       const struct omci_service_config *b)
+ {
+@@ -25,7 +254,17 @@ static bool omci_service_equal(const struct omci_service_config *a,
+ 	       a->vlan_treatment_valid == b->vlan_treatment_valid &&
+ 	       a->multicast_ani_valid == b->multicast_ani_valid &&
+ 	       a->multicast == b->multicast &&
+-	       a->default_service == b->default_service;
++	       a->default_service == b->default_service &&
++	       a->vlan_rewrite == b->vlan_rewrite &&
++	       (!a->vlan_rewrite ||
++		(a->vlan.cookie == b->vlan.cookie &&
++		 a->vlan.port_id == b->vlan.port_id &&
++		 a->vlan.wire_id == b->vlan.wire_id &&
++		 a->vlan.priority == b->vlan.priority &&
++		 a->vlan.downstream_valid == b->vlan.downstream_valid &&
++		 omci_vlan_rule_equal(&a->vlan.upstream, &b->vlan.upstream) &&
++		 (!a->vlan.downstream_valid ||
++		  omci_vlan_rule_equal(&a->vlan.downstream, &b->vlan.downstream))));
+ }
+ 
+ static bool omci_service_unchanged(struct xarray *services,
+@@ -37,6 +276,60 @@ static bool omci_service_unchanged(struct xarray *services,
+ 	return other && omci_service_equal(&other->config, &state->config);
+ }
+ 
++static int omci_agent_validate_vlans(struct omci_device *odev,
++				     struct xarray *desired)
++{
++	struct xpon_vlan_config *configs;
++	struct omci_service_state *state;
++	unsigned long index;
++	size_t count = 0, i = 0;
++	int ret;
++
++	xa_for_each(desired, index, state)
++		if (state->config.vlan_rewrite)
++			count++;
++	configs = kvmalloc_array(count, sizeof(*configs), GFP_KERNEL);
++	if (!configs && count)
++		return -ENOMEM;
++	xa_for_each(desired, index, state)
++		if (state->config.vlan_rewrite)
++			configs[i++] = state->config.vlan;
++	ret = xpon_device_validate_vlans(odev->xpon, configs, count);
++	kvfree(configs);
++	return ret;
++}
++
++static bool omci_service_is_policy(const struct omci_service_config *config)
++{
++	return config->vlan_rewrite && config->vlan.upstream.drop;
++}
++
++static int omci_service_replace(struct omci_device *odev,
++				const struct omci_service_config *config)
++{
++	int ret;
++
++	ret = omci_service_is_policy(config) ? 0 :
++		odev->ops->replace_service(odev, config);
++	if (ret || !config->vlan_rewrite)
++		return ret;
++	return xpon_device_replace_vlan(odev->xpon, &config->vlan);
++}
++
++int omci_service_delete(struct omci_device *odev,
++			const struct omci_service_config *config)
++{
++	int ret;
++
++	if (config->vlan_rewrite) {
++		ret = xpon_device_delete_vlan(odev->xpon, config->cookie);
++		if (ret && ret != -ENOENT)
++			return ret;
++	}
++	return omci_service_is_policy(config) ? 0 :
++		odev->ops->delete_service(odev, config->cookie);
++}
++
+ static int omci_agent_validate_services(struct omci_device *odev,
+ 					struct xarray *desired)
+ {
+@@ -49,12 +342,14 @@ static int omci_agent_validate_services(struct omci_device *odev,
+ 	if (!odev->ops->validate_services)
+ 		return 0;
+ 	xa_for_each(desired, index, state)
+-		count++;
++		if (!omci_service_is_policy(&state->config))
++			count++;
+ 	configs = kvmalloc_array(count, sizeof(*configs), GFP_KERNEL);
+ 	if (!configs && count)
+ 		return -ENOMEM;
+ 	xa_for_each(desired, index, state)
+-		configs[i++] = state->config;
++		if (!omci_service_is_policy(&state->config))
++			configs[i++] = state->config;
+ 	ret = odev->ops->validate_services(odev, configs, count);
+ 	kvfree(configs);
+ 	if (ret)
+@@ -78,6 +373,9 @@ int omci_agent_apply_services_locked(struct omci_device *odev,
+ 		return -EOPNOTSUPP;
+ 
+ 	ret = omci_agent_validate_services(odev, desired);
++	if (ret)
++		return ret;
++	ret = omci_agent_validate_vlans(odev, desired);
+ 	if (ret)
+ 		return ret;
+ 
+@@ -94,7 +392,7 @@ int omci_agent_apply_services_locked(struct omci_device *odev,
+ 	xa_for_each(&agent->services, index, old_state) {
+ 		if (omci_service_unchanged(desired, old_state))
+ 			continue;
+-		ret = odev->ops->delete_service(odev, old_state->config.cookie);
++		ret = omci_service_delete(odev, &old_state->config);
+ 		if (ret && ret != -ENOENT) {
+ 			dev_warn(odev->parent,
+ 				 "OMCI delete failed for service %#x: %d; rolling back\n",
+@@ -105,7 +403,7 @@ int omci_agent_apply_services_locked(struct omci_device *odev,
+ 
+ 	/* Reapply unchanged rules too: a GPON restart may have lost them. */
+ 	xa_for_each(desired, index, state) {
+-		ret = odev->ops->replace_service(odev, &state->config);
++		ret = omci_service_replace(odev, &state->config);
+ 		if (ret) {
+ 			dev_warn(odev->parent,
+ 				 "OMCI install failed for service %#x (UNI %#x GEM %u T-CONT %#x queue %u): %d; rolling back\n",
+@@ -143,7 +441,7 @@ int omci_agent_apply_services_locked(struct omci_device *odev,
+ 		xa_for_each(desired, index, state) {
+ 			if (omci_service_unchanged(&agent->services, state))
+ 				continue;
+-			err = odev->ops->delete_service(odev, state->config.cookie);
++			err = omci_service_delete(odev, &state->config);
+ 			if (err && err != -ENOENT) {
+ 				rollback_error = err;
+ 				dev_err(odev->parent,
+@@ -153,7 +451,7 @@ int omci_agent_apply_services_locked(struct omci_device *odev,
+ 		}
+ 	if (odev->ops->replace_service)
+ 		xa_for_each(&agent->services, index, old_state) {
+-			err = odev->ops->replace_service(odev, &old_state->config);
++			err = omci_service_replace(odev, &old_state->config);
+ 			if (err) {
+ 				rollback_error = err;
+ 				dev_err(odev->parent,
+diff --git a/net/xpon/omci/services_test.c b/net/xpon/omci/services_test.c
+--- a/net/xpon/omci/services_test.c
++++ b/net/xpon/omci/services_test.c
+@@ -2,16 +2,27 @@
+ /* Service transactions against a capacity-limited, hardware-free provider. */
+ 
+ #include <kunit/test.h>
++#include <linux/etherdevice.h>
++#include <linux/if_vlan.h>
++#include <linux/unaligned.h>
+ 
+ #include "internal.h"
+ 
+ #define OMCI_TEST_CAPACITY 2
++#define OMCI_TEST_VLAN_CAPACITY 8
+ 
+ struct omci_services_test_context {
+ 	struct omci_device odev;
+ 	struct xarray desired;
++	struct net_device *netdev;
+ 	struct omci_service_config hardware[OMCI_TEST_CAPACITY];
+ 	bool used[OMCI_TEST_CAPACITY];
++	struct xpon_vlan_config vlans[OMCI_TEST_VLAN_CAPACITY];
++	bool vlan_used[OMCI_TEST_VLAN_CAPACITY];
++	u32 fail_vlan_cookie;
++	u32 fail_vlan_delete;
++	int vlan_preflight_error;
++	unsigned int vlan_replace_calls;
+ 	u16 fail_gem;
+ 	u16 fail_restore_gem;
+ 	u32 fail_delete_cookie;
+@@ -76,6 +87,66 @@ static const struct omci_device_ops omci_services_test_ops = {
+ 	.delete_service = omci_services_test_delete,
+ };
+ 
++static int omci_services_vlan_validate(struct xpon_device *xpon,
++				       const struct xpon_vlan_config *configs,
++				       size_t count)
++{
++	struct omci_services_test_context *ctx = xpon_device_priv(xpon);
++
++	if (ctx->vlan_preflight_error)
++		return ctx->vlan_preflight_error;
++	return count > OMCI_TEST_VLAN_CAPACITY ? -ENOSPC : 0;
++}
++
++static int omci_services_vlan_replace(struct xpon_device *xpon,
++				      const struct xpon_vlan_config *config)
++{
++	struct omci_services_test_context *ctx = xpon_device_priv(xpon);
++	int i, slot = -1;
++
++	ctx->vlan_replace_calls++;
++	if (config->cookie == ctx->fail_vlan_cookie) {
++		ctx->fail_vlan_cookie = 0;
++		return -EIO;
++	}
++	for (i = 0; i < OMCI_TEST_VLAN_CAPACITY; i++) {
++		if (ctx->vlan_used[i] && ctx->vlans[i].cookie == config->cookie) {
++			slot = i;
++			break;
++		}
++		if (!ctx->vlan_used[i] && slot < 0)
++			slot = i;
++	}
++	if (slot < 0)
++		return -ENOSPC;
++	ctx->vlans[slot] = *config;
++	ctx->vlan_used[slot] = true;
++	return 0;
++}
++
++static int omci_services_vlan_delete(struct xpon_device *xpon, u32 cookie)
++{
++	struct omci_services_test_context *ctx = xpon_device_priv(xpon);
++	int i;
++
++	if (cookie == ctx->fail_vlan_delete) {
++		ctx->fail_vlan_delete = 0;
++		return -EIO;
++	}
++	for (i = 0; i < OMCI_TEST_VLAN_CAPACITY; i++)
++		if (ctx->vlan_used[i] && ctx->vlans[i].cookie == cookie) {
++			ctx->vlan_used[i] = false;
++			return 0;
++		}
++	return -ENOENT;
++}
++
++static const struct xpon_device_ops omci_services_vlan_ops = {
++	.validate_vlans = omci_services_vlan_validate,
++	.replace_vlan = omci_services_vlan_replace,
++	.delete_vlan = omci_services_vlan_delete,
++};
++
+ static void omci_services_test_free(struct xarray *array)
+ {
+ 	struct omci_service_state *state;
+@@ -91,6 +162,7 @@ static void omci_services_test_free(struct xarray *array)
+ static int omci_services_test_init(struct kunit *test)
+ {
+ 	struct omci_services_test_context *ctx;
++	int ret;
+ 
+ 	ctx = kunit_kzalloc(test, sizeof(*ctx), GFP_KERNEL);
+ 	if (!ctx)
+@@ -98,13 +170,36 @@ static int omci_services_test_init(struct kunit *test)
+ 	ctx->odev.parent = root_device_register("omci-services-kunit");
+ 	if (IS_ERR(ctx->odev.parent))
+ 		return PTR_ERR(ctx->odev.parent);
++	ctx->netdev = alloc_etherdev(0);
++	if (!ctx->netdev) {
++		ret = -ENOMEM;
++		goto parent;
++	}
++	ctx->odev.xpon = xpon_device_alloc(ctx->odev.parent, 0);
++	if (IS_ERR(ctx->odev.xpon)) {
++		ret = PTR_ERR(ctx->odev.xpon);
++		goto netdev;
++	}
++	ret = xpon_device_setup(ctx->odev.xpon, ctx->netdev,
++				&omci_services_vlan_ops, ctx,
++				XPON_MODE_GPON, XPON_MODE_GPON);
++	if (ret) {
++		xpon_device_free(ctx->odev.xpon);
++		goto netdev;
++	}
+ 	ctx->odev.priv = ctx;
+ 	ctx->odev.ops = &omci_services_test_ops;
+ 	mutex_init(&ctx->odev.agent.lock);
++	xa_init(&ctx->odev.agent.mib);
+ 	xa_init(&ctx->odev.agent.services);
+ 	xa_init(&ctx->desired);
+ 	test->priv = ctx;
+ 	return 0;
++netdev:
++	free_netdev(ctx->netdev);
++parent:
++	root_device_unregister(ctx->odev.parent);
++	return ret;
+ }
+ 
+ static void omci_services_test_exit(struct kunit *test)
+@@ -113,6 +208,9 @@ static void omci_services_test_exit(struct kunit *test)
+ 
+ 	omci_services_test_free(&ctx->desired);
+ 	omci_services_test_free(&ctx->odev.agent.services);
++	xa_destroy(&ctx->odev.agent.mib);
++	xpon_device_free(ctx->odev.xpon);
++	free_netdev(ctx->netdev);
+ 	root_device_unregister(ctx->odev.parent);
+ }
+ 
+@@ -288,6 +386,458 @@ static void omci_services_clear_test(struct kunit *test)
+ 	KUNIT_EXPECT_FALSE(test, ctx->used[1]);
+ }
+ 
++static void omci_vlan_test_rule(struct omci_extended_vlan_rule *rule)
++{
++	u8 raw[OMCI_EXT_VLAN_RULE_LEN + 1] = {};
++
++	/* Single tag, any PCP/DEI/TPID: VID 10 -> 1894, preserve PCP/DEI/TPID. */
++	put_unaligned_be32(0xf0000000, raw + 1);
++	put_unaligned_be32(0x80050000, raw + 5);
++	put_unaligned_be32(0x400f0000, raw + 9);
++	put_unaligned_be32(0x00083b30, raw + 13);
++	omci_ext_vlan_parse_rule(rule, raw + 1);
++}
++
++static void omci_vlan_rewrite_parse_test(struct kunit *test)
++{
++	struct omci_extended_vlan vlan = {};
++	struct omci_extended_vlan_rule rule;
++	struct xpon_vlan_config config;
++	u16 original = (5 << VLAN_PRIO_SHIFT) | VLAN_CFI_MASK | 10;
++	u16 translated, restored;
++
++	omci_vlan_test_rule(&rule);
++	KUNIT_ASSERT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config), 0);
++	KUNIT_EXPECT_EQ(test, rule.filter_inner_vid, 10);
++	KUNIT_EXPECT_EQ(test, rule.treat_inner_vid, 1894);
++	KUNIT_EXPECT_EQ(test, config.upstream.tci, 10);
++	KUNIT_EXPECT_EQ(test, config.upstream.new_tci, 1894);
++	KUNIT_EXPECT_EQ(test, config.upstream.new_tci_mask, VLAN_VID_MASK);
++	KUNIT_EXPECT_TRUE(test, config.downstream_valid);
++	KUNIT_EXPECT_EQ(test, config.downstream.tci, 1894);
++	KUNIT_EXPECT_EQ(test, config.downstream.new_tci, 10);
++	translated = (original & ~config.upstream.new_tci_mask) |
++		     config.upstream.new_tci;
++	KUNIT_EXPECT_EQ(test, translated & VLAN_VID_MASK, 1894);
++	KUNIT_EXPECT_EQ(test, translated & ~VLAN_VID_MASK,
++			original & ~VLAN_VID_MASK);
++	restored = (translated & ~config.downstream.new_tci_mask) |
++		   config.downstream.new_tci;
++	KUNIT_EXPECT_EQ(test, restored, original);
++}
++
++static void omci_vlan_rewrite_only_test(struct kunit *test)
++{
++	struct omci_extended_vlan vlan = {};
++	struct omci_extended_vlan_rule base, rule;
++	struct xpon_vlan_config config = { .cookie = 123 };
++	unsigned int i;
++
++	omci_vlan_test_rule(&base);
++	for (i = 0; i < 8; i++) {
++		rule = base;
++		switch (i) {
++		case 0:
++			rule.tags_to_remove = 0; /* Push. */
++			break;
++		case 1:
++			rule.tags_to_remove = 2; /* Pop two. */
++			break;
++		case 2:
++			rule.filter_ethertype = 1; /* EtherType filter. */
++			break;
++		case 3:
++			rule.filter_inner_pbit = 15; /* Untagged. */
++			break;
++		case 4:
++			rule.treat_inner_pbit = 15; /* Pop one. */
++			break;
++		case 5:
++			rule.treat_outer_pbit = 0; /* Emit two tags. */
++			break;
++		case 6:
++			rule.filter_outer_pbit = 0; /* Match two tags. */
++			break;
++		case 7:
++			rule.delete = true;
++			break;
++		}
++		KUNIT_EXPECT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config),
++				-EOPNOTSUPP);
++		KUNIT_EXPECT_EQ(test, config.cookie, 123U);
++	}
++}
++
++static void omci_vlan_inverse_information_test(struct kunit *test)
++{
++	struct omci_extended_vlan vlan = {};
++	struct omci_extended_vlan_rule rule;
++	struct xpon_vlan_config config;
++
++	omci_vlan_test_rule(&rule);
++	rule.treat_inner_pbit = 3;
++	KUNIT_ASSERT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config), 0);
++	KUNIT_EXPECT_EQ(test, config.downstream.tci_mask, VLAN_VID_MASK | VLAN_PRIO_MASK);
++	KUNIT_EXPECT_EQ(test, config.downstream.new_tci_mask, VLAN_VID_MASK);
++	/* The inverse copies a wildcard input priority, as the SDK does. */
++	KUNIT_EXPECT_EQ(test, config.downstream.tci >> VLAN_PRIO_SHIFT, 3);
++	/* Transparent downstream does not need an inverse. */
++	vlan.downstream_mode = 1;
++	KUNIT_ASSERT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config), 0);
++	KUNIT_EXPECT_FALSE(test, config.downstream_valid);
++	KUNIT_EXPECT_EQ(test, config.upstream.new_tci_mask,
++			VLAN_VID_MASK | VLAN_PRIO_MASK);
++	/* An exact input priority makes the inverse representable. */
++	vlan.downstream_mode = 0;
++	rule.filter_inner_pbit = 5;
++	KUNIT_ASSERT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config), 0);
++	KUNIT_EXPECT_EQ(test, config.downstream.tci >> VLAN_PRIO_SHIFT, 3);
++	KUNIT_EXPECT_EQ(test, config.downstream.new_tci >> VLAN_PRIO_SHIFT, 5);
++}
++
++static void omci_vlan_tpid_test(struct kunit *test)
++{
++	struct omci_extended_vlan vlan = {
++		.input_tpid = ETH_P_8021Q,
++		.output_tpid = ETH_P_8021AD,
++	};
++	struct omci_extended_vlan_rule rule;
++	struct xpon_vlan_config config;
++
++	omci_vlan_test_rule(&rule);
++	rule.filter_inner_tpid_dei = 5;
++	rule.treat_inner_tpid_dei = 2;
++	KUNIT_ASSERT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config), 0);
++	KUNIT_EXPECT_EQ(test, config.upstream.tpid, htons(ETH_P_8021Q));
++	KUNIT_EXPECT_EQ(test, config.upstream.new_tpid, htons(ETH_P_8021AD));
++	KUNIT_EXPECT_EQ(test, config.downstream.tpid, htons(ETH_P_8021AD));
++	KUNIT_EXPECT_EQ(test, config.downstream.new_tpid, htons(ETH_P_8021Q));
++	rule.filter_inner_tpid_dei = 0;
++	KUNIT_EXPECT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config),
++			-EOPNOTSUPP);
++}
++
++static void omci_vlan_invalid_test(struct kunit *test)
++{
++	struct omci_extended_vlan vlan = {};
++	struct omci_extended_vlan_rule base, rule;
++	struct xpon_vlan_config config;
++	unsigned int i;
++
++	omci_vlan_test_rule(&base);
++	for (i = 0; i < 5; i++) {
++		rule = base;
++		switch (i) {
++		case 0:
++			rule.filter_inner_vid = 4095;
++			break;
++		case 1:
++			rule.treat_inner_vid = 4095;
++			break;
++		case 2:
++			rule.filter_inner_pbit = 11;
++			break;
++		case 3:
++			rule.treat_inner_pbit = 11;
++			break;
++		case 4:
++			rule.treat_inner_tpid_dei = 5;
++			break;
++		}
++		KUNIT_EXPECT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, &config),
++				-EINVAL);
++	}
++	rule = base;
++	memset(rule.raw + 8, 0xff, 8);
++	omci_ext_vlan_parse_rule(&rule, rule.raw);
++	KUNIT_EXPECT_TRUE(test, rule.delete);
++}
++
++static void omci_services_add_vlan(struct kunit *test, struct xarray *array,
++				   u32 cookie, u16 vid)
++{
++	struct omci_service_state *state;
++	struct omci_extended_vlan vlan = {};
++	struct omci_extended_vlan_rule rule;
++	int ret;
++
++	omci_services_test_add(test, array, cookie, 256);
++	state = xa_load(array, cookie);
++	KUNIT_ASSERT_NOT_NULL(test, state);
++	omci_vlan_test_rule(&rule);
++	rule.treat_inner_vid = vid;
++	ret = omci_vlan_parse_rewrite(&vlan, &rule, &state->config.vlan);
++	KUNIT_ASSERT_EQ(test, ret, 0);
++	state->config.vlan.cookie = cookie;
++	state->config.vlan_rewrite = true;
++}
++
++static void omci_services_vlan_transaction_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_add_vlan(test, &ctx->desired, 1, 1894);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_TRUE(test, ctx->vlan_used[0]);
++	KUNIT_EXPECT_EQ(test, ctx->vlans[0].upstream.new_tci, 1894);
++	/* Changing only the translation must still replace the service. */
++	omci_services_add_vlan(test, &ctx->desired, 1, 2000);
++	ctx->fail_vlan_cookie = 1;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EIO);
++	KUNIT_EXPECT_TRUE(test, ctx->vlan_used[0]);
++	KUNIT_EXPECT_EQ(test, ctx->vlans[0].upstream.new_tci, 1894);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 256));
++	/* The desired set stays owned by the caller after failure. */
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_EQ(test, ctx->vlans[0].upstream.new_tci, 2000);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_FALSE(test, ctx->vlan_used[0]);
++}
++
++static void omci_services_vlan_preflight_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_add_vlan(test, &ctx->desired, 1, 1894);
++	ctx->vlan_preflight_error = -EOPNOTSUPP;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EOPNOTSUPP);
++	KUNIT_EXPECT_EQ(test, ctx->replace_calls, 0U);
++	KUNIT_EXPECT_EQ(test, ctx->vlan_replace_calls, 0U);
++}
++
++static void omci_services_vlan_delete_failure_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_add_vlan(test, &ctx->desired, 1, 1894);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	ctx->fail_vlan_delete = 1;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EIO);
++	KUNIT_EXPECT_TRUE(test, ctx->vlan_used[0]);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 256));
++}
++
++static void omci_services_vlan_restart_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_add_vlan(test, &ctx->desired, 1, 1894);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	memset(ctx->used, 0, sizeof(ctx->used));
++	memset(ctx->vlan_used, 0, sizeof(ctx->vlan_used));
++	omci_services_add_vlan(test, &ctx->desired, 1, 1894);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 256));
++	KUNIT_EXPECT_TRUE(test, ctx->vlan_used[0]);
++	KUNIT_EXPECT_EQ(test, ctx->vlan_replace_calls, 2U);
++}
++
++static void omci_services_vlan_no_provider_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++	struct xpon_device *xpon = ctx->odev.xpon;
++
++	omci_services_add_vlan(test, &ctx->desired, 1, 1894);
++	ctx->odev.xpon = NULL;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EOPNOTSUPP);
++	KUNIT_EXPECT_EQ(test, ctx->replace_calls, 0U);
++	ctx->odev.xpon = xpon;
++}
++
++/* Captured from the provider's ME 171/0x0101, in table order. */
++static const u8 omci_provider_rows[][OMCI_EXT_VLAN_RULE_LEN] = {
++	{ 0xf8, 0, 0, 0, 0xe8, 0, 0x50, 0, 0xc0, 0x0f, 0, 0, 0, 0x0f, 0x80, 2 },
++	{ 0xe8, 0, 0x50, 0, 0xe8, 0, 0, 0, 0xc0, 0x0f, 0, 0, 0, 0x0f, 0x80, 3 },
++	{ 0xf8, 0, 0, 0, 0xf0, 0, 0x50, 0, 0xc0, 0x0f, 0, 0, 0, 0x0f, 0, 2 },
++	{ 0xf8, 0, 0, 0, 0x80, 5, 0x50, 0, 0x40, 0x2f, 0, 0, 0, 0, 0x3b, 0x32 },
++	{ 0x80, 5, 0x50, 0, 0x88, 0, 0, 0, 0x40, 0x2f, 0, 0, 0, 0, 0x3b, 0x33 },
++};
++
++static void omci_provider_config(struct kunit *test, unsigned int i,
++				 struct xpon_vlan_config *config)
++{
++	struct omci_extended_vlan vlan = {
++		.input_tpid = ETH_P_8021Q, .output_tpid = ETH_P_8021Q,
++	};
++	struct omci_extended_vlan_rule rule;
++
++	omci_ext_vlan_parse_rule(&rule, omci_provider_rows[i]);
++	KUNIT_ASSERT_EQ(test, omci_vlan_parse_rewrite(&vlan, &rule, config), 0);
++	config->cookie = 10 + i;
++	config->port_id = 0x101;
++	config->wire_id = 295;
++	config->priority |= i;
++}
++
++static void omci_provider_parse_test(struct kunit *test)
++{
++	struct xpon_vlan_config config;
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(omci_provider_rows); i++) {
++		omci_provider_config(test, i, &config);
++		KUNIT_EXPECT_EQ(test, config.upstream.drop, i < 3);
++		if (i < 3) {
++			KUNIT_EXPECT_FALSE(test, config.downstream_valid);
++			continue;
++		}
++		KUNIT_EXPECT_TRUE(test, config.downstream_valid);
++		KUNIT_EXPECT_EQ(test, config.upstream.tci, 10);
++		KUNIT_EXPECT_EQ(test, config.upstream.new_tci, 1894);
++		KUNIT_EXPECT_EQ(test, config.upstream.new_tci_mask,
++				VLAN_VID_MASK | VLAN_PRIO_MASK);
++		KUNIT_EXPECT_EQ(test, config.downstream.tci, 1894);
++		KUNIT_EXPECT_EQ(test, config.downstream.tci_mask,
++				VLAN_VID_MASK | VLAN_PRIO_MASK);
++		KUNIT_EXPECT_EQ(test, config.downstream.new_tci_mask, VLAN_VID_MASK);
++		KUNIT_EXPECT_EQ(test, config.downstream.new_tci, 10);
++		KUNIT_EXPECT_EQ(test, config.upstream.tag_mode,
++				i == 3 ? XPON_VLAN_SINGLE_TAG : XPON_VLAN_DOUBLE_TAG);
++	}
++}
++
++static void omci_provider_mapper_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++	struct omci_mib_object *objects, *vlan, *gem, *iwtp, *tcont;
++	struct omci_service_state *state;
++	struct omci_mib_object lan_port = { .entity_id = 0x101 };
++	unsigned int count = 0, drops = 0, rewrites = 0, filters = 0;
++	bool default_installed = false;
++	unsigned long index;
++	unsigned int i;
++
++	objects = kunit_kcalloc(test, 5, sizeof(*objects), GFP_KERNEL);
++	KUNIT_ASSERT_NOT_NULL(test, objects);
++	vlan = &objects[0];
++	vlan->class_id = OMCI_CLASS_EXTENDED_VLAN;
++	vlan->entity_id = 0x101;
++	vlan->extended_vlan.valid = true;
++	vlan->extended_vlan.associated_me = lan_port.entity_id;
++	vlan->extended_vlan.input_tpid = ETH_P_8021Q;
++	vlan->extended_vlan.output_tpid = ETH_P_8021Q;
++	vlan->extended_vlan.rule_count = ARRAY_SIZE(omci_provider_rows);
++	for (i = 0; i < ARRAY_SIZE(omci_provider_rows); i++)
++		omci_ext_vlan_parse_rule(&vlan->extended_vlan.rules[i],
++					 omci_provider_rows[i]);
++	gem = &objects[1];
++	gem->class_id = OMCI_CLASS_GEM_PORT_CTP;
++	gem->entity_id = 0x101;
++	gem->origin = OMCI_MIB_ORIGIN_OLT;
++	put_unaligned_be16(295, gem->data);
++	put_unaligned_be16(0x8000, gem->data + 2);
++	gem->data[4] = OMCI_GEM_PORT_DIRECTION_BIDIRECTIONAL;
++	iwtp = &objects[2];
++	iwtp->class_id = OMCI_CLASS_GEM_IWTP;
++	iwtp->entity_id = 0x101;
++	put_unaligned_be16(gem->entity_id, iwtp->data);
++	tcont = &objects[3];
++	tcont->class_id = OMCI_CLASS_TCONT;
++	tcont->entity_id = 0x8000;
++	put_unaligned_be16(295, tcont->data);
++	objects[4].class_id = OMCI_CLASS_VLAN_TAGGING_FILTER_DATA;
++	objects[4].entity_id = 0x101;
++	objects[4].vlan_filter.valid = true;
++	objects[4].vlan_filter.num_entries = 1;
++	objects[4].vlan_filter.entries[0].vid = 1894;
++	for (i = 0; i < 5; i++) {
++		unsigned long key = ((unsigned long)objects[i].class_id << 16) |
++				    objects[i].entity_id;
++		int ret;
++
++		ret = xa_insert(&ctx->odev.agent.mib, key, &objects[i], GFP_KERNEL);
++		KUNIT_ASSERT_EQ(test, ret, 0);
++	}
++
++	/* All eight mapper priorities point at the same provider GEM. */
++	mutex_lock(&ctx->odev.agent.lock);
++	for (i = 0; i < 8; i++) {
++		int ret = omci_agent_stage_path_locked(&ctx->odev, &ctx->desired,
++			&lan_port, 0x101, 0x101, 0x101, iwtp->entity_id,
++			i, true, false, 0, false, &default_installed);
++
++		KUNIT_EXPECT_EQ(test, ret, 0);
++	}
++	mutex_unlock(&ctx->odev.agent.lock);
++	xa_for_each(&ctx->desired, index, state) {
++		const struct omci_service_config *service = &state->config;
++
++		count++;
++		if (!service->vlan_rewrite) {
++			filters++;
++			continue;
++		}
++		if (service->vlan.upstream.drop) {
++			drops++;
++			continue;
++		}
++		rewrites++;
++		KUNIT_EXPECT_EQ(test, service->gem_port_id, 295);
++		KUNIT_EXPECT_EQ(test, service->vlan.upstream.tci, 10);
++		KUNIT_EXPECT_EQ(test, service->vlan.upstream.new_tci, 1894);
++		KUNIT_EXPECT_EQ(test, service->queue, 0);
++	}
++	KUNIT_EXPECT_EQ(test, count, 34U);
++	KUNIT_EXPECT_EQ(test, filters, 8U);
++	KUNIT_EXPECT_EQ(test, drops, 24U);
++	KUNIT_EXPECT_EQ(test, rewrites, 2U);
++}
++
++static void omci_provider_stage(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(omci_provider_rows); i++) {
++		struct omci_service_state *state;
++
++		state = kzalloc(sizeof(*state), GFP_KERNEL);
++		KUNIT_ASSERT_NOT_NULL(test, state);
++		omci_provider_config(test, i, &state->config.vlan);
++		state->config.cookie = state->config.vlan.cookie;
++		state->config.gem_port_id = 295;
++		state->config.vlan_rewrite = true;
++		KUNIT_ASSERT_EQ(test, xa_insert(&ctx->desired, state->config.cookie,
++						state, GFP_KERNEL), 0);
++	}
++}
++
++static void omci_provider_transaction_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++	unsigned int i;
++
++	omci_provider_stage(test);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	/* Five policies/treatments consume just two forwarding slots. */
++	KUNIT_EXPECT_EQ(test, ctx->replace_calls, 2U);
++	KUNIT_EXPECT_EQ(test, ctx->vlan_replace_calls, 5U);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 13, 295));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 14, 295));
++	omci_services_test_free(&ctx->desired);
++	xa_init(&ctx->desired);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	for (i = 0; i < OMCI_TEST_VLAN_CAPACITY; i++)
++		KUNIT_EXPECT_FALSE(test, ctx->vlan_used[i]);
++	KUNIT_EXPECT_FALSE(test, ctx->used[0]);
++	KUNIT_EXPECT_FALSE(test, ctx->used[1]);
++}
++
++static void omci_provider_rollback_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++	unsigned int i;
++
++	omci_services_test_seed(test);
++	omci_provider_stage(test);
++	ctx->fail_vlan_cookie = 14;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EIO);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 10));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++	for (i = 0; i < OMCI_TEST_VLAN_CAPACITY; i++)
++		KUNIT_EXPECT_FALSE(test, ctx->vlan_used[i]);
++}
++
+ static struct kunit_case omci_services_test_cases[] = {
+ 	KUNIT_CASE(omci_services_full_reprovision_test),
+ 	KUNIT_CASE(omci_services_changed_cookie_test),
+@@ -298,6 +848,20 @@ static struct kunit_case omci_services_test_cases[] = {
+ 	KUNIT_CASE(omci_services_changed_rollback_test),
+ 	KUNIT_CASE(omci_services_delete_failure_test),
+ 	KUNIT_CASE(omci_services_clear_test),
++	KUNIT_CASE(omci_vlan_rewrite_parse_test),
++	KUNIT_CASE(omci_vlan_rewrite_only_test),
++	KUNIT_CASE(omci_vlan_inverse_information_test),
++	KUNIT_CASE(omci_vlan_tpid_test),
++	KUNIT_CASE(omci_vlan_invalid_test),
++	KUNIT_CASE(omci_provider_parse_test),
++	KUNIT_CASE(omci_provider_mapper_test),
++	KUNIT_CASE(omci_provider_transaction_test),
++	KUNIT_CASE(omci_provider_rollback_test),
++	KUNIT_CASE(omci_services_vlan_transaction_test),
++	KUNIT_CASE(omci_services_vlan_preflight_test),
++	KUNIT_CASE(omci_services_vlan_delete_failure_test),
++	KUNIT_CASE(omci_services_vlan_restart_test),
++	KUNIT_CASE(omci_services_vlan_no_provider_test),
+ 	{}
+ };
+ 
+

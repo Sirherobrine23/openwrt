@@ -1,0 +1,3414 @@
+From 37d69b5a87f38b3290e3c8905a73829997deb1ec Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 25 Oct 2026 12:44:26 +0000
+Subject: [PATCH] clk: Airoha: update clk-en7523 and control cpu clock
+
+clean clk-en7523 and add support for CPU Clock speed for en751221, en7528 and en7580
+
+Reviewed-on: https://sirherobrine23.com.br/airoha/kernel/pulls/92
+Co-authored-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ Documentation/admin-guide/pm/econet-cpufreq.rst    |  507 +++++++++
+ Documentation/admin-guide/pm/index.rst             |    1 +
+ .../bindings/clock/airoha,en7523-scu.yaml          |   40 +-
+ MAINTAINERS                                        |    6 +-
+ arch/mips/Kconfig                                  |    2 +
+ arch/mips/boot/dts/econet/en751221.dtsi            |   50 +-
+ arch/mips/boot/dts/econet/en751627.dtsi            |   14 +-
+ arch/mips/boot/dts/econet/en7528.dtsi              |   99 +-
+ arch/mips/boot/dts/econet/en7580.dtsi              |  190 +++-
+ arch/mips/econet/init.c                            |   13 +
+ drivers/clk/clk-en7523.c                           | 1091 +++++++++++++++++---
+ drivers/cpufreq/Kconfig                            |   32 +
+ drivers/cpufreq/Makefile                           |    1 +
+ drivers/cpufreq/cpufreq-dt-platdev.c               |    4 +
+ drivers/cpufreq/econet-cpufreq.c                   |  253 +++++
+ drivers/watchdog/airoha_wdt.c                      |  180 +++-
+ include/dt-bindings/clock/econet,en751221-scu.h    |   12 -
+ include/dt-bindings/clock/econet,en751627-scu.h    |   12 -
+ include/dt-bindings/clock/econet,en7528-scu.h      |   12 -
+ include/dt-bindings/clock/econet,en7580-scu.h      |   12 -
+ 20 files changed, 2271 insertions(+), 260 deletions(-)
+
+diff --git a/Documentation/admin-guide/pm/econet-cpufreq.rst b/Documentation/admin-guide/pm/econet-cpufreq.rst
+new file mode 100644
+--- /dev/null
++++ b/Documentation/admin-guide/pm/econet-cpufreq.rst
+@@ -0,0 +1,507 @@
++.. SPDX-License-Identifier: GPL-2.0-only
++
++EcoNet MIPS CPU frequency control and reporting
++=============================================
++
++The ``econet`` CPUFreq driver reports the CPU frequency on EN751221,
++EN751627, EN7528 and EN7580 SoCs. It exposes a single frequency shared by all
++cores and VPEs. EN751221-family and EN7528-family configurations support
++experimental explicit profile changes; other devices retain reporting-only
++operation. DDR settings and the external timer are not changed.
++
++Enable ``CONFIG_CPU_FREQ``, ``CONFIG_COMMON_CLK_EN7523`` and
++``CONFIG_ECONET_CPUFREQ``. The latter can be built in or built as the
++``econet-cpufreq`` module. The system clock controller creates its platform
++device after registering the clocks. The CPU nodes must reference the
++controller's CPU clock, as provided by the EcoNet SoC DTSI files.
++
++Frequency sources
++-----------------
++
++On EN751221, EN7528 and EN7580, the CPU clock uses an uncached
++``recalc_rate`` callback to read the programmed PLL configuration. The bus
++clock is the CPU clock divided by four on EN751221 and EN7528, or by five
++on EN7580. BUS derives its rate
++from the CPU parent, allowing CCF to predict and notify bus changes before
++programming the PLL. CPU readback refreshes that parent. Direct MMIO changes
++bypass this mechanism; when inspecting them, read the CPU rate first. These
++are configured nominal rates, not cycle-counter measurements.
++
++EN751221 recognizes the following complete register profiles, with ``0x12``
++at ``0x1fa20144`` and ``0x406`` at ``0x1fa201a8``:
++
++========== ============ ============ ================================
++CPU        0x1fa2019c   0x1fa201ac   Source
++========== ============ ============ ================================
++700 MHz    0x05101b08   0x02800000   Vendor bootloader
++800 MHz    0x05101f08   0x03000000   Interpolated, exercised on EN7526G
++900 MHz    0x05102308   0x03800000   Vendor bootloader
++1000 MHz   0x05102708   0x04000000   Short PMU windows on EN7526G
++========== ============ ============ ================================
++
++The 400 MHz pair was initially extrapolated as 325 MHz, but short PMU
++measurements established approximately 400.008 MHz between two 900 MHz
++reference measurements. This pair is no longer exposed after a system hang
++was reported during automatic switching. The four retained complete pairs
++are recognized throughout
++the EN751221 family; no other rates are inferred automatically from these
++undocumented fields. Measurements on EN7526G do not establish stability
++on other family variants.
++EN7526C/EN7522 use
++a different PLL layout and retain boot-metadata reporting even when they
++share the EN751221 clock-controller compatible.
++
++EN7528 uses a different layout: ``0x1fa201a0`` for programming setup,
++``0x1fa201ec`` for configuration, ``0x1fa201f8`` for apply control, and
++``0x1fa201fc`` for the parameter. An idle recognized profile requires
++setup zero and control ``0x406``. The following 17 complete pairs are
++recognized without a separate characterization option:
++
++========== ============ ============
++CPU        0x1fa201ec   0x1fa201fc
++========== ============ ============
++600  MHz   0x05101708   0x02000000
++625  MHz   0x05101808   0x02200000
++650  MHz   0x05101908   0x02400000
++675  MHz   0x05101a08   0x02600000
++700  MHz   0x05101b08   0x02800000
++725  MHz   0x05101c08   0x02a00000
++750  MHz   0x05101d08   0x02c00000
++775  MHz   0x05101e08   0x02e00000
++800  MHz   0x05101f08   0x03000000
++825  MHz   0x05102008   0x03200000
++850  MHz   0x05102108   0x03400000
++875  MHz   0x05102208   0x03600000
++900  MHz   0x05102308   0x03800000
++925  MHz   0x05102408   0x03a00000
++950  MHz   0x05102508   0x03c00000
++975  MHz   0x05102608   0x03e00000
++1000 MHz   0x05102708   0x04000000
++========== ============ ============
++
++All pairs were exercised in short pinned PMU windows on one EN7528HU,
++including the transition from 525 to 500 MHz and restoration to 900 MHz.
++The measured endpoints were approximately 325.013 and 1000.039 MHz, with
++matching workload checksums. This establishes short-window frequency
++behavior on that unit, not prolonged stability or silicon operating limits.
++
++Profiles below 600 MHz are no longer exposed after a system hang followed
++by watchdog recovery was reported with automatic switching. This restriction
++does not establish the cause of that hang. Only the retained family rate sets can be programmed through the clock
++provider using the characterized encoding.
++
++The SDK's 900 MHz path only saves boot metadata. Runtime restoration uses
++the observed boot pair, not a documented SDK 900 MHz transition. The SDK's
++separate 225 MHz profile is not exposed by this driver.
++
++On EN7580, ``do_cpufreq`` in the SDK bootram programs bits 30:24 of
++``0x1fa202ac``. A PCW of 104 corresponds to 1300 MHz, with each decrement
++of two corresponding to 25 MHz. The driver recognizes the SDK's even PCW
++values from 26 through 104 (325 through 1300 MHz), provided the rest of the
++register is zero. The nominal CPU rate is ``PCW * 12500000`` Hz. This
++interpretation is specific to the EN7580 path and is not used on EN751221.
++
++At clock-controller probe, the driver saves the PLL register state and
++the bootloader CPU rate. An otherwise unrecognized profile can retain
++that bootloader rate only while the saved PLL register state is unchanged.
++This preserves boot configurations not covered by the decoders, including
++the EN751221 default/940 MHz boot path. A different unrecognized state
++returns zero from the clock provider; CPUFreq displays ``<unknown>`` in
++``cpuinfo_cur_freq``. Restore a recognized profile to resume live reporting.
++
++EN751627 retains the fixed bootloader rate. All platforms still require
++nonzero bootloader metadata to initialize the clock controller.
++
++Bootloader metadata
++~~~~~~~~~~~~~~~~~~~
++
++The system clock controller reads the bus frequency, in MHz, saved by the
++bootloader at physical address ``0x1fb00284``. The layout and multiplier are
++SoC-specific:
++
++========== =================== =========================
++SoC        Bus frequency field CPU frequency calculation
++========== =================== =========================
++EN751221   bits 21:12          bus frequency * 4
++EN751627   bits 21:12          bus frequency * 4
++EN7528     bits 19:10          bus frequency * 4
++EN7580     bits 19:10          bus frequency * 5
++========== =================== =========================
++
++These layouts follow the vendor DRAMC boot paths. In particular, the
++preserved EN751627 calibration binary inserts ten bits at bit 12; a header
++declaring a shift of 20 does not describe that binary's clock field.
++
++A zero bus frequency is rejected by the clock controller. Other values
++depend on the bootloader having populated the expected field correctly.
++There is no guessed fallback frequency or CP0 measurement. A metadata-only
++rate remains valid only while the boot configuration is unchanged.
++
++The field contains integer MHz. Vendor boot paths that save ``CPU >> 2``
++truncate CPU rates that are not multiples of 4 MHz; the reconstructed CPU
++rate then has the same precision limit. The driver does not infer the lost
++bits or substitute a guessed PLL rate.
++
++For example, ``0x000e1100`` on EN751221 contains a bus frequency of 225 MHz
++and corresponds to a CPU frequency of 900 MHz.
++
++The external 200 MHz high-precision timer is independent of this reported
++CPU clock. Its frequency and the MIPS timer setup are not modified.
++
++User interface
++--------------
++
++Read the shared policy with::
++
++    cat /sys/devices/system/cpu/cpufreq/policy0/scaling_driver
++    cat /sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies
++    cat /sys/devices/system/cpu/cpufreq/policy0/cpuinfo_cur_freq
++    cat /sys/devices/system/cpu/cpufreq/policy0/related_cpus
++
++For the 900 MHz example, the driver name is ``econet``. On the live-reporting
++platforms, ``cpuinfo_cur_freq`` follows recognized changes to the PLL
++registers after boot. Read it after a completed register sequence, not while
++another process is programming the PLL. Register readback does not confirm
++PLL lock or establish the active mux source.
++
++On reporting-only devices, the sole policy-table entry remains the initial
++rate, and minimum and maximum frequencies are identical. Such devices cannot
++restore a rate changed outside CPUFreq (``-EOPNOTSUPP``). On all platforms,
++use ``cpuinfo_cur_freq`` for an on-demand PLL read.
++
++The Common Clock Framework also exposes the CPU and bus clocks in
++``/sys/kernel/debug/clk/clk_summary`` when clock debugging is available.
++The policy number may differ if CPU0 is offline when the policy is created.
++
++EN751221-family profile control
++------------------------------
++
++CPU control requires the EN751221 family, a saved 900 MHz boot rate, and a
++recognized initial PLL profile. No EN7526G-only variant gate is applied.
++The clock controller exposes 700, 800, 900 and 1000 MHz. These profiles
++have short test evidence on EN7526G; enabling them on another family
++variant does not establish its operating limits or stability. CPUFreq starts
++with a 700 MHz floor and 900 MHz ceiling;
++the 1 GHz entry is marked as software boost and disabled by default. This
++policy floor is not a claim that 700 MHz is the silicon's minimum frequency.
++
++Enable ``CONFIG_CPU_FREQ_GOV_USERSPACE`` (built in or as a module), then use::
++
++    policy=/sys/devices/system/cpu/cpufreq/policy0
++    cat "$policy/scaling_available_frequencies"
++    echo userspace > "$policy/scaling_governor"
++    echo 700000 > "$policy/scaling_setspeed"
++    cat "$policy/cpuinfo_cur_freq"
++    echo 900000 > "$policy/scaling_setspeed"
++
++Frequencies are in kHz. The 700 MHz floor applies to supported clock API
++requests and CPUFreq selection; root can still bypass both with ``devmem``.
++Writable EN751221 and EN7528 policies allow dynamic governors. Reporting-only
++policies keep automatic switching disabled. No voltage adjustment or thermal
++cooling device is introduced.
++
++The clock provider runs the tested five-write sequence once inside
++``stop_machine()``, with the other VPEs quiesced. It checks complete register
++readback and attempts to restore the old profile on a mismatch. CPUFreq
++verifies the resulting live rate even if CCF failed to propagate a provider
++error. An unknown starting PLL state is rejected without writes. No PLL lock
++bit or glitchless-switch procedure is documented: this remains experimental
++support based on the observed EN7526G transitions, not a hardware guarantee.
++``stop_machine()`` does not stop peripheral DMA.
++
++MIPS transition notifiers update the delay loops for the shared CPU policy.
++The Airoha watchdog listens for bus-clock changes, preserves the remaining
++countdown and keeps the configured timeout for future pings. Before a clock
++increase it preloads for the faster rate so the watchdog does not expire
++early. An unrepresentable timeout or remaining counter vetoes the change.
++A concurrent watchdog operation obtains the clock before its own mutex and
++retries if a notification changed the rate generation, avoiding lock-order
++inversion. If a failed provider change caused CCF to omit POST, the next
++watchdog operation reconciles the conservative PRE rate with the actual
++clock. In that failure case the grace period can be temporarily extended.
++
++Do not mix direct PLL writes with CPUFreq control. MMIO writes bypass the
++transition notifications, watchdog accounting and MIPS delay-loop updates.
++
++Experimental 1 GHz test
++-----------------------
++
++The 1 GHz pair ``0x05102708`` / ``0x04000000`` has short PMU evidence
++on EN7526G and EN7528HU. EN7528 also exposes 925, 950 and 975 MHz as
++software boost entries. These observations do not establish prolonged
++stability or validation of other EN751221 variants. CPUFreq readback only
++recognizes a complete register pair; it does not measure CPU cycles or
++confirm PLL lock.
++
++This is an experimental overclock, not a documented hardware turbo mode.
++No supply-voltage change is made. If CPU/4 remains the bus relationship,
++the bus rises from 225 to 250 MHz; bus peripherals and DMA are exposed to
++that change. The watchdog notifier remains active. There is no guarantee
++of stability or recovery from a hung PLL. Use a serial console and a
++recoverable test image.
++
++After boot, the global ``/sys/devices/system/cpu/cpufreq/boost`` switch
++reads zero. Rates above 900 MHz appear in ``scaling_boost_frequencies``.
++Select the userspace governor and 900 MHz before enabling boost::
++
++    policy=/sys/devices/system/cpu/cpufreq/policy0
++    echo userspace > "$policy/scaling_governor"
++    echo 900000 > "$policy/scaling_setspeed"
++    cat "$policy/scaling_boost_frequencies"
++    echo 1 > /sys/devices/system/cpu/cpufreq/boost
++    echo 1000000 > "$policy/scaling_max_freq"
++    echo 1000000 > "$policy/scaling_setspeed"
++
++Measure a short pinned PMU window as in the previous tests. Restore with::
++
++    echo 900000 > "$policy/scaling_setspeed"
++    echo 0 > /sys/devices/system/cpu/cpufreq/boost
++    echo 900000 > "$policy/scaling_max_freq"
++
++Enabling boost while a performance governor is active can select 1 GHz
++immediately. Do not enable it from boot scripts. The clock-provider API
++knows the candidate pair even while CPUFreq boost is disabled; the boost
++switch controls CPUFreq requests, not direct kernel clock API callers or
++MMIO writes. EN7580 and all other reporting-only configurations retain
++their previous behavior.
++
++EN7528-family profile control
++-----------------------------
++
++The observed identification is HIR ``0x000b0000`` (EN7528 family), PDIDR
++``0x00000001``, and saved parameters ``0x01038500``. The package field is
++zero, identifying EN7528HU through the bootloader SCU metadata; zero eFuse
++registers are not used as an EN7526G identification. Bits 19:10 contain
++225 MHz, corresponding to a nominal 900 MHz CPU clock.
++
++Writable ops require the EN7528 family, 900 MHz boot metadata, and a
++recognized idle PLL profile. No EN7528HU-only variant gate is applied.
++The 17 retained profiles have short hardware test evidence on EN7528HU; other
++family variants still require hardware validation. Configurations that
++fail the boot-rate or initial-profile checks retain reporting only.
++CPUFreq reads candidates from CPU0's OPP table and keeps only the rates
++that the provider rounds exactly;
++a read-only provider cannot match two different candidate rates. EN7528
++therefore exposes 600 through 1000 MHz in 25 MHz steps. Frequencies through
++900 MHz are available without boost; 925, 950, 975 and 1000 MHz require
++boost. The initial policy limits are 600 and 900 MHz. EN751221-family devices
++retain their four-entry table and opt-in 1 GHz boost. No unvalidated
++EN751221 600 MHz entry is added; its lowest retained profile is 700 MHz.
++
++One policy covers all possible CPUs, including all four logical CPUs on
++the observed 1004Kc system. The stop-machine callback executes the sequence
++once while the other cores and VPEs are stopped: setup ``0x12``, config,
++parameter, control ``0x402``, control ``0x406``, then setup zero. Full-state
++readback must match; a mismatch attempts to reapply the previous profile.
++The EN751221 five-write sequence keeps its existing setup value of ``0x12``.
++
++Use the userspace governor for the first 900 -> 800 -> 900 MHz test::
++
++    policy=/sys/devices/system/cpu/cpufreq/policy0
++    cat "$policy/scaling_available_frequencies"
++    cat "$policy/related_cpus"
++    echo userspace > "$policy/scaling_governor"
++    echo 900000 > "$policy/scaling_setspeed"
++    echo 800000 > "$policy/scaling_setspeed"
++    cat "$policy/cpuinfo_cur_freq"
++    echo 900000 > "$policy/scaling_setspeed"
++
++Keep a restoration trap around an actual test workload, and confirm the
++configured nominal rates with short pinned PMU windows as on EN7526G.
++At nominal 800 MHz the derived BUS rate is 200 MHz; at 700 MHz it is
++175 MHz. CCF bus notifications preserve the existing Airoha watchdog
++retiming, and MIPS CPUFreq notifiers update delays on every VPE. No DDR
++recalibration or voltage adjustment is performed. Writable policies allow
++automatic dynamic switching. No documented PLL lock or glitchless-switch
++guarantee is available; use a serial console and a recoverable test image.
++
++EN7528HU measurement evidence
++----------------------------
++
++The completed sweep contains 33 short PMU windows: a 900 MHz reference,
++925/950/975 MHz on ascent, all 28 profiles from 1000 down to 325 MHz, and
++a restored 900 MHz reference. All workload checksums matched. The largest
++relative deviation on descent was approximately 0.00845 percent. One
++975 MHz ascent window measured 967.645 MHz, while the same pair measured
++975.064 MHz on descent; further measurements are needed to explain that
++window difference. The final 900 MHz reference measured 900.044 MHz and
++software boost was disabled successfully.
++
++The retained rate set is unconditional;
++``CONFIG_ECONET_CPUFREQ_EN7528_RAMP`` is no longer needed. CPUFreq gets its candidates from the DT OPP table and
++filters them through exact provider rounding. Reporting-only providers
++retain one entry and cannot acquire writable ops from the OPP table.
++No generic PLL arithmetic, voltage control or DDR recalibration is added.
++
++Ondemand governor
++-----------------
++
++Enable ``CONFIG_CPU_FREQ_GOV_ONDEMAND=y`` (or load ``cpufreq_ondemand`` when
++built as a module). The driver permits dynamic governors only after the
++clock provider exposes programmable profiles matching the OPP table. This covers
++writable EN751221 and EN7528 policies; reporting-only configurations retain
++``CPUFREQ_NO_AUTO_DYNAMIC_SWITCHING`` and fall back to a static governor.
++
++Select ondemand after configuring the shared policy limits::
++
++    policy=/sys/devices/system/cpu/cpufreq/policy0
++    echo 0 > /sys/devices/system/cpu/cpufreq/boost
++    echo 900000 > "$policy/scaling_max_freq"
++    cat "$policy/scaling_min_freq"
++    cat "$policy/scaling_available_governors"
++    echo ondemand > "$policy/scaling_governor"
++    cat "$policy/scaling_governor"
++
++The ordinary minimum is 700 MHz on EN751221 and 600 MHz on EN7528. A
++600 MHz floor resolves to the next available EN751221 profile, 700 MHz.
++Previous userspace limits remain in force within the new supported range.
++Rates above 900 MHz remain opt-in software boost frequencies. Ondemand
++respects the policy limits and does not enable boost itself.
++
++The driver supplies ``transition_delay_us = 100000`` for writable policies.
++This sets an initial 100 ms update interval for ondemand. It is a software
++sampling choice to reduce repeated stopped PLL transitions, not a measured
++PLL transition or lock time. The reported transition latency remains the
++existing generic default. The ondemand ``sampling_rate`` tunable can change
++the interval; the driver does not impose a hard 100 ms minimum between
++requests. With per-policy governor tunables it is available at::
++
++    cat "$policy/ondemand/sampling_rate"
++
++With global governor tunables use::
++
++    cat /sys/devices/system/cpu/cpufreq/ondemand/sampling_rate
++
++All changes use the existing sleeping ``target_index`` path, stopped PLL
++sequence, readback, rollback, BUS/watchdog notifications and MIPS delay
++updates. No fast-switch callback is introduced. Clearing the generic flag
++also permits other dynamic governors; this change does not select a global
++default governor. To select ondemand at boot, configure
++``CONFIG_CPU_FREQ_DEFAULT_GOV_ONDEMAND=y``.
++
++The previous short PMU windows establish the selected nominal rates, not
++stability under prolonged automatic switching. Check repeated idle/load
++transitions and peripheral traffic on each target board.
++
++Restricted operating range after a hang
++--------------------------------------
++
++Following a report of a system hang followed by watchdog recovery with
++automatic switching, the writable tables exclude every profile below
++600 MHz. EN7528 retains 17 profiles from 600 through 1000 MHz. EN751221
++retains 700, 800, 900 and 1000 MHz because no 600 MHz profile has yet been
++validated on that family. Unsupported low requests are rejected by the
++clock provider without programming the PLL. CPUFreq resolves its policy
++limits against the retained table, so userspace cannot restore the removed
++profiles by lowering ``scaling_min_freq``.
++
++This restriction does not diagnose the hang or establish stability of the
++remaining range. Ondemand, its initial 100 ms sampling interval, the 900 MHz
++non-boost ceiling and watchdog integration are retained. Reporting-only
++configurations, including EN7580, retain their original reported rates even
++when those rates are below 600 MHz.
++
++Device Tree operating points
++----------------------------
++
++The EN751221 and EN7528 DTSI files provide a standard
++``operating-points-v2`` table referenced by both CPU nodes. ``opp-shared``
++describes the shared clock domain; the CPUFreq policy still covers all
++possible CPUs, including VPEs without a separate CPU node.
++
++The EN751221 table contains 700, 800, 900 and 1000 MHz. The EN7528 table
++contains 600 through 1000 MHz in 25 MHz steps. Entries above 900 MHz carry
++``turbo-mode`` and remain disabled until software boost is enabled. The
++driver also enforces the boost flag above 900 MHz if a board table omits
++``turbo-mode``. The tables do not describe voltage scaling and contain no
++``opp-microvolt`` properties.
++
++For example, the EN7528 600 MHz entry is::
++
++    cpu_opp_600: opp-600000000 {
++        opp-hz = /bits/ 64 <600000000>;
++    };
++
++A board can remove or disable individual entries. For example, an
++EN751221 board can restrict the policy to 800 and 900 MHz with::
++
++    &cpu_opp_700 {
++        status = "disabled";
++    };
++
++    &cpu_opp_1000 {
++        status = "disabled";
++    };
++
++CPUFreq loads the available OPPs on CPU0 at probe. Unsupported rates and
++rates that cannot be represented exactly in kHz are disabled before the
++OPP helper builds the CPUFreq table. An OPP can restrict the hardware
++profiles but cannot introduce new PLL settings or restore a removed low
++profile. The PLL field encoding and stopped transition sequence remain in the
++clock driver. Runtime OPP table changes are not synchronized with
++the already-created CPUFreq table; update the DTB and reboot.
++
++Deploy the updated kernel and DTB together. Without ``operating-points-v2``
++on CPU0, this driver reports the current boot rate only. The same fallback
++preserves reporting on read-only clocks whose boot rates are absent from
++the OPP table. A single matching OPP different from the boot rate can still
++be selected through the writable provider. A malformed or empty DT OPP
++table is an error, rather than a request for a built-in frequency list.
++
++The generic ``cpufreq-dt`` automatic platform-device path excludes these
++two SoC compatibles so it cannot race the EcoNet driver after OPP tables
++are added. EcoNet retains its provider checks, boost restrictions, MIPS
++delay updates, BUS/watchdog notifications and 100 ms governor update hint.
++
++Boot context and masked PLL programming
++--------------------------------------
++
++The register-profile arrays have been removed. For the characterized
++25 MHz encoding, the clock provider retains exactly the same rate sets:
++EN751221 accepts 700 through 1000 MHz in 100 MHz increments; EN7528 accepts
++600 through 1000 MHz in 25 MHz increments. DT OPP tables can restrict these
++sets. No additional frequency is enabled by removing the arrays.
++
++For an accepted rate, the configuration count is ``rate / 25000000 - 1``
++and the parameter count is seven less. The observed configuration byte is
++bits 15:8; the parameter field used by these rates is bits 26:21. A
++transition reads the complete current register state inside stop_machine,
++replaces only these frequency fields, and retains all other bits. It does
++not synthesize a complete ``0x05101708`` register value. The direct divider
++encoding in config bits 21:20 must still equal one. Writable registration
++also requires the decoded boot fields to agree with the saved 900 MHz
++boot rate, rather than accepting inconsistent metadata and register fields.
++
++Live readback validates setup, control, divider, family rate bounds and the
++relationship between the two frequency fields. Bits outside the frequency
++fields must match the boot snapshot. An unexpected change outside them is
++rejected rather than silently interpreted as the same PLL mode. Target
++readback compares the full expected state; failure reapplies and verifies
++the exact previous snapshot. The five/six-write transition order, watchdog
++notifications, MIPS delay handling and software boost checks are retained.
++
++EN7528 XTAL selection
++~~~~~~~~~~~~~~~~~~~~
++
++The SDK's EN7528 DDR calibration object chooses the XTAL selector using
++bit 9 of the parameters saved at ``0x1fb00284``. When clear, it reads
++``0x1fa20174``; when set, it reads ``0x1fa2ff28``. Bit 21 of the selected
++register is the selector: one indicates 25 MHz, zero indicates 20 MHz.
++The EN7528 SCU node maps the alternate selector as a separate four-byte
++``xtal`` resource, adjacent to the xPON TX-off register without overlapping
++it. With an older DTB that provides neither this resource nor a CHIP-SCU
++range covering the alternate address, that path returns an unknown
++reference and frequency control remains disabled.
++
++The supplied short PMU measurements characterize the 25 MHz CPU encoding
++only. They do not establish the CPU PLL programming fields or fractional
++behavior for a 20 MHz reference. An EN7528 with 20 MHz or unknown XTAL
++therefore retains reporting of its saved boot rate without writable PLL
++operations. A change from that saved state becomes unknown. The driver
++does not scale the 25 MHz formula by a guessed 20/25 factor. EN751221
++retains its previously characterized 25 MHz encoding; no new XTAL detector
++is inferred for that family.
++
++Preserving other boot bits is not hardware validation of a new PLL mode or
++board. Characterizing the 20 MHz CPU path still requires its boot PLL dump
++and independent frequency measurements before enabling transitions.
+diff --git a/Documentation/admin-guide/pm/index.rst b/Documentation/admin-guide/pm/index.rst
+--- a/Documentation/admin-guide/pm/index.rst
++++ b/Documentation/admin-guide/pm/index.rst
+@@ -10,3 +10,4 @@ Power Management
+    strategies
+    system-wide
+    working-state
++   econet-cpufreq
+diff --git a/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml b/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
+--- a/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
++++ b/Documentation/devicetree/bindings/clock/airoha,en7523-scu.yaml
+@@ -41,7 +41,7 @@ properties:
+     minItems: 1
+     items:
+       - const: np-scu
+-      - const: mcucfg
++      - enum: [mcucfg, xtal]
+ 
+   airoha,chip-scu:
+     $ref: /schemas/types.yaml#/definitions/phandle
+@@ -54,7 +54,7 @@ properties:
+       cover the package identification words at offsets 0x14 and 0x18.
+ 
+   "#clock-cells":
+-    description: Clock identifier from the matching SoC clock binding header.
++    description: Clock identifier from dt-bindings/clock/en7523-clk.h.
+     const: 1
+ 
+   "#reset-cells":
+@@ -79,6 +79,10 @@ allOf:
+           items:
+             - description: NP-SCU registers
+             - description: Optional MCUCFG registers used while switching the CPU PLL
++        reg-names:
++          items:
++            - const: np-scu
++            - const: mcucfg
+       required:
+         - reg-names
+         - airoha,chip-scu
+@@ -113,7 +117,6 @@ allOf:
+             enum:
+               - econet,en751221-scu
+               - econet,en751627-scu
+-              - econet,en7528-scu
+               - econet,en7580-scu
+     then:
+       properties:
+@@ -125,6 +128,37 @@ allOf:
+       required:
+         - airoha,chip-scu
+ 
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: econet,en7528-scu
++    then:
++      properties:
++        reg:
++          minItems: 1
++          items:
++            - description: NP-SCU registers
++            - description: Optional four-byte alternate XTAL selector at 0x1fa2ff28
++        reg-names:
++          minItems: 1
++          items:
++            - const: np-scu
++            - const: xtal
++      required:
++        - airoha,chip-scu
++      allOf:
++        - if:
++            properties:
++              reg:
++                minItems: 2
++          then:
++            properties:
++              reg-names:
++                minItems: 2
++            required:
++              - reg-names
++
+ additionalProperties: false
+ 
+ examples:
+diff --git a/MAINTAINERS b/MAINTAINERS
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -8888,6 +8888,7 @@ ECONET MIPS PLATFORM
+ M:	Caleb James DeLisle <cjd@cjdns.fr>
+ L:	linux-mips@vger.kernel.org
+ S:	Maintained
++F:	Documentation/admin-guide/pm/econet-cpufreq.rst
+ F:	Documentation/devicetree/bindings/interrupt-controller/econet,en751221-intc.yaml
+ F:	Documentation/devicetree/bindings/dma/econet,ecnt-gdma.yaml
+ F:	Documentation/devicetree/bindings/dma/econet,ecnt-hsdma.yaml
+@@ -8899,12 +8900,11 @@ F:	Documentation/devicetree/bindings/usb/econet,en7528-xhci.yaml
+ F:	arch/mips/boot/dts/econet/
+ F:	arch/mips/econet/
+ F:	drivers/clocksource/timer-econet-en751221.c
++F:	drivers/cpufreq/econet-cpufreq.c
+ F:	drivers/irqchip/irq-econet-en751221.c
+ F:	drivers/nvmem/econet-efuse.c
+ F:	drivers/phy/phy-en7528-usb.c
+-F:	include/dt-bindings/clock/econet,en751221-scu.h
+-F:	include/dt-bindings/clock/econet,en7528-scu.h
+-F:	include/dt-bindings/clock/econet,en7580-scu.h
++F:	include/dt-bindings/clock/en7523-clk.h
+ F:	include/dt-bindings/reset/econet,en751221-scu.h
+ F:	include/dt-bindings/reset/econet,en7528-scu.h
+ F:	include/dt-bindings/reset/econet,en7580-scu.h
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -392,10 +392,12 @@ config MACH_DECSTATION
+ config ECONET
+ 	bool "EcoNet MIPS family"
+ 	select BOOT_RAW
++	select CPU_SUPPORTS_CPUFREQ
+ 	select DMA_NONCOHERENT
+ 	select DEBUG_ZBOOT if DEBUG_KERNEL
+ 	select EARLY_PRINTK_8250
+ 	select ECONET_EN751221_TIMER
++	select MIPS_EXTERNAL_TIMER
+ 	select SERIAL_8250
+ 	select SERIAL_OF_PLATFORM
+ 	select SYS_SUPPORTS_BIG_ENDIAN
+diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
+--- a/arch/mips/boot/dts/econet/en751221.dtsi
++++ b/arch/mips/boot/dts/econet/en751221.dtsi
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+ 
+-#include <dt-bindings/clock/econet,en751221-scu.h>
++#include <dt-bindings/clock/en7523-clk.h>
+ 
+ #include <dt-bindings/reset/econet,en751221-scu.h>
+ #include <dt-bindings/leds/common.h>
+@@ -40,12 +40,38 @@ cpu0: cpu@0 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips34Kc";
+ 			reg = <0>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			operating-points-v2 = <&cpu_opp_table>;
+ 		};
+ 
+ 		cpu1: cpu@1 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips34Kc";
+ 			reg = <1>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			operating-points-v2 = <&cpu_opp_table>;
++		};
++	};
++
++	cpu_opp_table: opp-table-cpu {
++		compatible = "operating-points-v2";
++		opp-shared;
++
++		cpu_opp_700: opp-700000000 {
++			opp-hz = /bits/ 64 <700000000>;
++		};
++
++		cpu_opp_800: opp-800000000 {
++			opp-hz = /bits/ 64 <800000000>;
++		};
++
++		cpu_opp_900: opp-900000000 {
++			opp-hz = /bits/ 64 <900000000>;
++		};
++
++		cpu_opp_1000: opp-1000000000 {
++			opp-hz = /bits/ 64 <1000000000>;
++			turbo-mode;
+ 		};
+ 	};
+ 
+@@ -60,7 +86,7 @@ spi0: spi@1fa10000 {
+ 		compatible = "econet,en751221-spi";
+ 		reg = <0x1fa10000 0x140>;
+ 
+-		clocks = <&scuclk EN751221_CLK_SPI>;
++		clocks = <&scuclk EN7523_CLK_SPI>;
+ 		clock-names = "spi";
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+@@ -135,7 +161,7 @@ watchdog: watchdog@1fbf0100 {
+ 		compatible = "econet,en751221-wdt";
+ 		reg = <0x1fbf0100 0x3c>;
+ 
+-		clocks = <&scuclk EN751221_CLK_BUS>;
++		clocks = <&scuclk EN7523_CLK_BUS>;
+ 		clock-names = "bus";
+ 	};
+ 
+@@ -188,7 +214,7 @@ pcie0: pcie@1fb81000 {
+ 		interrupt-parent = <&intc>;
+ 		interrupts = <23>;
+ 		interrupt-names = "pcie_irq";
+-		clocks = <&scuclk EN751221_CLK_PCIE>;
++		clocks = <&scuclk EN7523_CLK_PCIE>;
+ 		clock-names = "sys_ck0";
+ 		phys = <&pcie_phy0>;
+ 		phy-names = "pcie-phy0";
+@@ -230,7 +256,7 @@ pcie1: pcie@1fb83000 {
+ 		interrupt-parent = <&intc>;
+ 		interrupts = <24>;
+ 		interrupt-names = "pcie_irq";
+-		clocks = <&scuclk EN751221_CLK_PCIE>;
++		clocks = <&scuclk EN7523_CLK_PCIE>;
+ 		clock-names = "sys_ck1";
+ 		phys = <&pcie_phy1>;
+ 		phy-names = "pcie-phy1";
+@@ -340,19 +366,6 @@ mux {
+ 				};
+ 			};
+ 
+-			/*
+-			 * PCM/ZSI pin groups. Every PCM mux bit lives in
+-			 * chip_scu + 0x0104 (REG_IOMUX_CONTROL1): pcm1
+-			 * gpio 25-28 bit 13, pcm2 gpio 17-20 bit 14,
+-			 * pcm_spi gpio 17-20 bit 12 (SPI2_MODE), pcm_spi_int
+-			 * gpio 16 bit 11, pcm_spi_rst gpio 15 bit 10,
+-			 * pcm_spi_cs4 gpio 22 bit 9, pcm_spi_cs3 gpio 16
+-			 * bit 8. "pcm_spi" occupies the same four pins as
+-			 * "pcm2", so a board using the multiplexed SLIC
+-			 * control channel gives up the second PCM bus.
+-			 * pcm_spi_int and pcm_spi_cs3 are both gpio 16 --
+-			 * pick one.
+-			 */
+ 			pcm1_pins: pcm1-pins {
+ 				mux {
+ 					function = "pcm";
+@@ -367,7 +380,6 @@ mux {
+ 				};
+ 			};
+ 
+-			/* PCM bus 2 pins carrying the multiplexed SLIC control channel */
+ 			pcm_spi_pins: pcm-spi-pins {
+ 				mux {
+ 					function = "pcm_spi";
+diff --git a/arch/mips/boot/dts/econet/en751627.dtsi b/arch/mips/boot/dts/econet/en751627.dtsi
+--- a/arch/mips/boot/dts/econet/en751627.dtsi
++++ b/arch/mips/boot/dts/econet/en751627.dtsi
+@@ -3,7 +3,7 @@
+ 
+ #include <dt-bindings/interrupt-controller/irq.h>
+ #include <dt-bindings/interrupt-controller/mips-gic.h>
+-#include <dt-bindings/clock/econet,en751627-scu.h>
++#include <dt-bindings/clock/en7523-clk.h>
+ #include <dt-bindings/phy/phy.h>
+ #include <dt-bindings/reset/econet,en751627-scu.h>
+ #include <dt-bindings/leds/common.h>
+@@ -48,12 +48,14 @@ cpu@0 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <0>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
+ 		};
+ 
+ 		cpu@1 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <1>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
+ 		};
+ 	};
+ 
+@@ -240,12 +242,12 @@ timer_hpt: timer@1fbf0400 {
+ 			clocks = <&hpt_clock>;
+ 		};
+ 
+-		spi: spi@1fa10000 {
++		spi0: spi@1fa10000 {
+ 			compatible = "airoha,en7523-spi";
+ 			reg = <0x1fa10000 0x140>,
+ 			      <0x1fa11000 0x160>;
+ 
+-			clocks = <&scuclk EN751627_CLK_SPI>;
++			clocks = <&scuclk EN7523_CLK_SPI>;
+ 			clock-names = "spi";
+ 
+ 			airoha,scu = <&scuclk>, <&chip_scu>;
+@@ -259,7 +261,7 @@ watchdog: watchdog@1fbf0100 {
+ 			compatible = "econet,en751221-wdt";
+ 			reg = <0x1fbf0100 0x3c>;
+ 
+-			clocks = <&scuclk EN751627_CLK_BUS>;
++			clocks = <&scuclk EN7523_CLK_BUS>;
+ 			clock-names = "bus";
+ 
+ 			interrupts = <GIC_SHARED 9 IRQ_TYPE_LEVEL_HIGH>;
+@@ -355,7 +357,7 @@ pcie0: pcie@1fb81000 {
+ 			#size-cells = <2>;
+ 			interrupts = <GIC_SHARED 23 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "pcie_irq";
+-			clocks = <&scuclk EN751627_CLK_PCIE>;
++			clocks = <&scuclk EN7523_CLK_PCIE>;
+ 			clock-names = "sys_ck0";
+ 			phys = <&pcie_phy0>;
+ 			phy-names = "pcie-phy0";
+@@ -395,7 +397,7 @@ pcie1: pcie@1fb83000 {
+ 			#size-cells = <2>;
+ 			interrupts = <GIC_SHARED 24 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "pcie_irq";
+-			clocks = <&scuclk EN751627_CLK_PCIE>;
++			clocks = <&scuclk EN7523_CLK_PCIE>;
+ 			clock-names = "sys_ck1";
+ 			phys = <&pcie_phy1>;
+ 			phy-names = "pcie-phy1";
+diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
+--- a/arch/mips/boot/dts/econet/en7528.dtsi
++++ b/arch/mips/boot/dts/econet/en7528.dtsi
+@@ -3,7 +3,7 @@
+ 
+ #include <dt-bindings/interrupt-controller/irq.h>
+ #include <dt-bindings/interrupt-controller/mips-gic.h>
+-#include <dt-bindings/clock/econet,en7528-scu.h>
++#include <dt-bindings/clock/en7523-clk.h>
+ #include <dt-bindings/phy/phy.h>
+ #include <dt-bindings/reset/econet,en7528-scu.h>
+ #include <dt-bindings/leds/common.h>
+@@ -48,12 +48,93 @@ cpu@0 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <0>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			operating-points-v2 = <&cpu_opp_table>;
+ 		};
+ 
+ 		cpu@1 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <1>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			operating-points-v2 = <&cpu_opp_table>;
++		};
++	};
++
++	cpu_opp_table: opp-table-cpu {
++		compatible = "operating-points-v2";
++		opp-shared;
++
++		cpu_opp_600: opp-600000000 {
++			opp-hz = /bits/ 64 <600000000>;
++		};
++
++		cpu_opp_625: opp-625000000 {
++			opp-hz = /bits/ 64 <625000000>;
++		};
++
++		cpu_opp_650: opp-650000000 {
++			opp-hz = /bits/ 64 <650000000>;
++		};
++
++		cpu_opp_675: opp-675000000 {
++			opp-hz = /bits/ 64 <675000000>;
++		};
++
++		cpu_opp_700: opp-700000000 {
++			opp-hz = /bits/ 64 <700000000>;
++		};
++
++		cpu_opp_725: opp-725000000 {
++			opp-hz = /bits/ 64 <725000000>;
++		};
++
++		cpu_opp_750: opp-750000000 {
++			opp-hz = /bits/ 64 <750000000>;
++		};
++
++		cpu_opp_775: opp-775000000 {
++			opp-hz = /bits/ 64 <775000000>;
++		};
++
++		cpu_opp_800: opp-800000000 {
++			opp-hz = /bits/ 64 <800000000>;
++		};
++
++		cpu_opp_825: opp-825000000 {
++			opp-hz = /bits/ 64 <825000000>;
++		};
++
++		cpu_opp_850: opp-850000000 {
++			opp-hz = /bits/ 64 <850000000>;
++		};
++
++		cpu_opp_875: opp-875000000 {
++			opp-hz = /bits/ 64 <875000000>;
++		};
++
++		cpu_opp_900: opp-900000000 {
++			opp-hz = /bits/ 64 <900000000>;
++		};
++
++		cpu_opp_925: opp-925000000 {
++			opp-hz = /bits/ 64 <925000000>;
++			turbo-mode;
++		};
++
++		cpu_opp_950: opp-950000000 {
++			opp-hz = /bits/ 64 <950000000>;
++			turbo-mode;
++		};
++
++		cpu_opp_975: opp-975000000 {
++			opp-hz = /bits/ 64 <975000000>;
++			turbo-mode;
++		};
++
++		cpu_opp_1000: opp-1000000000 {
++			opp-hz = /bits/ 64 <1000000000>;
++			turbo-mode;
+ 		};
+ 	};
+ 
+@@ -114,12 +195,13 @@ dramc: memory-controller@1fb20000 {
+ 
+ 		chip_scu: syscon@1fa20000 {
+ 			compatible = "airoha,scuclk", "econet,en7528-chip-scu", "syscon";
+-			reg = <0x1fa20000 0x400>;
++			reg = <0x1fa20000 0x10000>;
+ 		};
+ 
+ 		scuclk: system-controller@1fb00000 {
+ 			compatible = "econet,en7528-scu", "syscon";
+ 			reg = <0x1fb00000 0x1000>;
++			reg-names = "np-scu";
+ 
+ 			airoha,chip-scu = <&chip_scu>;
+ 			#clock-cells = <1>;
+@@ -395,7 +477,7 @@ spi: spi@1fa10000 {
+ 			reg = <0x1fa10000 0x140>,
+ 			      <0x1fa11000 0x160>;
+ 
+-			clocks = <&scuclk EN7528_CLK_SPI>;
++			clocks = <&scuclk EN7523_CLK_SPI>;
+ 			clock-names = "spi";
+ 
+ 			airoha,scu = <&scuclk>, <&chip_scu>;
+@@ -409,7 +491,7 @@ watchdog: watchdog@1fbf0100 {
+ 			compatible = "econet,en751221-wdt";
+ 			reg = <0x1fbf0100 0x3c>;
+ 
+-			clocks = <&scuclk EN7528_CLK_BUS>;
++			clocks = <&scuclk EN7523_CLK_BUS>;
+ 			clock-names = "bus";
+ 
+ 			interrupts = <GIC_SHARED 9 IRQ_TYPE_LEVEL_HIGH>;
+@@ -505,7 +587,7 @@ pcie0: pcie@1fb81000 {
+ 			#size-cells = <2>;
+ 			interrupts = <GIC_SHARED 23 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "pcie_irq";
+-			clocks = <&scuclk EN7528_CLK_PCIE>;
++			clocks = <&scuclk EN7523_CLK_PCIE>;
+ 			clock-names = "sys_ck0";
+ 			phys = <&pcie_phy0>;
+ 			phy-names = "pcie-phy0";
+@@ -545,7 +627,7 @@ pcie1: pcie@1fb83000 {
+ 			#size-cells = <2>;
+ 			interrupts = <GIC_SHARED 24 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "pcie_irq";
+-			clocks = <&scuclk EN7528_CLK_PCIE>;
++			clocks = <&scuclk EN7523_CLK_PCIE>;
+ 			clock-names = "sys_ck1";
+ 			phys = <&pcie_phy1>;
+ 			phy-names = "pcie-phy1";
+@@ -599,9 +681,8 @@ xpon_phy: phy@1faf0000 {
+ 		xpon: xmac@1fb60000 {
+ 			compatible = "airoha,en7528-xpon";
+ 
+-			reg = <0x1fb60000 0x10000>,
+-			      <0x1fa2ff24 0x4>;
+-			reg-names = "mac", "tx-off";
++			reg = <0x1fb60000 0x10000>;
++			reg-names = "mac";
+ 
+ 			interrupts = <GIC_SHARED 26 IRQ_TYPE_LEVEL_HIGH>,
+ 			             <GIC_SHARED 18 IRQ_TYPE_LEVEL_HIGH>;
+diff --git a/arch/mips/boot/dts/econet/en7580.dtsi b/arch/mips/boot/dts/econet/en7580.dtsi
+--- a/arch/mips/boot/dts/econet/en7580.dtsi
++++ b/arch/mips/boot/dts/econet/en7580.dtsi
+@@ -3,7 +3,7 @@
+ 
+ #include <dt-bindings/interrupt-controller/irq.h>
+ #include <dt-bindings/interrupt-controller/mips-gic.h>
+-#include <dt-bindings/clock/econet,en7580-scu.h>
++#include <dt-bindings/clock/en7523-clk.h>
+ #include <dt-bindings/phy/phy.h>
+ #include <dt-bindings/reset/econet,en7580-scu.h>
+ #include <dt-bindings/leds/common.h>
+@@ -48,6 +48,9 @@ cpu0: cpu@0 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <0>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			clock-names = "cpu";
++			operating-points-v2 = <&cpu_opp_table>;
+ 			next-level-cache = <&l2>;
+ 		};
+ 
+@@ -55,6 +58,9 @@ cpu1: cpu@1 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <1>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			clock-names = "cpu";
++			operating-points-v2 = <&cpu_opp_table>;
+ 			next-level-cache = <&l2>;
+ 		};
+ 
+@@ -62,6 +68,9 @@ cpu2: cpu@2 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <2>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			clock-names = "cpu";
++			operating-points-v2 = <&cpu_opp_table>;
+ 			next-level-cache = <&l2>;
+ 		};
+ 
+@@ -69,6 +78,9 @@ cpu3: cpu@3 {
+ 			device_type = "cpu";
+ 			compatible = "mips,mips1004Kc";
+ 			reg = <3>;
++			clocks = <&scuclk EN7523_CLK_CPU>;
++			clock-names = "cpu";
++			operating-points-v2 = <&cpu_opp_table>;
+ 			next-level-cache = <&l2>;
+ 		};
+ 
+@@ -106,6 +118,172 @@ l2: l2-cache {
+ 		};
+ 	};
+ 
++	cpu_opp_table: opp-table-cpu {
++		compatible = "operating-points-v2";
++		opp-shared;
++
++		/* SDK CPU PLL range; writable transitions need provider support. */
++		cpu_opp_325: opp-325000000 {
++			opp-hz = /bits/ 64 <325000000>;
++		};
++
++		cpu_opp_350: opp-350000000 {
++			opp-hz = /bits/ 64 <350000000>;
++		};
++
++		cpu_opp_375: opp-375000000 {
++			opp-hz = /bits/ 64 <375000000>;
++		};
++
++		cpu_opp_400: opp-400000000 {
++			opp-hz = /bits/ 64 <400000000>;
++		};
++
++		cpu_opp_425: opp-425000000 {
++			opp-hz = /bits/ 64 <425000000>;
++		};
++
++		cpu_opp_450: opp-450000000 {
++			opp-hz = /bits/ 64 <450000000>;
++		};
++
++		cpu_opp_475: opp-475000000 {
++			opp-hz = /bits/ 64 <475000000>;
++		};
++
++		cpu_opp_500: opp-500000000 {
++			opp-hz = /bits/ 64 <500000000>;
++		};
++
++		cpu_opp_525: opp-525000000 {
++			opp-hz = /bits/ 64 <525000000>;
++		};
++
++		cpu_opp_550: opp-550000000 {
++			opp-hz = /bits/ 64 <550000000>;
++		};
++
++		cpu_opp_575: opp-575000000 {
++			opp-hz = /bits/ 64 <575000000>;
++		};
++
++		cpu_opp_600: opp-600000000 {
++			opp-hz = /bits/ 64 <600000000>;
++		};
++
++		cpu_opp_625: opp-625000000 {
++			opp-hz = /bits/ 64 <625000000>;
++		};
++
++		cpu_opp_650: opp-650000000 {
++			opp-hz = /bits/ 64 <650000000>;
++		};
++
++		cpu_opp_675: opp-675000000 {
++			opp-hz = /bits/ 64 <675000000>;
++		};
++
++		cpu_opp_700: opp-700000000 {
++			opp-hz = /bits/ 64 <700000000>;
++		};
++
++		cpu_opp_725: opp-725000000 {
++			opp-hz = /bits/ 64 <725000000>;
++		};
++
++		cpu_opp_750: opp-750000000 {
++			opp-hz = /bits/ 64 <750000000>;
++		};
++
++		cpu_opp_775: opp-775000000 {
++			opp-hz = /bits/ 64 <775000000>;
++		};
++
++		cpu_opp_800: opp-800000000 {
++			opp-hz = /bits/ 64 <800000000>;
++		};
++
++		cpu_opp_825: opp-825000000 {
++			opp-hz = /bits/ 64 <825000000>;
++		};
++
++		cpu_opp_850: opp-850000000 {
++			opp-hz = /bits/ 64 <850000000>;
++		};
++
++		cpu_opp_875: opp-875000000 {
++			opp-hz = /bits/ 64 <875000000>;
++		};
++
++		cpu_opp_900: opp-900000000 {
++			opp-hz = /bits/ 64 <900000000>;
++		};
++
++		cpu_opp_925: opp-925000000 {
++			opp-hz = /bits/ 64 <925000000>;
++		};
++
++		cpu_opp_950: opp-950000000 {
++			opp-hz = /bits/ 64 <950000000>;
++		};
++
++		cpu_opp_975: opp-975000000 {
++			opp-hz = /bits/ 64 <975000000>;
++		};
++
++		cpu_opp_1000: opp-1000000000 {
++			opp-hz = /bits/ 64 <1000000000>;
++		};
++
++		cpu_opp_1025: opp-1025000000 {
++			opp-hz = /bits/ 64 <1025000000>;
++		};
++
++		cpu_opp_1050: opp-1050000000 {
++			opp-hz = /bits/ 64 <1050000000>;
++		};
++
++		cpu_opp_1075: opp-1075000000 {
++			opp-hz = /bits/ 64 <1075000000>;
++		};
++
++		cpu_opp_1100: opp-1100000000 {
++			opp-hz = /bits/ 64 <1100000000>;
++		};
++
++		cpu_opp_1125: opp-1125000000 {
++			opp-hz = /bits/ 64 <1125000000>;
++		};
++
++		cpu_opp_1150: opp-1150000000 {
++			opp-hz = /bits/ 64 <1150000000>;
++		};
++
++		cpu_opp_1175: opp-1175000000 {
++			opp-hz = /bits/ 64 <1175000000>;
++		};
++
++		cpu_opp_1200: opp-1200000000 {
++			opp-hz = /bits/ 64 <1200000000>;
++		};
++
++		cpu_opp_1225: opp-1225000000 {
++			opp-hz = /bits/ 64 <1225000000>;
++		};
++
++		cpu_opp_1250: opp-1250000000 {
++			opp-hz = /bits/ 64 <1250000000>;
++		};
++
++		cpu_opp_1275: opp-1275000000 {
++			opp-hz = /bits/ 64 <1275000000>;
++		};
++
++		cpu_opp_1300: opp-1300000000 {
++			opp-hz = /bits/ 64 <1300000000>;
++		};
++	};
++
+ 	cpuintc: interrupt-controller {
+ 		compatible = "mti,cpu-interrupt-controller";
+ 		interrupt-controller;
+@@ -145,7 +323,7 @@ pcie_phy1: pcie-phy@1fac0000 {
+ 
+ 		chip_scu: syscon@1fa20000 {
+ 			compatible = "airoha,chip-scu", "syscon";
+-			reg = <0x1fa20000 0x400>;
++			reg = <0x1fa20000 0x10000>;
+ 		};
+ 
+ 		scu_efuse: syscon@1fbf8200 {
+@@ -299,7 +477,7 @@ spi0: spi@1fa10000 {
+ 			      <0x1fa11000 0x160>;
+ 			reg-names = "ctrl", "nfi";
+ 
+-			clocks = <&scuclk EN7580_CLK_SPI>;
++			clocks = <&scuclk EN7523_CLK_SPI>;
+ 			clock-names = "spi";
+ 
+ 			airoha,scu = <&scuclk>;
+@@ -312,7 +490,7 @@ watchdog: watchdog@1fbf0100 {
+ 			compatible = "econet,en751221-wdt";
+ 			reg = <0x1fbf0100 0x3c>;
+ 
+-			clocks = <&scuclk EN7580_CLK_BUS>;
++			clocks = <&scuclk EN7523_CLK_BUS>;
+ 			clock-names = "bus";
+ 
+ 			interrupts = <GIC_SHARED 9 IRQ_TYPE_LEVEL_HIGH>;
+@@ -564,7 +742,7 @@ pcie0: pcie@1fb81000 {
+ 			#size-cells = <2>;
+ 			interrupts = <GIC_SHARED 23 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "pcie_irq";
+-			clocks = <&scuclk EN7580_CLK_PCIE>;
++			clocks = <&scuclk EN7523_CLK_PCIE>;
+ 			clock-names = "sys_ck0";
+ 			phys = <&pcie_phy0>;
+ 			phy-names = "pcie-phy0";
+@@ -604,7 +782,7 @@ pcie1: pcie@1fb83000 {
+ 			#size-cells = <2>;
+ 			interrupts = <GIC_SHARED 24 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "pcie_irq";
+-			clocks = <&scuclk EN7580_CLK_PCIE>;
++			clocks = <&scuclk EN7523_CLK_PCIE>;
+ 			clock-names = "sys_ck1";
+ 			phys = <&pcie_phy1>;
+ 			phy-names = "pcie-phy1";
+diff --git a/arch/mips/econet/init.c b/arch/mips/econet/init.c
+--- a/arch/mips/econet/init.c
++++ b/arch/mips/econet/init.c
+@@ -11,6 +11,7 @@
+ 
+ #include <asm/addrspace.h>
+ #include <asm/io.h>
++#include <asm/irq.h>
+ #include <asm/bootinfo.h>
+ #include <asm/time.h>
+ #include <asm/prom.h>
+@@ -129,6 +130,18 @@ void __init arch_init_irq(void)
+ 	irqchip_init();
+ }
+ 
++int get_c0_perfcount_int(void)
++{
++	if (mips_gic_present())
++		return gic_get_c0_perfcount_int();
++
++	/* Preserve the generic PMU fallback on non-GIC EcoNet platforms. */
++	if (cp0_perfcount_irq >= 0)
++		return MIPS_CPU_IRQ_BASE + cp0_perfcount_irq;
++
++	return -1;
++}
++
+ /* 5. Timers */
+ void __init plat_time_init(void)
+ {
+diff --git a/drivers/clk/clk-en7523.c b/drivers/clk/clk-en7523.c
+--- a/drivers/clk/clk-en7523.c
++++ b/drivers/clk/clk-en7523.c
+@@ -18,10 +18,9 @@
+ #include <linux/regmap.h>
+ #include <linux/reset-controller.h>
+ #include <linux/soc/airoha/pkgids.h>
++#include <linux/stop_machine.h>
++#include <linux/string.h>
+ #include <dt-bindings/clock/en7523-clk.h>
+-#include <dt-bindings/clock/econet,en751221-scu.h>
+-#include <dt-bindings/clock/econet,en7528-scu.h>
+-#include <dt-bindings/clock/econet,en7580-scu.h>
+ #include <dt-bindings/reset/airoha,en7523-reset.h>
+ #include <dt-bindings/reset/airoha,en7581-reset.h>
+ #include <dt-bindings/reset/airoha,an7583-reset.h>
+@@ -50,8 +49,8 @@
+ #define EN7523_SYSPLL_PCW_25M		0x2a8
+ #define EN7523_SYSPLL_PCW_20M		0x2ac
+ #define EN7523_SYSPLL_DISABLE		0x2b0
+-#define EN7523_SYSPLL_PCW_MASK		GENMASK(30, 24)
+-#define EN7523_SYSPLL_CHG_BIT		BIT(3)
++#define AIROHA_CPU_PLL_PCW_MASK		GENMASK(30, 24)
++#define AIROHA_CPU_PLL_CHANGE_BIT		BIT(3)
+ 
+ #define EN7523_MCUCFG_CK_SWITCH_UNLOCK	0x640
+ #define EN7523_MCUCFG_CK_SOURCE_SEL	0x7c0
+@@ -98,25 +97,33 @@
+ #define REG_RST_CTRL2			0x830
+ #define REG_RST_CTRL1			0x834
+ #define EN751221_REG_RST_DMT		0x84
++#define EN751221_REG_XTAL		0x8c
+ #define EN751221_REG_RST_USB		0xec
+ #define EN751221_REG_SPI_DIV		0x0cc
+-#define EN751221_REG_SPI_DIV_MASK	GENMASK(15, 8)
+ #define EN751221_SPI_BASE		500000000
+ #define EN751221_SPI_BASE_EN7526C	400000000
+ #define EN751221_SPI_DIV_DEFAULT	40
+-#define EN751221_REG_BUS		0x284
+ #define EN751221_REG_BUS_MASK		GENMASK(21, 12)
++#define EN751221_REG_CPU_PLL_SETUP	0x144
++#define EN751221_REG_CPU_PLL_CONFIG	0x19c
++#define EN751221_REG_CPU_PLL_CONTROL	0x1a8
++#define EN751221_REG_CPU_PLL_PARAM	0x1ac
++#define EN7528_REG_BUS_MASK		GENMASK(19, 10)
+ #define EN751221_REG_SSR3		0x094
+-#define EN751221_REG_SSR3_GSW_MASK	GENMASK(9, 8)
+ #define EN751221_REG_NP_PER_DOM_CLK_GAT_1	0x0e4
+ #define   EN751221_XPON_TOD_CLK_EN	BIT(8)
+ #define EN751221_REG_TOD_DIVIDER_ENABLE	0x0ec
+ #define   EN751221_XPON_TOD_DIV_EN	BIT(1)
+-#define EN751221_MAX_CLKS		5
+ 
+-/* EN7528 CHIP-SCU differs from both EN751221 and EN7523. */
++/* EN7516/EN7527 use a different CHIP-SCU register layout. */
++#define EN751627_REG_SPI_DIV		0x11c
++#define EN751627_SPI_BASE		400000000
++#define EN751627_SPI_DIV_DEFAULT	40
++#define EN751627_REG_NP_PER_DOM_CLK_GAT_1	0x13c
++#define EN751627_REG_TOD_DIVIDER_ENABLE	0x144
++
++/* EN7528 CHIP-SCU differs from both EN751627 and EN7523. */
+ #define EN7528_REG_SPI_DIV		0x0cc
+-#define EN7528_REG_SPI_DIV_MASK	GENMASK(15, 8)
+ #define EN7528_SPI_BASE		400000000
+ #define EN7528_SPI_DIV_DEFAULT		10
+ #define EN7528_REG_NP_PER_DOM_CLK_GAT_1	0x0e4
+@@ -125,7 +132,18 @@
+ #define   EN7528_XPON_TOD_DIV_EN	BIT(1)
+ #define EN7528_REG_SHARED_UNZIPMENT_SEL	0x954
+ #define EN7528_SHARED_UNZIPMENT_FE	0x3
+-#define EN7528_MAX_CLKS		5
++#define EN7528_REG_CPU_PLL_SETUP		0x1a0
++#define EN7528_REG_CPU_PLL_CONFIG		0x1ec
++#define EN7528_REG_CPU_PLL_CONTROL	0x1f8
++#define EN7528_REG_CPU_PLL_PARAM		0x1fc
++#define EN7528_REG_XTAL_SELECT		0x0174
++#define EN7528_REG_XTAL_SELECT_ALT	0xff28
++#define EN7528_XTAL_25MHZ		BIT(21)
++#define ECONET_CPU_PLL_CONFIG_FREQ	GENMASK(15, 8)
++#define ECONET_CPU_PLL_CONFIG_DIV	GENMASK(21, 20)
++#define ECONET_CPU_PLL_CONFIG_DIRECT	BIT(20)
++#define ECONET_CPU_PLL_PARAM_FREQ	GENMASK(26, 21)
++#define ECONET_SAVED_IS_FPGA		BIT(9)
+ 
+ /* EN7580 MIPS CHIP-SCU layout (ecnt_scu.h and spi_controller.c). */
+ #define EN7580_REG_SPI_DIV		0x1b8
+@@ -133,7 +151,16 @@
+ #define EN7580_SPI_DIV_DEFAULT		40
+ #define EN7580_REG_NP_PER_DOM_CLK_GAT_1	0x1dc
+ #define EN7580_REG_TOD_DIVIDER_ENABLE	0x1e4
+-#define EN7580_MAX_CLKS			5
++#define EN7580_REG_CPU_PLL_PROTECT	0x264
++#define EN7580_REG_CPU_PLL_PCW		0x2ac
++#define EN7580_REG_CPU_PLL_CHANGE	0x2b0
++#define EN7580_CPU_PLL_PROTECT_KEY	0x80
++#define EN7580_REG_XTAL_SELECT		0x0254
++#define EN7580_REG_XTAL_SELECT_ALT	0xff30
++#define EN7580_CPU_PLL_PCW_MIN		26
++#define EN7580_CPU_PLL_PCW_MAX		104
++#define EN7580_CPU_PLL_PCW_RATE		12500000UL
++#define EN7580_CPU_PLL_SETTLE_US	80
+ 
+ /* SCU PKG ID */
+ #define AIROHA_NP_SCU_PDIDR		0x05c
+@@ -186,6 +213,9 @@
+ struct en_clk_desc {
+ 	int id;
+ 	const char *name;
++	bool np_scu;
++	bool read_only;
++
+ 	u32 base_reg;
+ 	u8 base_bits;
+ 	u8 base_shift;
+@@ -234,12 +264,7 @@ struct en_rst_data {
+ };
+ 
+ struct econet_clk_soc_data {
+-	u32 spi_base;
+-	u32 spi_alt_base;
+-	enum airoha_pkg spi_alt_hir;
+-	u16 spi_div_reg;
+-	u32 spi_div_mask;
+-	u32 spi_div_default;
++	const struct en_clk_desc *spi_alt_desc;
+ 	u16 xpon_tod_clk_reg;
+ 	u32 xpon_tod_clk_mask;
+ 	u16 xpon_tod_div_reg;
+@@ -253,6 +278,9 @@ struct airoha_clk_priv;
+ struct airoha_clk_soc_data {
+ 	const char *old_chip_scu_compatible;
+ 	bool probe_child;
++	/* EcoNet bootloader bus clock field and CPU/bus ratio. */
++	u32 bus_clk_mask;
++	u8 cpu_clk_mult;
+ 	u32 num_clocks;
+ 	u32 num_base_clks;
+ 	const u16 *rst_map;
+@@ -275,10 +303,82 @@ struct airoha_clk_priv {
+ 	struct regmap *scu_np;
+ 	void __iomem *np_scu_base;
+ 	void __iomem *chip_scu_base;
++	resource_size_t chip_scu_size;
+ 	void __iomem *efuse_base;
+ 	void __iomem *mcucfg;
+ };
+ 
++struct econet_cpu_pll_state {
++	u32 setup;
++	u32 config;
++	u32 control;
++	u32 param;
++};
++
++struct econet_cpu_clk {
++	struct clk_hw hw;
++	struct airoha_clk_priv *priv;
++	struct econet_cpu_pll_state boot_state;
++	unsigned long boot_rate;
++	unsigned long xtal_rate;
++	u8 divisor;
++};
++
++struct econet_cpu_pll_layout {
++	u16 setup;
++	u16 config;
++	u16 control;
++	u16 param;
++	u32 idle_setup;
++};
++
++struct airoha_cpu_pll_desc {
++	u16 protect_reg;
++	u16 pcw_reg;
++	u16 pcw_reg_20m;
++	u16 change_reg;
++	u32 protect_mask;
++	u32 unlock_key;
++	unsigned int settle_us;
++};
++
++static const struct airoha_cpu_pll_desc en7523_cpu_pll = {
++	.protect_reg = EN7523_PLLRG_PROTECT,
++	.pcw_reg = EN7523_SYSPLL_PCW_25M,
++	.pcw_reg_20m = EN7523_SYSPLL_PCW_20M,
++	.change_reg = EN7523_SYSPLL_DISABLE,
++	.protect_mask = EN7523_PLLRG_PROTECT_MASK,
++	.unlock_key = EN7523_PLLRG_PROTECT_KEY,
++	.settle_us = 20,
++};
++
++static const struct airoha_cpu_pll_desc en7580_cpu_pll = {
++	.protect_reg = EN7580_REG_CPU_PLL_PROTECT,
++	.pcw_reg = EN7580_REG_CPU_PLL_PCW,
++	.change_reg = EN7580_REG_CPU_PLL_CHANGE,
++	/* SDK writes the complete protection key. */
++	.protect_mask = GENMASK(31, 0),
++	.unlock_key = EN7580_CPU_PLL_PROTECT_KEY,
++	/* Retain the tested delay with allowance for old loop calibration. */
++	.settle_us = EN7580_CPU_PLL_SETTLE_US,
++};
++
++static const struct econet_cpu_pll_layout en751221_cpu_pll = {
++	.setup = EN751221_REG_CPU_PLL_SETUP,
++	.config = EN751221_REG_CPU_PLL_CONFIG,
++	.control = EN751221_REG_CPU_PLL_CONTROL,
++	.param = EN751221_REG_CPU_PLL_PARAM,
++	.idle_setup = 0x12,
++};
++
++static const struct econet_cpu_pll_layout en7528_cpu_pll = {
++	.setup = EN7528_REG_CPU_PLL_SETUP,
++	.config = EN7528_REG_CPU_PLL_CONFIG,
++	.control = EN7528_REG_CPU_PLL_CONTROL,
++	.param = EN7528_REG_CPU_PLL_PARAM,
++	.idle_setup = 0,
++};
++
+ static const struct of_device_id of_match_clk_en7523[];
+ 
+ static enum airoha_pkg_ids
+@@ -561,15 +661,6 @@ static const u32 emmc7581_base[] = { 200000000, 150000000 };
+ /* EN751221 / EN7528 */
+ static const u32 gsw751221_base[] = { 500000000, 250000000, 400000000, 200000000 };
+ 
+-enum econet_clk_id {
+-	ECONET_CLK_PCIE,
+-	ECONET_CLK_SPI,
+-	ECONET_CLK_BUS,
+-	ECONET_CLK_CPU,
+-	ECONET_CLK_GSW,
+-	ECONET_MAX_CLKS,
+-};
+-
+ /* AN7583 */
+ static const u32 gsw7583_base[] = { 540672000, 270336000, 400000000, 200000000 };
+ static const u32 emi7583_base[] = { 540672000, 480000000, 400000000, 300000000 };
+@@ -912,6 +1003,114 @@ static const struct en_clk_desc an7583_base_clks[] = {
+ 	}
+ };
+ 
++static const struct en_clk_desc en751221_base_clks[] = {
++	{
++		.id = EN7523_CLK_SPI,
++		.name = "spi",
++		.read_only = true,
++		.base_reg = EN751221_REG_SPI_DIV,
++		.base_value = EN751221_SPI_BASE,
++		.div_bits = 8,
++		.div_shift = 8,
++		.div_val0 = EN751221_SPI_DIV_DEFAULT,
++		.div_step = 2,
++	}, {
++		.id = EN7523_CLK_GSW,
++		.name = "gsw",
++		.np_scu = true,
++		.read_only = true,
++		.base_reg = EN751221_REG_SSR3,
++		.base_bits = 2,
++		.base_shift = 8,
++		.base_values = gsw751221_base,
++		.n_base_values = ARRAY_SIZE(gsw751221_base),
++	}
++};
++
++static const struct en_clk_desc en751627_base_clks[] = {
++	{
++		.id = EN7523_CLK_SPI,
++		.name = "spi",
++		.read_only = true,
++		.base_reg = EN751627_REG_SPI_DIV,
++		.base_value = EN751627_SPI_BASE,
++		.div_bits = 8,
++		.div_shift = 8,
++		.div_val0 = EN751627_SPI_DIV_DEFAULT,
++		.div_step = 2,
++	}, {
++		.id = EN7523_CLK_GSW,
++		.name = "gsw",
++		.np_scu = true,
++		.read_only = true,
++		.base_reg = EN751221_REG_SSR3,
++		.base_bits = 2,
++		.base_shift = 8,
++		.base_values = gsw751221_base,
++		.n_base_values = ARRAY_SIZE(gsw751221_base),
++	}
++};
++
++static const struct en_clk_desc en7528_base_clks[] = {
++	{
++		.id = EN7523_CLK_SPI,
++		.name = "spi",
++		.read_only = true,
++		.base_reg = EN7528_REG_SPI_DIV,
++		.base_value = EN7528_SPI_BASE,
++		.div_bits = 8,
++		.div_shift = 8,
++		.div_val0 = EN7528_SPI_DIV_DEFAULT,
++		.div_step = 2,
++	}, {
++		.id = EN7523_CLK_GSW,
++		.name = "gsw",
++		.np_scu = true,
++		.read_only = true,
++		.base_reg = EN751221_REG_SSR3,
++		.base_bits = 2,
++		.base_shift = 8,
++		.base_values = gsw751221_base,
++		.n_base_values = ARRAY_SIZE(gsw751221_base),
++	}
++};
++
++static const struct en_clk_desc en7580_base_clks[] = {
++	{
++		.id = EN7523_CLK_SPI,
++		.name = "spi",
++		.read_only = true,
++		.base_reg = EN7580_REG_SPI_DIV,
++		.base_value = EN7580_SPI_BASE,
++		.div_bits = 8,
++		.div_shift = 8,
++		.div_val0 = EN7580_SPI_DIV_DEFAULT,
++		.div_step = 2,
++	}, {
++		.id = EN7523_CLK_GSW,
++		.name = "gsw",
++		.np_scu = true,
++		.read_only = true,
++		.base_reg = EN751221_REG_SSR3,
++		.base_bits = 2,
++		.base_shift = 8,
++		.base_values = gsw751221_base,
++		.n_base_values = ARRAY_SIZE(gsw751221_base),
++	}
++};
++
++static const struct en_clk_desc en7526c_spi_clk = {
++	.id = EN7523_CLK_SPI,
++	.name = "spi",
++	.read_only = true,
++	.base_reg = EN751221_REG_SPI_DIV,
++	.base_value = EN751221_SPI_BASE_EN7526C,
++	.div_bits = 8,
++	.div_shift = 8,
++	.div_val0 = EN751221_SPI_DIV_DEFAULT,
++	.div_step = 2,
++};
++
+ static const u16 en7581_rst_ofs[] = {
+ 	REG_RST_CTRL2,
+ 	REG_RST_CTRL1,
+@@ -1255,32 +1454,37 @@ static struct clk_hw *en7523_register_pcie_clk(struct device *dev,
+ }
+ 
+ static unsigned long en75xx_recalc_rate(struct clk_hw *hw,
+-					unsigned long parent_rate)
++				      unsigned long parent_rate)
+ {
+ 	struct en_clk *c = container_of(hw, struct en_clk, hw);
+ 	const struct en_clk_desc *desc = c->desc;
+-	struct regmap *map = c->map;
+-	u32 val, reg;
+-	u32 rate;
++	u32 val, rate, div;
+ 	int err;
+ 
+-	err = regmap_read(map, desc->base_reg, &val);
++	err = regmap_read(c->map, desc->base_reg, &val);
+ 	if (err) {
+-		pr_err("Failed reading fixed clk rate %s: %d\n",
+-		       desc->name, err);
+-		return err;
++		pr_err("Failed reading clock %s: %d\n", desc->name, err);
++		return 0;
+ 	}
++
+ 	rate = en7523_get_base_rate(desc, val);
++	if (!desc->div_bits)
++		return rate;
+ 
+-	reg = desc->div_reg ? desc->div_reg : desc->base_reg;
+-	err = regmap_read(map, reg, &val);
+-	if (err) {
+-		pr_err("Failed reading fixed clk div %s: %d\n",
+-		       desc->name, err);
+-		return err;
++	if (desc->div_reg && desc->div_reg != desc->base_reg) {
++		err = regmap_read(c->map, desc->div_reg, &val);
++		if (err) {
++			pr_err("Failed reading divider for clock %s: %d\n",
++			       desc->name, err);
++			return 0;
++		}
+ 	}
+ 
+-	return rate / en7523_get_div(desc, val);
++	div = en7523_get_div(desc, val);
++	if (!div)
++		return 0;
++
++	return rate / div;
+ }
+ 
+ static int en75xx_get_base_val_for_rate(const struct en_clk_desc *desc,
+@@ -1288,6 +1492,9 @@ static int en75xx_get_base_val_for_rate(const struct en_clk_desc *desc,
+ {
+ 	int i;
+ 
++	if (!div)
++		return -EINVAL;
++
+ 	/* Single base rate */
+ 	if (!desc->base_bits) {
+ 		if (rate != desc->base_value / div)
+@@ -1429,8 +1636,101 @@ static const struct clk_ops en75xx_clk_ops = {
+ };
+ 
+ 
++static const struct clk_ops en75xx_clk_ro_ops = {
++	.recalc_rate = en75xx_recalc_rate,
++};
++
+ #define to_en7523_cpu_clk(_hw) container_of(_hw, struct en7523_cpu_clk, hw)
+ 
++static u32 airoha_cpu_pll_unlock_value(const struct airoha_cpu_pll_desc *pll,
++				       u32 saved)
++{
++	return (saved & ~pll->protect_mask) | pll->unlock_key;
++}
++
++static int airoha_cpu_pll_unlock(void __iomem *base,
++				 const struct airoha_cpu_pll_desc *pll, u32 saved)
++{
++	u32 value = airoha_cpu_pll_unlock_value(pll, saved);
++
++	writel(value, base + pll->protect_reg);
++	return readl(base + pll->protect_reg) == value ? 0 : -EIO;
++}
++
++static int airoha_cpu_pll_restore(void __iomem *base,
++				  const struct airoha_cpu_pll_desc *pll, u32 saved)
++{
++	writel(saved, base + pll->protect_reg);
++	return readl(base + pll->protect_reg) == saved ? 0 : -EIO;
++}
++
++static unsigned long airoha_cpu_pll_rate(u32 param, unsigned long ref_rate)
++{
++	return FIELD_GET(AIROHA_CPU_PLL_PCW_MASK, param) * (ref_rate / 2);
++}
++
++static int airoha_cpu_pll_pcw(unsigned long rate, unsigned long ref_rate, u32 *pcw)
++{
++	unsigned long unit;
++
++	if (!ref_rate || ref_rate % 2)
++		return -EINVAL;
++	unit = ref_rate / 2;
++	if (rate % unit || rate / unit > FIELD_MAX(AIROHA_CPU_PLL_PCW_MASK))
++		return -EINVAL;
++
++	*pcw = rate / unit;
++	return 0;
++}
++
++/* The caller supplies the SoC-specific quiescence and clock-mux sequence. */
++static int airoha_cpu_pll_apply(void __iomem *base,
++				const struct airoha_cpu_pll_desc *pll,
++				u32 pcw_reg, u32 old_param, u32 pcw)
++{
++	u32 param, control;
++
++	if (pcw > FIELD_MAX(AIROHA_CPU_PLL_PCW_MASK))
++		return -EINVAL;
++	param = (old_param & ~AIROHA_CPU_PLL_PCW_MASK) |
++		FIELD_PREP(AIROHA_CPU_PLL_PCW_MASK, pcw);
++	writel(param, base + pcw_reg);
++	if (readl(base + pcw_reg) != param)
++		return -EIO;
++
++	control = readl(base + pll->change_reg) ^ AIROHA_CPU_PLL_CHANGE_BIT;
++	writel(control, base + pll->change_reg);
++	readl(base + pll->change_reg);
++	/* A settling delay and register readback do not establish PLL lock. */
++	udelay(pll->settle_us);
++	if (readl(base + pcw_reg) != param ||
++	    readl(base + pll->change_reg) != control ||
++	    (readl(base + pll->protect_reg) & pll->protect_mask) != pll->unlock_key)
++		return -EIO;
++
++	return 0;
++}
++
++static int airoha_cpu_pll_rollback(void __iomem *base,
++				   const struct airoha_cpu_pll_desc *pll,
++				   u32 pcw_reg, u32 param, u32 control)
++{
++	u32 pcw = FIELD_GET(AIROHA_CPU_PLL_PCW_MASK, param);
++	int ret;
++
++	ret = airoha_cpu_pll_apply(base, pll, pcw_reg, param, pcw);
++	if (ret)
++		return ret;
++	if (readl(base + pll->change_reg) != control) {
++		writel(control, base + pll->change_reg);
++		readl(base + pll->change_reg);
++		udelay(pll->settle_us);
++	}
++
++	return readl(base + pcw_reg) == param &&
++	       readl(base + pll->change_reg) == control ? 0 : -EIO;
++}
++
+ #if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+ static unsigned long en7523_cpu_smc_get_rate(void)
+ {
+@@ -1504,13 +1804,12 @@ static u32 en7523_cpu_xtal_mhz(struct en7523_cpu_clk *cpu_clk)
+ static u32 en7523_cpu_pcw_reg(struct en7523_cpu_clk *cpu_clk)
+ {
+ 	return en7523_cpu_xtal_mhz(cpu_clk) == 25 ?
+-		EN7523_SYSPLL_PCW_25M : EN7523_SYSPLL_PCW_20M;
++		en7523_cpu_pll.pcw_reg : en7523_cpu_pll.pcw_reg_20m;
+ }
+ 
+ static unsigned long en7523_cpu_pll_get_rate(struct en7523_cpu_clk *cpu_clk)
+ {
+-	unsigned long rate;
+-	u32 pcw, pcw_int, xtal;
++	u32 pcw, xtal;
+ 
+ 	xtal = en7523_cpu_xtal_mhz(cpu_clk);
+ 	if (!xtal)
+@@ -1518,10 +1817,7 @@ static unsigned long en7523_cpu_pll_get_rate(struct en7523_cpu_clk *cpu_clk)
+ 
+ 	pcw = readl(cpu_clk->chip_scu + en7523_cpu_pcw_reg(cpu_clk));
+ 
+-	pcw_int = FIELD_GET(EN7523_SYSPLL_PCW_MASK, pcw);
+-	rate = (unsigned long)pcw_int * xtal * 1000000UL;
+-
+-	return rate / 2;
++	return airoha_cpu_pll_rate(pcw, xtal * 1000000UL);
+ }
+ 
+ static void en7523_cpu_clock_switch(struct en7523_cpu_clk *cpu_clk,
+@@ -1551,8 +1847,8 @@ static int en7523_cpu_pll_set_rate(struct en7523_cpu_clk *cpu_clk,
+ {
+ 	unsigned long flags;
+ 	unsigned int state;
+-	u32 freq_mhz, old_chg, pcw_int, val, xtal;
+-	int ret;
++	u32 pcw_int, pcw_reg, saved, param, control, val, xtal;
++	int ret, restore_ret;
+ 
+ 	ret = en7523_cpu_rate_to_state(rate, &state);
+ 	if (ret)
+@@ -1562,42 +1858,38 @@ static int en7523_cpu_pll_set_rate(struct en7523_cpu_clk *cpu_clk,
+ 	if (!xtal)
+ 		return -EIO;
+ 
+-	freq_mhz = rate / 1000000UL;
+-	pcw_int = (freq_mhz * 2) / xtal;
+-	if ((pcw_int * xtal) / 2 != freq_mhz)
+-		return -EINVAL;
++	ret = airoha_cpu_pll_pcw(rate, xtal * 1000000UL, &pcw_int);
++	if (ret)
++		return ret;
++	pcw_reg = en7523_cpu_pcw_reg(cpu_clk);
+ 
+ 	local_irq_save(flags);
+ 
+ 	en7523_cpu_clock_switch(cpu_clk, EN7523_MCUCFG_CK_SEL_PLL2);
+ 
+-	val = readl(cpu_clk->chip_scu + EN7523_PLLRG_PROTECT);
+-	writel((val & ~EN7523_PLLRG_PROTECT_MASK) |
+-	       EN7523_PLLRG_PROTECT_KEY,
+-	       cpu_clk->chip_scu + EN7523_PLLRG_PROTECT);
+-
+-	val = readl(cpu_clk->chip_scu + en7523_cpu_pcw_reg(cpu_clk));
+-	val &= ~EN7523_SYSPLL_PCW_MASK;
+-	val |= FIELD_PREP(EN7523_SYSPLL_PCW_MASK, pcw_int);
+-	writel(val, cpu_clk->chip_scu + en7523_cpu_pcw_reg(cpu_clk));
+-
+-	old_chg = readl(cpu_clk->chip_scu + EN7523_SYSPLL_DISABLE);
+-	writel(old_chg ^ EN7523_SYSPLL_CHG_BIT,
+-	       cpu_clk->chip_scu + EN7523_SYSPLL_DISABLE);
+-
+-	udelay(20);
++	saved = readl(cpu_clk->chip_scu + en7523_cpu_pll.protect_reg);
++	ret = airoha_cpu_pll_unlock(cpu_clk->chip_scu, &en7523_cpu_pll, saved);
++	if (!ret) {
++		param = readl(cpu_clk->chip_scu + pcw_reg);
++		control = readl(cpu_clk->chip_scu + en7523_cpu_pll.change_reg);
++		ret = airoha_cpu_pll_apply(cpu_clk->chip_scu, &en7523_cpu_pll,
++					   pcw_reg, param, pcw_int);
++		if (ret && airoha_cpu_pll_rollback(cpu_clk->chip_scu,
++						   &en7523_cpu_pll, pcw_reg,
++						   param, control))
++			pr_err("EN7523 CPU PLL rollback failed\n");
++	}
+ 
+ 	en7523_cpu_clock_switch(cpu_clk, EN7523_MCUCFG_CK_SEL_ARMPLL);
+ 
+ 	val = readl(cpu_clk->chip_scu + EN7523_CPUPLL_CLK_MUX);
+ 	writel(val & ~BIT(2), cpu_clk->chip_scu + EN7523_CPUPLL_CLK_MUX);
+ 
+-	val = readl(cpu_clk->chip_scu + EN7523_PLLRG_PROTECT);
+-	writel(val & ~EN7523_PLLRG_PROTECT_MASK,
+-	       cpu_clk->chip_scu + EN7523_PLLRG_PROTECT);
++	restore_ret = airoha_cpu_pll_restore(cpu_clk->chip_scu,
++					     &en7523_cpu_pll, saved);
+ 
+ 	local_irq_restore(flags);
+-	return 0;
++	return ret ? ret : restore_ret;
+ }
+ 
+ static unsigned long en7523_cpu_clk_recalc_rate(struct clk_hw *hw,
+@@ -1617,7 +1909,17 @@ static unsigned long en7523_cpu_clk_recalc_rate(struct clk_hw *hw,
+ static long en7523_cpu_clk_round_rate(struct clk_hw *hw, unsigned long rate,
+ 				      unsigned long *parent_rate)
+ {
+-	rate = clamp_val(rate, EN7523_CPU_MIN_RATE, EN7523_CPU_MAX_RATE);
++	struct en7523_cpu_clk *cpu_clk = to_en7523_cpu_clk(hw);
++	unsigned long max_rate = EN7523_CPU_MAX_RATE;
++
++	if (!cpu_clk->use_smc) {
++		max_rate = FIELD_MAX(AIROHA_CPU_PLL_PCW_MASK) *
++			   (en7523_cpu_xtal_mhz(cpu_clk) * 1000000UL / 2);
++		max_rate = min(max_rate, EN7523_CPU_MAX_RATE);
++		max_rate -= (max_rate - EN7523_CPU_MIN_RATE) %
++			    EN7523_CPU_RATE_STEP;
++	}
++	rate = clamp_val(rate, EN7523_CPU_MIN_RATE, max_rate);
+ 	rate -= EN7523_CPU_MIN_RATE;
+ 	rate = DIV_ROUND_CLOSEST(rate, EN7523_CPU_RATE_STEP) *
+ 	       EN7523_CPU_RATE_STEP;
+@@ -1688,10 +1990,10 @@ static struct clk_hw *en7523_register_cpu_clk(struct device *dev,
+ }
+ 
+ static int en75xx_register_clocks(struct device *dev,
+-				  const struct airoha_clk_soc_data *soc_data,
+-				  struct clk_hw_onecell_data *clk_data,
+-				  struct regmap *map, struct regmap *clk_map)
++				  struct airoha_clk_priv *priv,
++				  struct clk_hw_onecell_data *clk_data)
+ {
++	const struct airoha_clk_soc_data *soc_data = priv->soc_data;
+ 	struct clk_hw *hw;
+ 	int i;
+ 
+@@ -1703,13 +2005,26 @@ static int en75xx_register_clocks(struct device *dev,
+ 		struct en_clk *en_clk;
+ 		int err;
+ 
++		if (soc_data->econet && soc_data->econet->spi_alt_desc &&
++		    desc->id == EN7523_CLK_SPI &&
++		    priv->soc_family == EN7526C_PKG)
++			desc = soc_data->econet->spi_alt_desc;
++
++		if (WARN_ON_ONCE(desc->id < 0 || desc->id >= clk_data->num))
++			return -EINVAL;
++
++		if (desc->read_only) {
++			init.ops = &en75xx_clk_ro_ops;
++			init.flags = CLK_GET_RATE_NOCACHE;
++		}
++
+ 		en_clk = devm_kzalloc(dev, sizeof(*en_clk), GFP_KERNEL);
+ 		if (!en_clk)
+ 			return -ENOMEM;
+ 
+ 		init.name = desc->name;
+ 
+-		en_clk->map = map;
++		en_clk->map = desc->np_scu ? priv->scu_np : priv->scu_chip;
+ 		en_clk->desc = desc;
+ 		en_clk->hw.init = &init;
+ 
+@@ -1723,7 +2038,7 @@ static int en75xx_register_clocks(struct device *dev,
+ 		clk_data->hws[desc->id] = &en_clk->hw;
+ 	}
+ 
+-	hw = en7523_register_pcie_clk(dev, clk_map);
++	hw = en7523_register_pcie_clk(dev, priv->scu_np);
+ 	if (IS_ERR(hw))
+ 		return PTR_ERR(hw);
+ 
+@@ -1775,7 +2090,7 @@ static int en7523_clk_hw_init(struct platform_device *pdev,
+ 	struct clk_hw *hw;
+ 	int err;
+ 
+-	err = en75xx_register_clocks(dev, soc_data, clk_data, map, clk_map);
++	err = en75xx_register_clocks(dev, priv, clk_data);
+ 	if (err)
+ 		return err;
+ 
+@@ -1920,7 +2235,7 @@ static int en7581_clk_hw_init(struct platform_device *pdev,
+ 	struct regmap *map = priv->scu_chip, *clk_map = priv->scu_np;
+ 	int err;
+ 
+-	err = en75xx_register_clocks(dev, soc_data, clk_data, map, clk_map);
++	err = en75xx_register_clocks(dev, priv, clk_data);
+ 	if (err)
+ 		return err;
+ 
+@@ -1949,7 +2264,7 @@ static int an7583_clk_hw_init(struct platform_device *pdev,
+ 	struct regmap *map = priv->scu_chip, *clk_map = priv->scu_np;
+ 	int err;
+ 
+-	err = en75xx_register_clocks(dev, soc_data, clk_data, map, clk_map);
++	err = en75xx_register_clocks(dev, priv, clk_data);
+ 	if (err)
+ 		return err;
+ 
+@@ -1984,76 +2299,508 @@ static int econet_register_fixed_rate(struct device *dev, int key,
+ 	return 0;
+ }
+ 
+-static int econet_register_clocks(struct device *dev,
+-				  struct airoha_clk_priv *priv,
+-				  struct clk_hw_onecell_data *clk_data,
+-				  struct regmap *map, struct regmap *clk_map)
++static const struct econet_cpu_pll_layout *
++econet_cpu_pll_layout(struct airoha_clk_priv *priv)
+ {
+-	const struct econet_clk_soc_data *data = priv->soc_data->econet;
+-	struct clk_hw *hw;
+-	u32 rate, val;
+-	int err;
++	switch (priv->soc_family) {
++	case EN751221_PKG:
++		return &en751221_cpu_pll;
++	case EN7528_PKG:
++		return &en7528_cpu_pll;
++	default:
++		return NULL;
++	}
++}
+ 
+-	/* PCI */
+-	hw = en7523_register_pcie_clk(dev, clk_map);
+-	if (IS_ERR(hw))
+-		return PTR_ERR(hw);
++static unsigned long airoha_xtal_rate(struct airoha_clk_priv *priv)
++{
++	u32 strap, value;
+ 
+-	clk_data->hws[ECONET_CLK_PCIE] = hw;
++	switch (priv->soc_family) {
++	case AN7583_PKG:
++	case EN7581_PKG:
++		/* AN7581 and AN7583 is fixed in 50 MHz */
++		return 50000000UL;
++	case EN7523_PKG:
++		strap = readl(priv->chip_scu_base + EN7523_SCU_XTAL_SELECT);
++		if (strap & BIT(19))
++			return 25000000UL; /* 25 MHz */
++		return 20000000UL; /* 20 MHz */
++	case EN7580_PKG:
++		strap = readl(priv->np_scu_base + AIROHA_NP_SCU_SCREG_WR1);
++		value = readl(priv->chip_scu_base + (strap & ECONET_SAVED_IS_FPGA ?
++						     EN7580_REG_XTAL_SELECT_ALT :
++						     EN7580_REG_XTAL_SELECT));
++		if (value & BIT(19))
++			return 25000000UL; /* 25 MHz */
++		return 20000000UL; /* 20 MHz */
++	case EN751221_PKG:
++		value = readl(priv->np_scu_base + EN751221_REG_XTAL);
++		if (value & BIT(0))
++			return 25000000UL;
++		return 20000000UL;
++	case EN7528_PKG:
++		/* SDK DDR calibration chooses the selector using saved parameter bit 9. */
++		strap = readl(priv->np_scu_base + AIROHA_NP_SCU_SCREG_WR1);
++		value = readl(priv->chip_scu_base + (strap & ECONET_SAVED_IS_FPGA ?
++						     EN7528_REG_XTAL_SELECT_ALT :
++						     EN7528_REG_XTAL_SELECT));
++		if (value & EN7528_XTAL_25MHZ)
++			return 25000000UL;
++		return 20000000UL;
++	default:
++		return 0;
++	}
++}
+ 
+-	/* SPI */
+-	rate = data->spi_base;
+-	if (data->spi_alt_base && priv->soc_family == data->spi_alt_hir)
+-		rate = data->spi_alt_base;
++static bool econet_cpu_rate_supported(struct airoha_clk_priv *priv,
++				      unsigned long rate)
++{
++	switch (priv->soc_family) {
++	case EN751221_PKG:
++		return rate >= 600000000UL && rate <= 1000000000UL &&
++		       !(rate % 100000000UL);
++	case EN7528_PKG:
++		return rate >= 600000000UL && rate <= 1000000000UL &&
++		       !(rate % 25000000UL);
++	default:
++		return false;
++	}
++}
++
++static void econet_cpu_pll_read(struct airoha_clk_priv *priv,
++				struct econet_cpu_pll_state *state)
++{
++	const struct econet_cpu_pll_layout *pll = econet_cpu_pll_layout(priv);
++	void __iomem *base = priv->chip_scu_base;
++
++	if (pll) {
++		state->setup = readl(base + pll->setup);
++		state->config = readl(base + pll->config);
++		state->control = readl(base + pll->control);
++		state->param = readl(base + pll->param);
++	} else {
++		state->setup = readl(base + EN7580_REG_CPU_PLL_PROTECT);
++		state->config = 0;
++		state->control = readl(base + EN7580_REG_CPU_PLL_CHANGE);
++		state->param = readl(base + EN7580_REG_CPU_PLL_PCW);
++	}
++}
++
++static unsigned long
++econet_cpu_pll_rate(struct econet_cpu_clk *clk,
++		    const struct econet_cpu_pll_state *state)
++{
++	const struct econet_cpu_pll_layout *pll = econet_cpu_pll_layout(clk->priv);
++	unsigned long rate;
++	u32 count;
++
++	/* Only the characterized 25 MHz direct-PLL encoding can be decoded. */
++	if (!pll || clk->xtal_rate != 25000000UL ||
++	    state->setup != pll->idle_setup || state->control != 0x406 ||
++	    (state->config & ECONET_CPU_PLL_CONFIG_DIV) !=
++					ECONET_CPU_PLL_CONFIG_DIRECT)
++		return 0;
++
++	/* Other bits must remain as captured at boot, including calibration. */
++	if (((state->config ^ clk->boot_state.config) &
++	     ~ECONET_CPU_PLL_CONFIG_FREQ) ||
++	    ((state->param ^ clk->boot_state.param) &
++	     ~ECONET_CPU_PLL_PARAM_FREQ))
++		return 0;
++
++	count = FIELD_GET(ECONET_CPU_PLL_CONFIG_FREQ, state->config);
++	/* Bound before multiplying to avoid unsigned-long overflow on MIPS. */
++	if (count < 23 || count > 39 ||
++	    FIELD_GET(ECONET_CPU_PLL_PARAM_FREQ, state->param) != count - 7)
++		return 0;
++	rate = (count + 1) * 25000000UL;
++
++	return econet_cpu_rate_supported(clk->priv, rate) ? rate : 0;
++}
++
++static bool econet_cpu_clk_can_scale(struct econet_cpu_clk *clk)
++{
++	return clk->boot_rate == 900000000UL &&
++		econet_cpu_pll_rate(clk, &clk->boot_state) == clk->boot_rate;
++}
++
++static unsigned long
++en7580_cpu_pll_rate(const struct econet_cpu_pll_state *state)
++{
++	u32 pcw = FIELD_GET(AIROHA_CPU_PLL_PCW_MASK, state->param);
++
++	/* SDK do_cpufreq(): PCW = 104 - 2 * step, CPU = 1300 - 25 * step. */
++	if (state->param & ~AIROHA_CPU_PLL_PCW_MASK ||
++	    pcw < EN7580_CPU_PLL_PCW_MIN || pcw > EN7580_CPU_PLL_PCW_MAX ||
++	    (pcw & 1))
++		return 0;
++
++	return airoha_cpu_pll_rate(state->param, 2 * EN7580_CPU_PLL_PCW_RATE);
++}
++
++static long en7580_cpu_clk_round_rate(struct clk_hw *hw, unsigned long rate,
++				      unsigned long *parent_rate)
++{
++	unsigned long min_rate = EN7580_CPU_PLL_PCW_MIN * EN7580_CPU_PLL_PCW_RATE;
++	unsigned long max_rate = EN7580_CPU_PLL_PCW_MAX * EN7580_CPU_PLL_PCW_RATE;
++	unsigned long step = 2 * EN7580_CPU_PLL_PCW_RATE;
++
++	/* Clamp before rounding so arbitrary requests cannot overflow on MIPS. */
++	rate = clamp_val(rate, min_rate, max_rate);
++
++	/* SDK PCWs are even: each increment of two represents 25 MHz. */
++	return DIV_ROUND_CLOSEST(rate, step) * step;
++}
++
++static unsigned long econet_cpu_clk_recalc_rate(struct clk_hw *hw,
++						unsigned long parent_rate)
++{
++	struct econet_cpu_clk *clk = container_of(hw, struct econet_cpu_clk, hw);
++	struct econet_cpu_pll_state state;
++	unsigned long rate;
++
++	/* Let CCF predict the BUS rate and notify consumers before a CPU change. */
++	if (clk->divisor != 1)
++		return parent_rate / clk->divisor;
++
++	econet_cpu_pll_read(clk->priv, &state);
++	if (econet_cpu_pll_layout(clk->priv))
++		rate = econet_cpu_pll_rate(clk, &state);
++	else if (state.setup == clk->boot_state.setup &&
++		 !((state.control ^ clk->boot_state.control) &
++		   ~AIROHA_CPU_PLL_CHANGE_BIT))
++		rate = en7580_cpu_pll_rate(&state);
++	else
++		rate = 0;
++
++	/* Preserve other boot profiles only while their registers are unchanged. */
++	if (!rate && !memcmp(&state, &clk->boot_state, sizeof(state)))
++		rate = clk->boot_rate;
++
++	return rate;
++}
++
++static const struct clk_ops econet_cpu_clk_ops = {
++	.recalc_rate = econet_cpu_clk_recalc_rate,
++};
++
++struct econet_cpu_change {
++	struct econet_cpu_clk *clk;
++	const struct econet_cpu_pll_layout *pll;
++	unsigned long rate;
++	bool rollback_failed;
++};
++
++static bool en7580_cpu_clk_can_scale(struct econet_cpu_clk *clk)
++{
++	struct airoha_clk_priv *priv = clk->priv;
++
++	/* Start from the ASIC boot profile used by SDK do_cpufreq(). */
++	return priv->soc_family == EN7580_PKG &&
++		priv->chip_scu_size >= EN7580_REG_CPU_PLL_CHANGE + sizeof(u32) &&
++		!(readl(priv->np_scu_base + AIROHA_NP_SCU_SCREG_WR1) &
++		  ECONET_SAVED_IS_FPGA) &&
++		!(clk->boot_state.setup & EN7580_CPU_PLL_PROTECT_KEY) &&
++		clk->boot_rate == EN7580_CPU_PLL_PCW_MAX * EN7580_CPU_PLL_PCW_RATE &&
++		en7580_cpu_pll_rate(&clk->boot_state) == clk->boot_rate;
++}
++
++static int en7580_cpu_change_stopped(void *arg)
++{
++	struct econet_cpu_change *change = arg;
++	struct econet_cpu_clk *clk = change->clk;
++	void __iomem *base = clk->priv->chip_scu_base;
++	struct econet_cpu_pll_state old, state;
++	u32 pcw, target;
++	int ret, restore_ret;
++
++	econet_cpu_pll_read(clk->priv, &old);
++	if (!en7580_cpu_pll_rate(&old) || old.setup != clk->boot_state.setup ||
++	    ((old.control ^ clk->boot_state.control) &
++	     ~AIROHA_CPU_PLL_CHANGE_BIT))
++		return -EOPNOTSUPP;
++
++	pcw = FIELD_GET(AIROHA_CPU_PLL_PCW_MASK, old.param);
++	ret = airoha_cpu_pll_pcw(change->rate, 2 * EN7580_CPU_PLL_PCW_RATE,
++				 &target);
++	if (ret)
++		return ret;
++	if (pcw == target)
++		return 0;
++
++	ret = airoha_cpu_pll_unlock(base, &en7580_cpu_pll, old.setup);
++	if (ret)
++		goto restore_protect;
++
++	/* Apply only the destination PCW, without intermediate frequencies. */
++	ret = airoha_cpu_pll_apply(base, &en7580_cpu_pll,
++				   en7580_cpu_pll.pcw_reg, old.param, target);
++	if (ret) {
++		/* Reapply the original PCW directly if the target was not verified. */
++		if (airoha_cpu_pll_rollback(base, &en7580_cpu_pll,
++					    en7580_cpu_pll.pcw_reg, old.param,
++					    old.control)) {
++			change->rollback_failed = true;
++			goto restore_protect;
++		}
++	}
++
++restore_protect:
++	restore_ret = airoha_cpu_pll_restore(base, &en7580_cpu_pll, old.setup);
++	if (restore_ret) {
++		change->rollback_failed = true;
++		ret = restore_ret;
++	}
++	econet_cpu_pll_read(clk->priv, &state);
++	if (ret) {
++		if (memcmp(&state, &old, sizeof(state)))
++			change->rollback_failed = true;
++	} else if (state.setup != old.setup || state.config != old.config ||
++		   state.param != FIELD_PREP(AIROHA_CPU_PLL_PCW_MASK, target) ||
++		   ((state.control ^ old.control) & ~AIROHA_CPU_PLL_CHANGE_BIT)) {
++		ret = -EIO;
++		change->rollback_failed = true;
++	}
++
++	return ret;
++}
++
++static int en7580_cpu_clk_set_rate(struct clk_hw *hw, unsigned long rate,
++				   unsigned long parent_rate)
++{
++	struct econet_cpu_change change = {
++		.clk = container_of(hw, struct econet_cpu_clk, hw),
++		.rate = rate,
++	};
++	int ret;
++
++	if (!en7580_cpu_clk_can_scale(change.clk))
++		return -EOPNOTSUPP;
++	if (rate < EN7580_CPU_PLL_PCW_MIN * EN7580_CPU_PLL_PCW_RATE ||
++	    rate > EN7580_CPU_PLL_PCW_MAX * EN7580_CPU_PLL_PCW_RATE ||
++	    rate % (2 * EN7580_CPU_PLL_PCW_RATE))
++		return -EINVAL;
++
++	/* CPU and BUS share this PLL; quiesce all cores and VPEs once. */
++	ret = stop_machine(en7580_cpu_change_stopped, &change, NULL);
++	if (change.rollback_failed)
++		pr_err("EN7580 CPU PLL state verification/recovery failed\n");
++
++	return ret;
++}
++
++static const struct clk_ops en7580_cpu_clk_ops = {
++	.recalc_rate = econet_cpu_clk_recalc_rate,
++	.round_rate = en7580_cpu_clk_round_rate,
++	.set_rate = en7580_cpu_clk_set_rate,
++};
++
++static void econet_cpu_pll_write(void __iomem *base,
++				 const struct econet_cpu_pll_layout *pll,
++				 const struct econet_cpu_pll_state *state)
++{
++	writel(0x12, base + pll->setup);
++	writel(state->config, base + pll->config);
++	writel(state->param, base + pll->param);
++	writel(0x402, base + pll->control);
++	writel(0x406, base + pll->control);
++	/* EN7528 clears the programming setup after applying the new pair. */
++	if (!pll->idle_setup)
++		writel(0, base + pll->setup);
++	readl(base + pll->control);
++}
++
++static int econet_cpu_change_stopped(void *arg)
++{
++	struct econet_cpu_change *change = arg;
++	struct airoha_clk_priv *priv = change->clk->priv;
++	struct econet_cpu_pll_state old, target, state;
++	unsigned long old_rate;
++	u32 count;
++
++	econet_cpu_pll_read(priv, &old);
++	old_rate = econet_cpu_pll_rate(change->clk, &old);
++	if (!old_rate)
++		return -EOPNOTSUPP;
++	if (old_rate == change->rate)
++		return 0;
++
++	/* Preserve the live register bits outside the two frequency fields. */
++	count = change->rate / 25000000UL - 1;
++	target = old;
++	target.config = (old.config & ~ECONET_CPU_PLL_CONFIG_FREQ) |
++			FIELD_PREP(ECONET_CPU_PLL_CONFIG_FREQ, count);
++	target.param = (old.param & ~ECONET_CPU_PLL_PARAM_FREQ) |
++		       FIELD_PREP(ECONET_CPU_PLL_PARAM_FREQ, count - 7);
++	econet_cpu_pll_write(priv->chip_scu_base, change->pll, &target);
++	econet_cpu_pll_read(priv, &state);
++	if (!memcmp(&state, &target, sizeof(state)))
++		return 0;
+ 
+-	err = regmap_read(map, data->spi_div_reg, &val);
++	/* Reapply the exact previous snapshot, rather than synthesizing it. */
++	econet_cpu_pll_write(priv->chip_scu_base, change->pll, &old);
++	econet_cpu_pll_read(priv, &state);
++	change->rollback_failed = memcmp(&state, &old, sizeof(state));
++	return -EIO;
++}
++
++static long econet_cpu_clk_round_rate(struct clk_hw *hw, unsigned long rate,
++				      unsigned long *parent_rate)
++{
++	struct econet_cpu_clk *clk = container_of(hw, struct econet_cpu_clk, hw);
++
++	if (!econet_cpu_clk_can_scale(clk) ||
++	    !econet_cpu_rate_supported(clk->priv, rate))
++		return -EINVAL;
++
++	return rate;
++}
++
++static int econet_cpu_clk_set_rate(struct clk_hw *hw, unsigned long rate,
++				   unsigned long parent_rate)
++{
++	struct econet_cpu_change change = {
++		.clk = container_of(hw, struct econet_cpu_clk, hw),
++		.rate = rate,
++	};
++	int ret;
++
++	change.pll = econet_cpu_pll_layout(change.clk->priv);
++	if (!change.pll || !econet_cpu_clk_can_scale(change.clk))
++		return -EOPNOTSUPP;
++	if (!econet_cpu_rate_supported(change.clk->priv, rate))
++		return -EINVAL;
++
++	/* Run the sequence once, with all other cores and VPEs quiesced. */
++	ret = stop_machine(econet_cpu_change_stopped, &change, NULL);
++	if (change.rollback_failed)
++		pr_err("EcoNet CPU PLL rollback failed (family %#x)\n",
++		       change.clk->priv->soc_family);
++	return ret;
++}
++
++static const struct clk_ops econet_cpu_scaling_ops = {
++	.recalc_rate = econet_cpu_clk_recalc_rate,
++	.round_rate = econet_cpu_clk_round_rate,
++	.set_rate = econet_cpu_clk_set_rate,
++};
++
++static struct clk_hw *
++econet_register_cpu_clk(struct device *dev, struct airoha_clk_priv *priv,
++			const struct econet_cpu_pll_state *boot_state,
++			unsigned long boot_rate, const struct clk_hw *parent)
++{
++	struct clk_init_data init = {
++		.name = parent ? "bus" : "cpu",
++		.ops = &econet_cpu_clk_ops,
++		.flags = CLK_GET_RATE_NOCACHE,
++	};
++	struct econet_cpu_clk *clk;
++	int err;
++
++	clk = devm_kzalloc(dev, sizeof(*clk), GFP_KERNEL);
++	if (!clk)
++		return ERR_PTR(-ENOMEM);
++
++	clk->priv = priv;
++	clk->boot_state = *boot_state;
++	clk->boot_rate = boot_rate;
++	clk->divisor = parent ? priv->soc_data->cpu_clk_mult : 1;
++	clk->xtal_rate = parent ? 0 : airoha_xtal_rate(priv);
++	/* Unknown boot encodings remain read-only, including OPP filtering. */
++	if (!parent && en7580_cpu_clk_can_scale(clk))
++		init.ops = &en7580_cpu_clk_ops;
++	else if (!parent && econet_cpu_clk_can_scale(clk))
++		init.ops = &econet_cpu_scaling_ops;
++	if (!parent && priv->soc_family == EN7580_PKG &&
++	    init.ops != &en7580_cpu_clk_ops)
++		dev_info(dev, "EN7580 boot PLL profile is read-only (PCW %#x, protect %#x)\n",
++			 boot_state->param, boot_state->setup);
++	if (!parent && priv->soc_family == EN7528_PKG &&
++	    clk->xtal_rate != 25000000UL)
++		dev_info(dev, "%s XTAL: CPU PLL control is not characterized\n",
++			 clk->xtal_rate == 20000000UL ? "20 MHz" : "Unknown");
++	if (parent) {
++		init.parent_hws = &parent;
++		init.num_parents = 1;
++	}
++	clk->hw.init = &init;
++	err = devm_clk_hw_register(dev, &clk->hw);
+ 	if (err)
+-		return dev_err_probe(dev, err,
+-				     "Failed reading fixed clk div spi\n");
++		return ERR_PTR(err);
++
++	return &clk->hw;
++}
+ 
+-	val = ((val & data->spi_div_mask) >> __ffs(data->spi_div_mask)) * 2;
+-	if (!val)
+-		val = data->spi_div_default;
++static int econet_register_live_cpu_clocks(struct device *dev,
++					   struct airoha_clk_priv *priv,
++					   struct clk_hw_onecell_data *clk_data,
++					   unsigned long boot_rate)
++{
++	struct econet_cpu_pll_state boot_state;
++	struct clk_hw *cpu, *bus;
++
++	econet_cpu_pll_read(priv, &boot_state);
++	cpu = econet_register_cpu_clk(dev, priv, &boot_state, boot_rate, NULL);
++	if (IS_ERR(cpu))
++		return dev_err_probe(dev, PTR_ERR(cpu),
++				     "Failed to register live CPU clock\n");
++
++	bus = econet_register_cpu_clk(dev, priv, &boot_state, boot_rate, cpu);
++	if (IS_ERR(bus))
++		return dev_err_probe(dev, PTR_ERR(bus),
++				     "Failed to register live bus clock\n");
+ 
+-	err = econet_register_fixed_rate(dev, ECONET_CLK_SPI, clk_data,
+-					 "spi", rate / val);
++	clk_data->hws[EN7523_CLK_CPU] = cpu;
++	clk_data->hws[EN7523_CLK_BUS] = bus;
++
++	return 0;
++}
++
++static int econet_register_clocks(struct device *dev,
++				  struct airoha_clk_priv *priv,
++				  struct clk_hw_onecell_data *clk_data)
++{
++	const struct airoha_clk_soc_data *soc_data = priv->soc_data;
++	u32 rate, val;
++	int err;
++
++	err = en75xx_register_clocks(dev, priv, clk_data);
+ 	if (err)
+ 		return err;
+ 
+ 	/* BUS */
+-	err = regmap_read(clk_map, EN751221_REG_BUS, &val);
++	err = regmap_read(priv->scu_np, AIROHA_NP_SCU_SCREG_WR1, &val);
+ 	if (err)
+ 		return dev_err_probe(dev, err,
+ 				     "Failed reading fixed clk rate bus\n");
+ 
+-	rate = FIELD_GET(EN751221_REG_BUS_MASK, val) * 1000000;
++	/* SYS_GLOBAL_PARM is a bootloader bitfield, not a clock selector. */
++	rate = ((val & soc_data->bus_clk_mask) >>
++		__ffs(soc_data->bus_clk_mask)) * 1000000;
+ 	if (!rate)
+ 		return dev_err_probe(dev, -EINVAL,
+ 				     "Bootloader did not save the bus clock rate\n");
+-	err = econet_register_fixed_rate(dev, ECONET_CLK_BUS, clk_data,
++
++	/* Return CPU live clock */
++	if (priv->soc_family == EN751221_PKG || priv->soc_family == EN7528_PKG ||
++	    priv->soc_family == EN7580_PKG)
++		return econet_register_live_cpu_clocks(dev, priv, clk_data,
++						      rate * soc_data->cpu_clk_mult);
++
++	err = econet_register_fixed_rate(dev, EN7523_CLK_BUS, clk_data,
+ 					 "bus", rate);
+ 	if (err)
+ 		return err;
+ 
+ 	/* CPU */
+-	err = econet_register_fixed_rate(dev, ECONET_CLK_CPU, clk_data,
+-					 "cpu", rate * 4);
++	err = econet_register_fixed_rate(dev, EN7523_CLK_CPU, clk_data,
++					 "cpu", rate * soc_data->cpu_clk_mult);
+ 	if (err)
+ 		return err;
+ 
+-	/* GSW */
+-	err = regmap_read(clk_map, EN751221_REG_SSR3, &val);
+-	if (err)
+-		return dev_err_probe(dev, err,
+-				     "Failed reading fixed clk rate gsw\n");
+-
+-	val = FIELD_GET(EN751221_REG_SSR3_GSW_MASK, val);
+-	if (val >= ARRAY_SIZE(gsw751221_base))
+-		return dev_err_probe(dev, -EINVAL,
+-				     "Invalid GSW clock selector %u\n", val);
+-
+-	return econet_register_fixed_rate(dev, ECONET_CLK_GSW, clk_data,
+-					  "gsw", gsw751221_base[val]);
++	return 0;
+ }
+ 
+ static int econet_clk_hw_init(struct platform_device *pdev,
+@@ -2066,7 +2813,7 @@ static int econet_clk_hw_init(struct platform_device *pdev,
+ 	struct regmap *map = priv->scu_chip, *clk_map = priv->scu_np;
+ 	int err;
+ 
+-	err = econet_register_clocks(dev, priv, clk_data, map, clk_map);
++	err = econet_register_clocks(dev, priv, clk_data);
+ 	if (err)
+ 		return err;
+ 
+@@ -2141,6 +2888,13 @@ static int airoha_clk_map_resources(struct platform_device *pdev,
+ 	if (!chip_np)
+ 		return -ENODEV;
+ 
++	err = of_address_to_resource(chip_np, 0, &res);
++	if (err) {
++		of_node_put(chip_np);
++		return err;
++	}
++	priv->chip_scu_size = resource_size(&res);
++
+ 	priv->scu_chip = syscon_node_to_regmap(chip_np);
+ 	if (IS_ERR(priv->scu_chip)) {
+ 		of_node_put(chip_np);
+@@ -2327,10 +3081,16 @@ const char *airoha_id_name(enum airoha_pkg_ids id)
+ }
+ EXPORT_SYMBOL_GPL(airoha_id_name);
+ 
++static void econet_cpufreq_unregister(void *pdev)
++{
++	platform_device_unregister(pdev);
++}
++
+ static int en7523_clk_probe(struct platform_device *pdev)
+ {
+ 	const struct airoha_clk_soc_data *soc_data;
+ 	struct clk_hw_onecell_data *clk_data;
++	struct platform_device *cpufreq_pdev;
+ 	struct airoha_clk_priv *priv;
+ 	struct device *dev = &pdev->dev;
+ 	int err;
+@@ -2370,28 +3130,39 @@ static int en7523_clk_probe(struct platform_device *pdev)
+ 			return err;
+ 	}
+ 
++	if (soc_data->econet && IS_ENABLED(CONFIG_ECONET_CPUFREQ)) {
++		cpufreq_pdev = platform_device_register_data(dev, "econet-cpufreq",
++							    PLATFORM_DEVID_NONE,
++							    NULL, 0);
++		if (IS_ERR(cpufreq_pdev))
++			return PTR_ERR(cpufreq_pdev);
++
++		err = devm_add_action_or_reset(dev, econet_cpufreq_unregister,
++					       cpufreq_pdev);
++		if (err)
++			return err;
++	}
++
+ 	platform_set_drvdata(pdev, priv);
+ 	return 0;
+ }
+ 
+ static const struct econet_clk_soc_data en751221_econet_data = {
+-	.spi_base = EN751221_SPI_BASE,
+-	.spi_alt_base = EN751221_SPI_BASE_EN7526C,
+-	.spi_alt_hir = EN7526C_PKG,
+-	.spi_div_reg = EN751221_REG_SPI_DIV,
+-	.spi_div_mask = EN751221_REG_SPI_DIV_MASK,
+-	.spi_div_default = EN751221_SPI_DIV_DEFAULT,
++	.spi_alt_desc = &en7526c_spi_clk,
+ 	.xpon_tod_clk_reg = EN751221_REG_NP_PER_DOM_CLK_GAT_1,
+ 	.xpon_tod_clk_mask = EN751221_XPON_TOD_CLK_EN,
+ 	.xpon_tod_div_reg = EN751221_REG_TOD_DIVIDER_ENABLE,
+ 	.xpon_tod_div_mask = EN751221_XPON_TOD_DIV_EN,
+ };
+ 
++static const struct econet_clk_soc_data en751627_econet_data = {
++	.xpon_tod_clk_reg = EN751627_REG_NP_PER_DOM_CLK_GAT_1,
++	.xpon_tod_clk_mask = EN751221_XPON_TOD_CLK_EN,
++	.xpon_tod_div_reg = EN751627_REG_TOD_DIVIDER_ENABLE,
++	.xpon_tod_div_mask = EN751221_XPON_TOD_DIV_EN,
++};
++
+ static const struct econet_clk_soc_data en7528_econet_data = {
+-	.spi_base = EN7528_SPI_BASE,
+-	.spi_div_reg = EN7528_REG_SPI_DIV,
+-	.spi_div_mask = EN7528_REG_SPI_DIV_MASK,
+-	.spi_div_default = EN7528_SPI_DIV_DEFAULT,
+ 	.xpon_tod_clk_reg = EN7528_REG_NP_PER_DOM_CLK_GAT_1,
+ 	.xpon_tod_clk_mask = EN7528_XPON_TOD_CLK_EN,
+ 	.xpon_tod_div_reg = EN7528_REG_TOD_DIVIDER_ENABLE,
+@@ -2401,10 +3172,6 @@ static const struct econet_clk_soc_data en7528_econet_data = {
+ };
+ 
+ static const struct econet_clk_soc_data en7580_econet_data = {
+-	.spi_base = EN7580_SPI_BASE,
+-	.spi_div_reg = EN7580_REG_SPI_DIV,
+-	.spi_div_mask = EN751221_REG_SPI_DIV_MASK,
+-	.spi_div_default = EN7580_SPI_DIV_DEFAULT,
+ 	.xpon_tod_clk_reg = EN7580_REG_NP_PER_DOM_CLK_GAT_1,
+ 	.xpon_tod_clk_mask = EN751221_XPON_TOD_CLK_EN,
+ 	.xpon_tod_div_reg = EN7580_REG_TOD_DIVIDER_ENABLE,
+@@ -2413,7 +3180,11 @@ static const struct econet_clk_soc_data en7580_econet_data = {
+ 
+ static const struct airoha_clk_soc_data en751221_data = {
+ 	.old_chip_scu_compatible = "econet,en751221-chip-scu",
+-	.num_clocks = EN751221_MAX_CLKS,
++	.base_clks = en751221_base_clks,
++	.num_base_clks = ARRAY_SIZE(en751221_base_clks),
++	.bus_clk_mask = EN751221_REG_BUS_MASK,
++	.cpu_clk_mult = 4,
++	.num_clocks = EN7523_CLK_CPU + 1,
+ 	.rst_map = en751221_rst_map,
+ 	.rst_ofs = en751221_rst_ofs,
+ 	.nr_resets = ARRAY_SIZE(en751221_rst_map),
+@@ -2426,9 +3197,33 @@ static const struct airoha_clk_soc_data en751221_data = {
+ 	.hw_init = econet_clk_hw_init,
+ };
+ 
++static const struct airoha_clk_soc_data en751627_data = {
++	.old_chip_scu_compatible = "econet,en751627-chip-scu",
++	.base_clks = en751627_base_clks,
++	.num_base_clks = ARRAY_SIZE(en751627_base_clks),
++	.bus_clk_mask = EN751221_REG_BUS_MASK,
++	.cpu_clk_mult = 4,
++	/* EN751627 keeps the EN751221 NP-SCU reset layout. */
++	.num_clocks = EN7523_CLK_CPU + 1,
++	.rst_map = en751221_rst_map,
++	.rst_ofs = en751221_rst_ofs,
++	.nr_resets = ARRAY_SIZE(en751221_rst_map),
++	.econet = &en751627_econet_data,
++	.pcie_ops = {
++		.is_enabled = en7523_pci_is_enabled,
++		.prepare = en7523_pci_prepare,
++		.unprepare = en7523_pci_unprepare,
++	},
++	.hw_init = econet_clk_hw_init,
++};
++
+ static const struct airoha_clk_soc_data en7528_data = {
+ 	.old_chip_scu_compatible = "econet,en7528-chip-scu",
+-	.num_clocks = EN7528_MAX_CLKS,
++	.base_clks = en7528_base_clks,
++	.num_base_clks = ARRAY_SIZE(en7528_base_clks),
++	.bus_clk_mask = EN7528_REG_BUS_MASK,
++	.cpu_clk_mult = 4,
++	.num_clocks = EN7523_CLK_CPU + 1,
+ 	/* EN7528 keeps the EN751221 NP-SCU reset layout. */
+ 	.rst_map = en751221_rst_map,
+ 	.rst_ofs = en751221_rst_ofs,
+@@ -2444,7 +3239,11 @@ static const struct airoha_clk_soc_data en7528_data = {
+ 
+ static const struct airoha_clk_soc_data en7580_data = {
+ 	.old_chip_scu_compatible = "econet,en7580-chip-scu",
+-	.num_clocks = EN7580_MAX_CLKS,
++	.base_clks = en7580_base_clks,
++	.num_base_clks = ARRAY_SIZE(en7580_base_clks),
++	.bus_clk_mask = EN7528_REG_BUS_MASK,
++	.cpu_clk_mult = 5,
++	.num_clocks = EN7523_CLK_CPU + 1,
+ 	/* The MIPS EN7580 retains the legacy NP-SCU reset banks. */
+ 	.rst_map = en751221_rst_map,
+ 	.rst_ofs = en751221_rst_ofs,
+@@ -2514,7 +3313,7 @@ static const struct of_device_id of_match_clk_en7523[] = {
+ 	{ .compatible = "airoha,en7581-scu", .data = &en7581_data },
+ 	{ .compatible = "airoha,an7583-scu", .data = &an7583_data },
+ 	{ .compatible = "econet,en751221-scu", .data = &en751221_data },
+-	{ .compatible = "econet,en751627-scu", .data = &en7528_data },
++	{ .compatible = "econet,en751627-scu", .data = &en751627_data },
+ 	{ .compatible = "econet,en7528-scu", .data = &en7528_data },
+ 	{ .compatible = "econet,en7580-scu", .data = &en7580_data },
+ 	{ /* sentinel */ }
+diff --git a/drivers/cpufreq/Kconfig b/drivers/cpufreq/Kconfig
+--- a/drivers/cpufreq/Kconfig
++++ b/drivers/cpufreq/Kconfig
+@@ -264,6 +264,38 @@ source "drivers/cpufreq/Kconfig.powerpc"
+ endif
+ 
+ if MIPS
++config ECONET_CPUFREQ
++	tristate "EcoNet MIPS CPU frequency control and reporting"
++	depends on ECONET && OF && COMMON_CLK_EN7523
++	select PM_OPP
++	help
++	  Expose the CPU frequency of EN751221, EN751627, EN7528 and
++	  EN7580 SoCs through CPUFreq. All cores and VPEs share one policy
++	  supplied by the system clock controller. Operating points are read
++	  from operating-points-v2 on CPU0 and filtered by the clock provider.
++	  Without an OPP table, the driver reports only the current boot rate.
++
++	  Experimental EN751221-family control with a recognized 900 MHz
++	  boot rate supports 700, 800, 900 and 1000 MHz, without an
++	  EN7526G-only variant restriction. These profiles were exercised
++	  on EN7526G; other family variants require hardware validation.
++	  EN7528-family control with 900 MHz boot metadata supports the 17
++	  profiles from 600 through 1000 MHz in 25 MHz steps, exercised
++	  with short PMU windows on one EN7528HU. Rates above 900 MHz
++	  are software boost entries, disabled by default. These tests
++	  do not establish prolonged stability or silicon operating limits.
++	  Other configurations retain reporting only. DDR settings and
++	  supply voltages are not changed.
++	  EN751221, EN7528 and EN7580 read recognized PLL profiles on demand.
++	  Other SoCs use bootloader metadata. This is not a cycle-counter
++	  frequency measurement. Writable EN751221 and EN7528 policies allow
++	  dynamic governors with a 100 ms default update interval. Enable
++	  CPU_FREQ_GOV_ONDEMAND to use ondemand, or use the userspace governor
++	  to select a profile explicitly. Reporting-only policies keep
++	  automatic dynamic switching disabled.
++
++	  If unsure, say N.
++
+ config BMIPS_CPUFREQ
+ 	tristate "BMIPS CPUfreq Driver"
+ 	help
+diff --git a/drivers/cpufreq/Makefile b/drivers/cpufreq/Makefile
+--- a/drivers/cpufreq/Makefile
++++ b/drivers/cpufreq/Makefile
+@@ -101,6 +101,7 @@ obj-$(CONFIG_POWERNV_CPUFREQ)		+= powernv-cpufreq.o
+ 
+ ##################################################################################
+ # Other platform drivers
++obj-$(CONFIG_ECONET_CPUFREQ)		+= econet-cpufreq.o
+ obj-$(CONFIG_BMIPS_CPUFREQ)		+= bmips-cpufreq.o
+ obj-$(CONFIG_LOONGSON2_CPUFREQ)		+= loongson2_cpufreq.o
+ obj-$(CONFIG_LOONGSON3_CPUFREQ)		+= loongson3_cpufreq.o
+diff --git a/drivers/cpufreq/cpufreq-dt-platdev.c b/drivers/cpufreq/cpufreq-dt-platdev.c
+--- a/drivers/cpufreq/cpufreq-dt-platdev.c
++++ b/drivers/cpufreq/cpufreq-dt-platdev.c
+@@ -121,6 +121,10 @@ static const struct of_device_id blocklist[] __initconst = {
+ 	{ .compatible = "calxeda,highbank", },
+ 	{ .compatible = "calxeda,ecx-2000", },
+ 
++	{ .compatible = "econet,en751221", },
++	{ .compatible = "econet,en7528", },
++	{ .compatible = "econet,en7580", },
++
+ 	{ .compatible = "fsl,imx7ulp", },
+ 	{ .compatible = "fsl,imx7d", },
+ 	{ .compatible = "fsl,imx7s", },
+diff --git a/drivers/cpufreq/econet-cpufreq.c b/drivers/cpufreq/econet-cpufreq.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/cpufreq/econet-cpufreq.c
+@@ -0,0 +1,253 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Control EN751221, EN7528 and EN7580; report rates on other EcoNet SoCs.
++ */
++
++#include <linux/clk.h>
++#include <linux/cpu.h>
++#include <linux/cpufreq.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/pm_opp.h>
++#include <linux/slab.h>
++
++#define ECONET_CPUFREQ_TRANSITION_DELAY_US	100000
++
++struct econet_cpufreq_data {
++	struct clk *clk;
++	struct device *cpu_dev;
++	struct cpufreq_frequency_table *table;
++	struct cpufreq_frequency_table *opp_table;
++	struct cpufreq_frequency_table fixed_table[2];
++	struct cpufreq_driver driver;
++	unsigned int num_frequencies;
++	bool scaling;
++};
++
++static int econet_cpufreq_init(struct cpufreq_policy *policy)
++{
++	struct econet_cpufreq_data *data = cpufreq_get_driver_data();
++
++	policy->clk = data->clk;
++	cpufreq_generic_init(policy, data->table,
++			     data->scaling ? CPUFREQ_DEFAULT_TRANSITION_LATENCY_NS : 0);
++	/* PLL changes stop all VPEs; start with 100 ms governor updates. */
++	policy->transition_delay_us = data->scaling ?
++		ECONET_CPUFREQ_TRANSITION_DELAY_US : 0;
++	/* All cores and VPEs belong to the same CPU clock domain. */
++	cpumask_copy(policy->cpus, cpu_possible_mask);
++
++	return 0;
++}
++
++static int econet_cpufreq_target_index(struct cpufreq_policy *policy,
++				      unsigned int index)
++{
++	struct econet_cpufreq_data *data = cpufreq_get_driver_data();
++
++	if (data->scaling) {
++		unsigned long requested;
++		int ret;
++
++		if (index >= data->num_frequencies)
++			return -EINVAL;
++		if ((data->table[index].flags & CPUFREQ_BOOST_FREQ) &&
++		    (!cpufreq_boost_enabled() || !policy->boost_enabled))
++			return -EPERM;
++		requested = data->table[index].frequency * 1000UL;
++		ret = clk_set_rate(policy->clk, requested);
++		if (ret)
++			return ret;
++		/* CCF may ignore a provider's set_rate error; verify live readback. */
++		return clk_get_rate(policy->clk) == requested ? 0 : -EIO;
++	}
++
++	if (index)
++		return -EINVAL;
++
++	/* A reporting-only driver cannot restore a rate changed out of band. */
++	return clk_get_rate(policy->clk) / 1000 == data->table[0].frequency ?
++		0 : -EOPNOTSUPP;
++}
++
++static const struct cpufreq_driver econet_cpufreq_driver = {
++	.name = "econet",
++	.flags = CPUFREQ_CONST_LOOPS | CPUFREQ_NO_AUTO_DYNAMIC_SWITCHING,
++	.init = econet_cpufreq_init,
++	.verify = cpufreq_generic_frequency_table_verify,
++	.get = cpufreq_generic_get,
++	.target_index = econet_cpufreq_target_index,
++};
++
++static void econet_cpufreq_clk_put(void *clk)
++{
++	clk_put(clk);
++}
++
++static void econet_cpufreq_unregister(void *driver)
++{
++	cpufreq_unregister_driver(driver);
++}
++
++static void econet_cpufreq_remove_opps(void *arg)
++{
++	struct econet_cpufreq_data *data = arg;
++
++	if (data->opp_table)
++		dev_pm_opp_free_cpufreq_table(data->cpu_dev, &data->opp_table);
++	dev_pm_opp_of_remove_table(data->cpu_dev);
++}
++
++static int econet_cpufreq_add_opps(struct device *dev,
++				   struct econet_cpufreq_data *data)
++{
++	struct dev_pm_opp *opp;
++	unsigned long freq = 0;
++	unsigned int max_nonboost = of_machine_is_compatible("econet,en7580") ?
++				    1300000 : 900000;
++	unsigned int i;
++	int count, ret;
++
++	/* Older DTBs and reporting-only SoCs need no programmable OPP table. */
++	if (!of_property_present(data->cpu_dev->of_node, "operating-points-v2"))
++		return 0;
++
++	ret = dev_pm_opp_of_add_table(data->cpu_dev);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to add CPU OPP table\n");
++	ret = devm_add_action_or_reset(dev, econet_cpufreq_remove_opps, data);
++	if (ret)
++		return ret;
++
++	/* Validate Hz before the OPP helper converts them to CPUFreq kHz. */
++	for (;;) {
++		opp = dev_pm_opp_find_freq_ceil(data->cpu_dev, &freq);
++		if (IS_ERR(opp)) {
++			ret = PTR_ERR(opp);
++			if (ret != -ERANGE)
++				return ret;
++			break;
++		}
++		dev_pm_opp_put(opp);
++		/* OPPs restrict provider profiles; they cannot add PLL settings. */
++		if (freq % 1000 || clk_round_rate(data->clk, freq) != freq) {
++			ret = dev_pm_opp_disable(data->cpu_dev, freq);
++			if (ret)
++				return ret;
++		}
++		if (freq == ULONG_MAX)
++			break;
++		freq++;
++	}
++
++	count = dev_pm_opp_get_opp_count(data->cpu_dev);
++	if (count < 0)
++		return count;
++	if (!count)
++		return 0;
++
++	ret = dev_pm_opp_init_cpufreq_table(data->cpu_dev, &data->opp_table);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to create CPU frequency table\n");
++	data->num_frequencies = count;
++	/* Keep overclocking opt-in even if a DT omits turbo-mode. */
++	for (i = 0; i < data->num_frequencies; i++)
++		if (data->opp_table[i].frequency > max_nonboost)
++			data->opp_table[i].flags |= CPUFREQ_BOOST_FREQ;
++
++	return 0;
++}
++
++static int econet_cpufreq_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct econet_cpufreq_data *data;
++	struct device *cpu_dev;
++	unsigned long rate;
++	unsigned int i;
++	bool boost = false;
++	int ret;
++
++	cpu_dev = get_cpu_device(0);
++	if (!cpu_dev)
++		return -EPROBE_DEFER;
++
++	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
++	if (!data)
++		return -ENOMEM;
++
++	/* Use CPU0's DT clock even for VPEs without a separate CPU DT node. */
++	data->clk = clk_get(cpu_dev, NULL);
++	if (IS_ERR(data->clk))
++		return dev_err_probe(dev, PTR_ERR(data->clk),
++				     "Failed to get CPU clock\n");
++
++	ret = devm_add_action_or_reset(dev, econet_cpufreq_clk_put, data->clk);
++	if (ret)
++		return ret;
++
++	rate = clk_get_rate(data->clk);
++	if (!rate || rate % 1000)
++		return dev_err_probe(dev, -EINVAL,
++				     "Invalid initial CPU clock rate %lu\n", rate);
++
++	data->cpu_dev = cpu_dev;
++	data->driver = econet_cpufreq_driver;
++	data->driver.driver_data = data;
++
++	ret = econet_cpufreq_add_opps(dev, data);
++	if (ret)
++		return ret;
++
++	/* A read-only provider can match only the current boot frequency. */
++	if (data->num_frequencies > 1 ||
++	    (data->num_frequencies == 1 &&
++	     data->opp_table[0].frequency != rate / 1000)) {
++		data->table = data->opp_table;
++		data->scaling = true;
++		for (i = 0; i < data->num_frequencies; i++)
++			boost |= !!(data->table[i].flags & CPUFREQ_BOOST_FREQ);
++		if (boost)
++			data->driver.set_boost = cpufreq_boost_set_sw;
++		/* Permit governors and rescale the MIPS delay loops on transitions. */
++		data->driver.flags &= ~(CPUFREQ_CONST_LOOPS |
++					CPUFREQ_NO_AUTO_DYNAMIC_SWITCHING);
++	} else {
++		data->table = data->fixed_table;
++		data->num_frequencies = 1;
++		data->table[0].frequency = rate / 1000;
++		data->table[1].frequency = CPUFREQ_TABLE_END;
++	}
++
++	ret = cpufreq_register_driver(&data->driver);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to register CPUFreq driver\n");
++
++	ret = devm_add_action_or_reset(dev, econet_cpufreq_unregister,
++				       &data->driver);
++	if (ret)
++		return ret;
++
++	if (data->scaling)
++		dev_info(dev, "Initial CPU frequency: %lu MHz (%u profiles%s)\n",
++			 rate / 1000000, data->num_frequencies,
++			 boost ? "; boost disabled" : "");
++	else
++		dev_info(dev, "Initial CPU frequency: %lu MHz (reporting only)\n",
++			 rate / 1000000);
++
++	return 0;
++}
++
++static struct platform_driver econet_cpufreq_platdrv = {
++	.probe = econet_cpufreq_probe,
++	.driver = {
++		.name = "econet-cpufreq",
++	},
++};
++module_platform_driver(econet_cpufreq_platdrv);
++
++MODULE_DESCRIPTION("EcoNet MIPS CPU frequency reporting");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:econet-cpufreq");
+diff --git a/drivers/watchdog/airoha_wdt.c b/drivers/watchdog/airoha_wdt.c
+--- a/drivers/watchdog/airoha_wdt.c
++++ b/drivers/watchdog/airoha_wdt.c
+@@ -17,6 +17,7 @@
+ #include <linux/clk.h>
+ #include <linux/io.h>
+ #include <linux/math.h>
++#include <linux/mutex.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
+ #include <linux/watchdog.h>
+@@ -45,6 +46,13 @@ struct airoha_wdt_desc {
+ 	const struct airoha_wdt_soc_data *soc_data;
+ 	unsigned int wdt_freq;
+ 	void __iomem *base;
++	struct clk *bus_clk;
++	struct notifier_block clk_nb;
++	/* Serialize watchdog operations and clock-notifier register updates. */
++	struct mutex lock;
++	unsigned int clk_generation;
++	unsigned int old_freq;
++	bool rate_pending;
+ };
+ 
+ #define WDT_HEARTBEAT			24
+@@ -73,58 +81,183 @@ static void airoha_wdt_enable(struct airoha_wdt_desc *airoha_wdt, u32 load)
+ 	writel(val, airoha_wdt->base + TIMER_CTRL);
+ }
+ 
+-static int airoha_wdt_start(struct watchdog_device *wdog_dev)
++static bool airoha_wdt_running(struct airoha_wdt_desc *wdt)
+ {
+-	struct airoha_wdt_desc *airoha_wdt = watchdog_get_drvdata(wdog_dev);
+-	u32 load;
++	u32 ctrl = readl(wdt->base + TIMER_CTRL);
+ 
+-	load = wdog_dev->timeout * airoha_wdt->wdt_freq;
+-	airoha_wdt_enable(airoha_wdt, load);
++	return (ctrl & (WDT_ENABLE | WDT_TIMER_ENABLE)) ==
++		(WDT_ENABLE | WDT_TIMER_ENABLE);
++}
+ 
++/* Caller holds lock. Preserve the current countdown, then restore the reload. */
++static int airoha_wdt_retime(struct airoha_wdt_desc *wdt, unsigned int freq)
++{
++	u64 remaining;
++
++	if (!freq || wdt->wdog_dev.timeout > FIELD_MAX(WDT_TIMER_VAL) / freq)
++		return -EINVAL;
++	if (freq == wdt->wdt_freq)
++		return 0;
++
++	if (airoha_wdt_running(wdt)) {
++		remaining = readl(wdt->base + WDT_TIMER_CUR_VALUE);
++		remaining = DIV_ROUND_UP_ULL(remaining * freq, wdt->wdt_freq);
++		if (remaining > FIELD_MAX(WDT_TIMER_VAL))
++			return -ERANGE;
++		writel(max_t(u64, remaining, 1), wdt->base + WDT_TIMER_LOAD_VALUE);
++		writel(WDT_RLD, wdt->base + WDT_RELOAD);
++		/* Future pings must reload the full configured timeout. */
++		writel(wdt->wdog_dev.timeout * freq,
++		       wdt->base + WDT_TIMER_LOAD_VALUE);
++	}
++	wdt->wdt_freq = freq;
++	wdt->wdog_dev.max_timeout = FIELD_MAX(WDT_TIMER_VAL) / freq;
+ 	return 0;
+ }
+ 
+-static int airoha_wdt_stop(struct watchdog_device *wdog_dev)
++/* Get the clock before lock: CCF notifiers take the locks in that order. */
++static int airoha_wdt_lock_rate(struct airoha_wdt_desc *wdt)
+ {
+-	struct airoha_wdt_desc *airoha_wdt = watchdog_get_drvdata(wdog_dev);
+-	u32 val;
++	unsigned int generation, freq;
++	int ret;
++
++	for (;;) {
++		generation = READ_ONCE(wdt->clk_generation);
++		freq = clk_get_rate(wdt->bus_clk) / 2;
++		mutex_lock(&wdt->lock);
++		if (generation == wdt->clk_generation)
++			break;
++		mutex_unlock(&wdt->lock);
++	}
++
++	/* Also recover the conservative PRE rate if CCF omitted a failed POST. */
++	ret = airoha_wdt_retime(wdt, freq);
++	if (ret)
++		mutex_unlock(&wdt->lock);
++	else
++		wdt->rate_pending = false;
++	return ret;
++}
++
++static int airoha_wdt_clk_notify(struct notifier_block *nb,
++				 unsigned long event, void *arg)
++{
++	struct airoha_wdt_desc *wdt = container_of(nb, struct airoha_wdt_desc, clk_nb);
++	struct clk_notifier_data *change = arg;
++	unsigned int freq = change->new_rate / 2;
++	int ret = 0;
++
++	mutex_lock(&wdt->lock);
++	switch (event) {
++	case PRE_RATE_CHANGE:
++		wdt->old_freq = change->old_rate / 2;
++		if (!freq || !wdt->old_freq) {
++			ret = -EINVAL;
++			wdt->rate_pending = false;
++			break;
++		}
++		/* Preload for the faster clock so an increase cannot expire early. */
++		ret = airoha_wdt_retime(wdt, max(freq, wdt->old_freq));
++		wdt->rate_pending = !ret;
++		break;
++	case POST_RATE_CHANGE:
++	case ABORT_RATE_CHANGE:
++		if (wdt->rate_pending) {
++			ret = airoha_wdt_retime(wdt, event == POST_RATE_CHANGE ?
++					       freq : wdt->old_freq);
++			wdt->rate_pending = false;
++		}
++		break;
++	default:
++		mutex_unlock(&wdt->lock);
++		return NOTIFY_DONE;
++	}
++	wdt->clk_generation++;
++	mutex_unlock(&wdt->lock);
++	return notifier_from_errno(ret);
++}
++
++static void airoha_wdt_start_locked(struct airoha_wdt_desc *wdt)
++{
++	u32 load = wdt->wdog_dev.timeout * wdt->wdt_freq;
++
++	airoha_wdt_enable(wdt, load);
++}
++
++static int airoha_wdt_start(struct watchdog_device *wdog_dev)
++{
++	struct airoha_wdt_desc *wdt = watchdog_get_drvdata(wdog_dev);
++	int ret = airoha_wdt_lock_rate(wdt);
++
++	if (ret)
++		return ret;
++	airoha_wdt_start_locked(wdt);
++	mutex_unlock(&wdt->lock);
++	return 0;
++}
++
++static void airoha_wdt_stop_locked(struct airoha_wdt_desc *wdt)
++{
++	u32 val = readl(wdt->base + TIMER_CTRL);
+ 
+-	val = readl(airoha_wdt->base + TIMER_CTRL);
+ 	val &= ~WDT_TIMER_STATUS_MASK;
+ 	val &= ~(WDT_ENABLE | WDT_TIMER_ENABLE);
+-	writel(val, airoha_wdt->base + TIMER_CTRL);
++	writel(val, wdt->base + TIMER_CTRL);
++}
++
++static int airoha_wdt_stop(struct watchdog_device *wdog_dev)
++{
++	struct airoha_wdt_desc *wdt = watchdog_get_drvdata(wdog_dev);
+ 
++	mutex_lock(&wdt->lock);
++	airoha_wdt_stop_locked(wdt);
++	mutex_unlock(&wdt->lock);
+ 	return 0;
+ }
+ 
+ static int airoha_wdt_ping(struct watchdog_device *wdog_dev)
+ {
+-	struct airoha_wdt_desc *airoha_wdt = watchdog_get_drvdata(wdog_dev);
+-
+-	writel(WDT_RLD, airoha_wdt->base + WDT_RELOAD);
++	struct airoha_wdt_desc *wdt = watchdog_get_drvdata(wdog_dev);
++	int ret = airoha_wdt_lock_rate(wdt);
+ 
++	if (ret)
++		return ret;
++	writel(WDT_RLD, wdt->base + WDT_RELOAD);
++	mutex_unlock(&wdt->lock);
+ 	return 0;
+ }
+ 
+ static int airoha_wdt_set_timeout(struct watchdog_device *wdog_dev, unsigned int timeout)
+ {
+-	wdog_dev->timeout = timeout;
++	struct airoha_wdt_desc *wdt = watchdog_get_drvdata(wdog_dev);
++	int ret = airoha_wdt_lock_rate(wdt);
+ 
++	if (ret)
++		return ret;
++	if (!timeout || timeout > FIELD_MAX(WDT_TIMER_VAL) / wdt->wdt_freq) {
++		mutex_unlock(&wdt->lock);
++		return -EINVAL;
++	}
++	wdog_dev->timeout = timeout;
+ 	if (watchdog_active(wdog_dev)) {
+-		airoha_wdt_stop(wdog_dev);
+-		return airoha_wdt_start(wdog_dev);
++		airoha_wdt_stop_locked(wdt);
++		airoha_wdt_start_locked(wdt);
+ 	}
+-
++	mutex_unlock(&wdt->lock);
+ 	return 0;
+ }
+ 
+ static unsigned int airoha_wdt_get_timeleft(struct watchdog_device *wdog_dev)
+ {
+-	struct airoha_wdt_desc *airoha_wdt = watchdog_get_drvdata(wdog_dev);
++	struct airoha_wdt_desc *wdt = watchdog_get_drvdata(wdog_dev);
+ 	u32 val;
+ 
+-	val = readl(airoha_wdt->base + WDT_TIMER_CUR_VALUE);
+-	return DIV_ROUND_UP(val, airoha_wdt->wdt_freq);
++	if (airoha_wdt_lock_rate(wdt))
++		return 0;
++	val = readl(wdt->base + WDT_TIMER_CUR_VALUE);
++	val = DIV_ROUND_UP_ULL((u64)val, wdt->wdt_freq);
++	mutex_unlock(&wdt->lock);
++	return val;
+ }
+ 
+ static const struct watchdog_info airoha_wdt_info = {
+@@ -152,6 +285,7 @@ static int airoha_wdt_probe(struct platform_device *pdev)
+ 	airoha_wdt = devm_kzalloc(dev, sizeof(*airoha_wdt), GFP_KERNEL);
+ 	if (!airoha_wdt)
+ 		return -ENOMEM;
++	mutex_init(&airoha_wdt->lock);
+ 
+ 	airoha_wdt->soc_data = device_get_match_data(dev);
+ 	if (!airoha_wdt->soc_data)
+@@ -166,6 +300,7 @@ static int airoha_wdt_probe(struct platform_device *pdev)
+ 		return dev_err_probe(dev, PTR_ERR(bus_clk),
+ 				     "failed to enable bus clock\n");
+ 
++	airoha_wdt->bus_clk = bus_clk;
+ 	/* Watchdog ticks at half the bus rate */
+ 	airoha_wdt->wdt_freq = clk_get_rate(bus_clk) / 2;
+ 	if (!airoha_wdt->wdt_freq)
+@@ -185,6 +320,11 @@ static int airoha_wdt_probe(struct platform_device *pdev)
+ 	watchdog_set_nowayout(wdog_dev, nowayout);
+ 	watchdog_stop_on_unregister(wdog_dev);
+ 
++	airoha_wdt->clk_nb.notifier_call = airoha_wdt_clk_notify;
++	ret = devm_clk_notifier_register(dev, bus_clk, &airoha_wdt->clk_nb);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to register clock notifier\n");
++
+ 	ret = devm_watchdog_register_device(dev, wdog_dev);
+ 	if (ret)
+ 		return ret;
+diff --git a/include/dt-bindings/clock/econet,en751221-scu.h b/include/dt-bindings/clock/econet,en751221-scu.h
+deleted file mode 100644
+--- a/include/dt-bindings/clock/econet,en751221-scu.h
++++ /dev/null
+@@ -1,12 +0,0 @@
+-/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+-
+-#ifndef _DT_BINDINGS_CLOCK_ECONET_EN751221_SCU_H_
+-#define _DT_BINDINGS_CLOCK_ECONET_EN751221_SCU_H_
+-
+-#define EN751221_CLK_PCIE	0
+-#define EN751221_CLK_SPI	1
+-#define EN751221_CLK_BUS	2
+-#define EN751221_CLK_CPU	3
+-#define EN751221_CLK_GSW	4
+-
+-#endif /* _DT_BINDINGS_CLOCK_ECONET_EN751221_SCU_H_ */
+diff --git a/include/dt-bindings/clock/econet,en751627-scu.h b/include/dt-bindings/clock/econet,en751627-scu.h
+deleted file mode 100644
+--- a/include/dt-bindings/clock/econet,en751627-scu.h
++++ /dev/null
+@@ -1,12 +0,0 @@
+-/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+-
+-#ifndef _DT_BINDINGS_CLOCK_ECONET_EN751627_SCU_H_
+-#define _DT_BINDINGS_CLOCK_ECONET_EN751627_SCU_H_
+-
+-#define EN751627_CLK_PCIE		0
+-#define EN751627_CLK_SPI		1
+-#define EN751627_CLK_BUS		2
+-#define EN751627_CLK_CPU		3
+-#define EN751627_CLK_GSW		4
+-
+-#endif /* _DT_BINDINGS_CLOCK_ECONET_EN751627_SCU_H_ */
+diff --git a/include/dt-bindings/clock/econet,en7528-scu.h b/include/dt-bindings/clock/econet,en7528-scu.h
+deleted file mode 100644
+--- a/include/dt-bindings/clock/econet,en7528-scu.h
++++ /dev/null
+@@ -1,12 +0,0 @@
+-/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+-
+-#ifndef _DT_BINDINGS_CLOCK_ECONET_EN7528_SCU_H_
+-#define _DT_BINDINGS_CLOCK_ECONET_EN7528_SCU_H_
+-
+-#define EN7528_CLK_PCIE		0
+-#define EN7528_CLK_SPI		1
+-#define EN7528_CLK_BUS		2
+-#define EN7528_CLK_CPU		3
+-#define EN7528_CLK_GSW		4
+-
+-#endif /* _DT_BINDINGS_CLOCK_ECONET_EN7528_SCU_H_ */
+diff --git a/include/dt-bindings/clock/econet,en7580-scu.h b/include/dt-bindings/clock/econet,en7580-scu.h
+deleted file mode 100644
+--- a/include/dt-bindings/clock/econet,en7580-scu.h
++++ /dev/null
+@@ -1,12 +0,0 @@
+-/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+-
+-#ifndef _DT_BINDINGS_CLOCK_ECONET_EN7580_SCU_H_
+-#define _DT_BINDINGS_CLOCK_ECONET_EN7580_SCU_H_
+-
+-#define EN7580_CLK_PCIE		0
+-#define EN7580_CLK_SPI		1
+-#define EN7580_CLK_BUS		2
+-#define EN7580_CLK_CPU		3
+-#define EN7580_CLK_GSW		4
+-
+-#endif /* _DT_BINDINGS_CLOCK_ECONET_EN7580_SCU_H_ */
+

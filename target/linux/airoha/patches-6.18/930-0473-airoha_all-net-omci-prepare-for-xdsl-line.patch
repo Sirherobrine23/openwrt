@@ -1,0 +1,1022 @@
+From 48758d4fa5bb67cc37da25048af40107feaa821d Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Fri, 30 Oct 2026 00:52:18 -0300
+Subject: [PATCH] net: omci: prepare for xdsl line
+
+---
+ include/net/xpon/omci.h     |  41 +++++
+ include/uapi/linux/omci.h   |  36 ++++-
+ net/xpon/Kconfig            |  17 +-
+ net/xpon/omci/.kunitconfig  |   7 +
+ net/xpon/omci/Makefile      |   3 +-
+ net/xpon/omci/access.c      | 310 +++++++++++++++++++++++++++++++++++++
+ net/xpon/omci/access_test.c | 370 ++++++++++++++++++++++++++++++++++++++++++++
+ net/xpon/omci/core.c        |  58 +++++++
+ net/xpon/omci/internal.h    |  19 +++
+ 9 files changed, 857 insertions(+), 4 deletions(-)
+
+diff --git a/include/net/xpon/omci.h b/include/net/xpon/omci.h
+--- a/include/net/xpon/omci.h
++++ b/include/net/xpon/omci.h
+@@ -7,10 +7,51 @@
+ #include <uapi/linux/omci.h>
+ 
+ struct device;
++struct net_device;
+ struct omci_device;
++struct omci_line;
+ struct xpon_device;
+ struct sk_buff;
+ 
++/**
++ * struct omci_line_status - technology-neutral access state
++ * @access: enum omci_access_type (the currently selected technology)
++ * @state: enum omci_line_state
++ * @flags: OMCI_LINE_F_*; unknown rates must not set RATES_VALID
++ * @downstream_bps: downstream line rate, in bits per second
++ * @upstream_bps: upstream line rate, in bits per second
++ */
++struct omci_line_status {
++	u8 access;
++	u8 state;
++	u32 flags;
++	u64 downstream_bps;
++	u64 upstream_bps;
++};
++
++/**
++ * struct omci_line_ops - local access management, independent of OMCC
++ * @get_status: fill a coherent snapshot; may sleep
++ * @retrain: optional DSL retrain request; may sleep, must return real errors
++ *
++ * Callbacks are serialized with each other and with unregister. They must
++ * not register/unregister a line or call the line registry recursively.
++ * Netlink calls hold RTNL; callbacks must not acquire RTNL themselves.
++ * The provider must unregister before freeing @priv or unloading its code.
++ */
++struct omci_line_ops {
++	int (*get_status)(void *priv, struct omci_line_status *status);
++	int (*retrain)(void *priv);
++};
++
++/* Registering a local DSL line does not instantiate an ONU or OMCC. */
++struct omci_line *omci_line_register(struct device *parent,
++				     struct net_device *netdev,
++				     const struct omci_line_ops *ops,
++				     void *priv);
++void omci_line_unregister(struct omci_line *line);
++u32 omci_line_id(const struct omci_line *line);
++
+ #define OMCI_IDENTITY_F_SERIAL_NUMBER	BIT(0)
+ #define OMCI_IDENTITY_F_VENDOR_ID	BIT(1)
+ #define OMCI_IDENTITY_F_PASSWORD	BIT(2)
+diff --git a/include/uapi/linux/omci.h b/include/uapi/linux/omci.h
+--- a/include/uapi/linux/omci.h
++++ b/include/uapi/linux/omci.h
+@@ -3,7 +3,7 @@
+ #define _UAPI_LINUX_OMCI_H
+ 
+ #define OMCI_GENL_NAME		"omci"
+-#define OMCI_GENL_VERSION	14
++#define OMCI_GENL_VERSION	15
+ #define OMCI_MAX_PDU_LEN	1980
+ #define OMCI_MAX_ATTR_DATA	64
+ #define OMCI_MAX_CONFIG_VALUE	64
+@@ -41,6 +41,9 @@ enum omci_cmd {
+ 	OMCI_CMD_MIB_NEXT,
+ 	OMCI_CMD_CLASS_GET,
+ 	OMCI_CMD_CLASS_NEXT,
++	/* Local access management; these commands do not send OMCI PDUs. */
++	OMCI_CMD_LINE_GET,
++	OMCI_CMD_LINE_RETRAIN,
+ 
+ 	__OMCI_CMD_MAX,
+ };
+@@ -112,12 +115,43 @@ enum omci_attr {
+ 	OMCI_ATTR_AGENT_OPERATIONAL,
+ 	OMCI_ATTR_AGENT_DYING_GASP,
+ 	OMCI_ATTR_ONU_TYPE,
++	OMCI_ATTR_LINE_ID,		/* u32, separate from OMCI_ATTR_DEV_ID */
++	OMCI_ATTR_ACCESS_TYPE,		/* u8, enum omci_access_type */
++	OMCI_ATTR_LINE_STATE,		/* u8, enum omci_line_state */
++	OMCI_ATTR_LINE_FLAGS,		/* u32, OMCI_LINE_F_* */
++	OMCI_ATTR_DOWNSTREAM_BPS,		/* u64, only when RATES_VALID */
++	OMCI_ATTR_UPSTREAM_BPS,		/* u64, only when RATES_VALID */
++	OMCI_ATTR_LINE_CAPABILITIES,	/* u32, OMCI_LINE_CAP_* */
+ 
+ 	__OMCI_ATTR_MAX,
+ };
+ 
+ #define OMCI_ATTR_MAX (__OMCI_ATTR_MAX - 1)
+ 
++/* Access technology is independent of the OMCI PDU framing format. */
++enum omci_access_type {
++	OMCI_ACCESS_UNSPEC,
++	OMCI_ACCESS_GPON,
++	OMCI_ACCESS_XGPON,
++	OMCI_ACCESS_XGSPON,
++	OMCI_ACCESS_XDSL,
++};
++
++enum omci_line_state {
++	OMCI_LINE_UNKNOWN,
++	OMCI_LINE_UNAVAILABLE,	/* e.g. no reconstructed DSL line engine */
++	OMCI_LINE_DOWN,
++	OMCI_LINE_TRAINING,
++	OMCI_LINE_UP,
++};
++
++#define OMCI_LINE_F_STARTED	(1U << 0)
++#define OMCI_LINE_F_CARRIER	(1U << 1)
++#define OMCI_LINE_F_RATES_VALID	(1U << 2)
++
++#define OMCI_LINE_CAP_OMCC	(1U << 0)
++#define OMCI_LINE_CAP_RETRAIN	(1U << 1)
++
+ /**
+  * enum omci_vlan_filter_attr - VLAN tagging filter data attributes
+  *
+diff --git a/net/xpon/Kconfig b/net/xpon/Kconfig
+--- a/net/xpon/Kconfig
++++ b/net/xpon/Kconfig
+@@ -31,12 +31,25 @@ config XPON_PLOAM_KUNIT_TEST
+ 	  Say Y here to run these tests at boot, or M to build a test module.
+ 
+ config XPON_OMCI
+-	tristate "xPON OMCI agent"
++	tristate "xPON OMCI agent and access line management"
+ 	default y
+ 	help
+ 	  In-kernel ONU Management and Control Interface agent used by GPON and
+ 	  XGS-PON providers. The protocol implementation is owned by the xPON
+-	  subsystem and is attached to one xPON device.
++	  subsystem and is attached to one xPON device. The same Netlink family
++	  also exposes local access line status for GPON, XG-PON, XGS-PON and
++	  xDSL. Local xDSL management does not require an optical device or
++	  create an OMCI transport over a copper line.
++
++config XPON_OMCI_ACCESS_KUNIT_TEST
++	bool "OMCI access line tests" if !KUNIT_ALL_TESTS
++	depends on KUNIT=y && XPON_OMCI=y
++	default KUNIT_ALL_TESTS
++	help
++	  Test line registration, removal, provider errors, PON mode reporting
++	  and retrain dispatch without DSL or optical hardware.
++	  Also verify 64-bit rate encoding and that removal waits for an
++	  in-flight management callback before releasing provider storage.
+ 
+ config XPON_OMCI_KUNIT_TEST
+ 	bool "OMCI service reconciliation tests" if !KUNIT_ALL_TESTS
+diff --git a/net/xpon/omci/.kunitconfig b/net/xpon/omci/.kunitconfig
+new file mode 100644
+--- /dev/null
++++ b/net/xpon/omci/.kunitconfig
+@@ -0,0 +1,7 @@
++CONFIG_KUNIT=y
++CONFIG_NET=y
++CONFIG_NETDEVICES=y
++CONFIG_XPON=y
++CONFIG_XPON_OMCI=y
++CONFIG_XPON_OMCI_ACCESS_KUNIT_TEST=y
++CONFIG_XPON_OMCI_KUNIT_TEST=y
+diff --git a/net/xpon/omci/Makefile b/net/xpon/omci/Makefile
+--- a/net/xpon/omci/Makefile
++++ b/net/xpon/omci/Makefile
+@@ -1,4 +1,5 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ obj-$(CONFIG_XPON_OMCI) += omci.o
+-omci-y := core.o agent.o services.o me.o wire.o identity.o profiles.o sysfs.o
++omci-y := core.o access.o agent.o services.o me.o wire.o identity.o profiles.o sysfs.o
+ omci-$(CONFIG_XPON_OMCI_KUNIT_TEST) += services_test.o
++omci-$(CONFIG_XPON_OMCI_ACCESS_KUNIT_TEST) += access_test.o
+diff --git a/net/xpon/omci/access.c b/net/xpon/omci/access.c
+new file mode 100644
+--- /dev/null
++++ b/net/xpon/omci/access.c
+@@ -0,0 +1,310 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Local access management shared by OMCC providers and copper frontends. */
++
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/module.h>
++#include <linux/netdevice.h>
++#include <linux/rtnetlink.h>
++#include <linux/slab.h>
++#include <linux/xarray.h>
++#include <net/genetlink.h>
++#include <net/xpon.h>
++
++#include "internal.h"
++
++struct omci_line {
++	struct device *parent;
++	struct net_device *netdev;
++	const struct omci_line_ops *ops;
++	void *priv;
++	u32 id;
++};
++
++static DEFINE_XARRAY_ALLOC(omci_lines);
++/* Held across provider callbacks; unregister waits for all readers. */
++static DEFINE_MUTEX(omci_lines_lock);
++
++struct omci_line *omci_line_register(struct device *parent,
++				     struct net_device *netdev,
++				     const struct omci_line_ops *ops,
++				     void *priv)
++{
++	struct omci_line *line, *existing;
++	unsigned long index;
++	int ret;
++
++	if (!parent || !netdev || !ops || !ops->get_status)
++		return ERR_PTR(-EINVAL);
++	/* The existing OMCI family is only visible in the initial namespace. */
++	if (!net_eq(dev_net(netdev), &init_net))
++		return ERR_PTR(-EOPNOTSUPP);
++
++	line = kzalloc(sizeof(*line), GFP_KERNEL);
++	if (!line)
++		return ERR_PTR(-ENOMEM);
++	line->parent = get_device(parent);
++	line->netdev = netdev;
++	dev_hold(netdev);
++	line->ops = ops;
++	line->priv = priv;
++
++	mutex_lock(&omci_lines_lock);
++	xa_for_each(&omci_lines, index, existing) {
++		if (existing->netdev == netdev) {
++			ret = -EBUSY;
++			goto out_unlock;
++		}
++	}
++	/* Leave room for a dump cursor one past the largest ID on 32-bit. */
++	ret = xa_alloc(&omci_lines, &line->id, line,
++		       XA_LIMIT(1, INT_MAX - 1), GFP_KERNEL);
++out_unlock:
++	mutex_unlock(&omci_lines_lock);
++	if (ret) {
++		dev_put(netdev);
++		put_device(line->parent);
++		kfree(line);
++		return ERR_PTR(ret);
++	}
++	return line;
++}
++EXPORT_SYMBOL_GPL(omci_line_register);
++
++void omci_line_unregister(struct omci_line *line)
++{
++	if (!line)
++		return;
++	mutex_lock(&omci_lines_lock);
++	xa_erase(&omci_lines, line->id);
++	mutex_unlock(&omci_lines_lock);
++	dev_put(line->netdev);
++	put_device(line->parent);
++	kfree(line);
++}
++EXPORT_SYMBOL_GPL(omci_line_unregister);
++
++u32 omci_line_id(const struct omci_line *line)
++{
++	return line->id;
++}
++EXPORT_SYMBOL_GPL(omci_line_id);
++
++static int omci_line_snapshot(struct omci_line *line,
++			      struct omci_line_status *status)
++{
++	int ret;
++
++	memset(status, 0, sizeof(*status));
++	if (!net_eq(dev_net(line->netdev), &init_net))
++		return -ENODEV;
++	ret = line->ops->get_status(line->priv, status);
++	if (ret)
++		return ret;
++	if (status->access > OMCI_ACCESS_XDSL ||
++	    status->state > OMCI_LINE_UP ||
++	    status->flags & ~(OMCI_LINE_F_STARTED | OMCI_LINE_F_CARRIER |
++			      OMCI_LINE_F_RATES_VALID))
++		return -EINVAL;
++	return 0;
++}
++
++int omci_line_read(u32 id, struct omci_line_status *status)
++{
++	struct omci_line_status snapshot;
++	struct omci_line *line;
++	int ret = -ENODEV;
++
++	if (!status)
++		return -EINVAL;
++	memset(status, 0, sizeof(*status));
++	mutex_lock(&omci_lines_lock);
++	line = xa_load(&omci_lines, id);
++	if (line) {
++		ret = omci_line_snapshot(line, &snapshot);
++		if (!ret)
++			*status = snapshot;
++	}
++	mutex_unlock(&omci_lines_lock);
++	return ret;
++}
++
++int omci_line_retrain(u32 id)
++{
++	struct omci_line_status status;
++	struct omci_line *line;
++	int ret = -ENODEV;
++
++	mutex_lock(&omci_lines_lock);
++	line = xa_load(&omci_lines, id);
++	if (!line)
++		goto out;
++	ret = omci_line_snapshot(line, &status);
++	if (ret)
++		goto out;
++	if (status.access != OMCI_ACCESS_XDSL || !line->ops->retrain) {
++		ret = -EOPNOTSUPP;
++		goto out;
++	}
++	ret = line->ops->retrain(line->priv);
++out:
++	mutex_unlock(&omci_lines_lock);
++	return ret;
++}
++
++void omci_line_status_from_xpon(const struct xpon_state *state,
++				bool started, struct omci_line_status *status)
++{
++	memset(status, 0, sizeof(*status));
++	switch (state->mode) {
++	case XPON_MODE_GPON:
++		status->access = OMCI_ACCESS_GPON;
++		break;
++	case XPON_MODE_XGPON:
++		status->access = OMCI_ACCESS_XGPON;
++		break;
++	case XPON_MODE_XGSPON:
++		status->access = OMCI_ACCESS_XGSPON;
++		break;
++	default:
++		/* A mode switch must not leave a stale GPON label behind. */
++		status->state = OMCI_LINE_UNAVAILABLE;
++		return;
++	}
++	if (started)
++		status->flags |= OMCI_LINE_F_STARTED;
++	if (state->carrier)
++		status->flags |= OMCI_LINE_F_CARRIER;
++	switch (state->registration) {
++	case XPON_REGISTRATION_OPERATIONAL:
++		status->state = OMCI_LINE_UP;
++		break;
++	case XPON_REGISTRATION_DISCOVERY:
++	case XPON_REGISTRATION_REGISTERING:
++		status->state = OMCI_LINE_TRAINING;
++		break;
++	default:
++		status->state = OMCI_LINE_DOWN;
++		break;
++	}
++	/* Nominal PON capacity is not a measurement of the subscriber rate. */
++}
++
++int omci_line_put_status(struct sk_buff *msg,
++			 const struct omci_line_status *status)
++{
++	if (nla_put_u8(msg, OMCI_ATTR_ACCESS_TYPE, status->access) ||
++	    nla_put_u8(msg, OMCI_ATTR_LINE_STATE, status->state) ||
++	    nla_put_u32(msg, OMCI_ATTR_LINE_FLAGS, status->flags))
++		return -EMSGSIZE;
++	if ((status->flags & OMCI_LINE_F_RATES_VALID) &&
++	    (nla_put_u64_64bit(msg, OMCI_ATTR_DOWNSTREAM_BPS,
++			      status->downstream_bps, OMCI_ATTR_PAD) ||
++	     nla_put_u64_64bit(msg, OMCI_ATTR_UPSTREAM_BPS,
++			       status->upstream_bps, OMCI_ATTR_PAD)))
++		return -EMSGSIZE;
++	return 0;
++}
++
++static int omci_line_fill(struct sk_buff *msg, struct omci_line *line,
++			  const struct genl_family *family,
++			  u32 portid, u32 seq, int flags)
++{
++	struct omci_line_status status;
++	u32 capabilities = 0;
++	void *hdr;
++	int ret;
++
++	ret = omci_line_snapshot(line, &status);
++	if (ret)
++		return ret;
++	if (status.access == OMCI_ACCESS_XDSL && line->ops->retrain)
++		capabilities |= OMCI_LINE_CAP_RETRAIN;
++	if (status.access >= OMCI_ACCESS_GPON &&
++	    status.access <= OMCI_ACCESS_XGSPON)
++		capabilities |= OMCI_LINE_CAP_OMCC;
++
++	hdr = genlmsg_put(msg, portid, seq, family, flags, OMCI_CMD_LINE_GET);
++	if (!hdr)
++		return -EMSGSIZE;
++	if (nla_put_u32(msg, OMCI_ATTR_LINE_ID, line->id) ||
++	    nla_put_u32(msg, OMCI_ATTR_IFINDEX, line->netdev->ifindex) ||
++	    nla_put_string(msg, OMCI_ATTR_NAME, dev_name(line->parent)) ||
++	    nla_put_u32(msg, OMCI_ATTR_LINE_CAPABILITIES, capabilities) ||
++	    omci_line_put_status(msg, &status))
++		goto cancel;
++	genlmsg_end(msg, hdr);
++	return 0;
++cancel:
++	genlmsg_cancel(msg, hdr);
++	return -EMSGSIZE;
++}
++
++int omci_line_cmd_get(struct sk_buff *skb, struct genl_info *info,
++		      const struct genl_family *family)
++{
++	struct omci_line *line;
++	struct sk_buff *msg;
++	int ret = -ENODEV;
++
++	if (!info->attrs[OMCI_ATTR_LINE_ID])
++		return -EINVAL;
++	msg = genlmsg_new(NLMSG_DEFAULT_SIZE, GFP_KERNEL);
++	if (!msg)
++		return -ENOMEM;
++	/* Keep netns moves and ifindex changes outside the reply snapshot. */
++	rtnl_lock();
++	mutex_lock(&omci_lines_lock);
++	line = xa_load(&omci_lines, nla_get_u32(info->attrs[OMCI_ATTR_LINE_ID]));
++	if (line)
++		ret = omci_line_fill(msg, line, family, info->snd_portid,
++				     info->snd_seq, 0);
++	mutex_unlock(&omci_lines_lock);
++	rtnl_unlock();
++	if (ret) {
++		nlmsg_free(msg);
++		return ret;
++	}
++	return genlmsg_reply(msg, info);
++}
++
++int omci_line_cmd_retrain(struct sk_buff *skb, struct genl_info *info)
++{
++	int ret;
++
++	if (!info->attrs[OMCI_ATTR_LINE_ID])
++		return -EINVAL;
++	rtnl_lock();
++	ret = omci_line_retrain(nla_get_u32(info->attrs[OMCI_ATTR_LINE_ID]));
++	rtnl_unlock();
++	return ret;
++}
++
++int omci_line_dump(struct sk_buff *skb, struct netlink_callback *cb,
++		   const struct genl_family *family)
++{
++	unsigned long index = cb->args[0];
++	struct omci_line *line;
++	int ret = 0;
++
++	rtnl_lock();
++	mutex_lock(&omci_lines_lock);
++	xa_for_each_start(&omci_lines, index, line, index) {
++		/* A device moved out of init_net must not leak its new ifindex. */
++		if (!net_eq(dev_net(line->netdev), &init_net)) {
++			cb->args[0] = index + 1;
++			continue;
++		}
++		ret = omci_line_fill(skb, line, family,
++				     NETLINK_CB(cb->skb).portid,
++				     cb->nlh->nlmsg_seq, NLM_F_MULTI);
++		if (ret)
++			break;
++		cb->args[0] = index + 1;
++	}
++	mutex_unlock(&omci_lines_lock);
++	rtnl_unlock();
++	if (ret && ret != -EMSGSIZE)
++		return ret;
++	return skb->len ? skb->len : ret;
++}
+diff --git a/net/xpon/omci/access_test.c b/net/xpon/omci/access_test.c
+new file mode 100644
+--- /dev/null
++++ b/net/xpon/omci/access_test.c
+@@ -0,0 +1,370 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Exercise the shared registry without a line engine, modem or OLT. */
++
++#include <kunit/test.h>
++#include <linux/completion.h>
++#include <linux/delay.h>
++#include <linux/etherdevice.h>
++#include <linux/kthread.h>
++#include <net/netlink.h>
++#include <net/xpon.h>
++
++#include "internal.h"
++
++struct omci_access_test_ctx {
++	struct device *parent;
++	struct net_device *netdev;
++	struct omci_line *line;
++	struct omci_line_status status;
++	int read_error;
++	int retrain_error;
++	int retrain_calls;
++	bool block_read;
++	struct completion read_entered;
++	struct completion release_read;
++	struct completion remove_entered;
++	struct completion removed;
++};
++
++static int omci_access_test_get(void *priv, struct omci_line_status *status)
++{
++	struct omci_access_test_ctx *ctx = priv;
++
++	if (ctx->block_read) {
++		complete(&ctx->read_entered);
++		wait_for_completion(&ctx->release_read);
++	}
++	*status = ctx->status;
++	return ctx->read_error;
++}
++
++static int omci_access_test_retrain(void *priv)
++{
++	struct omci_access_test_ctx *ctx = priv;
++
++	ctx->retrain_calls++;
++	return ctx->retrain_error;
++}
++
++static const struct omci_line_ops omci_access_test_ops = {
++	.get_status = omci_access_test_get,
++	.retrain = omci_access_test_retrain,
++};
++
++static int omci_access_test_init(struct kunit *test)
++{
++	struct omci_access_test_ctx *ctx;
++	int ret;
++
++	ctx = kunit_kzalloc(test, sizeof(*ctx), GFP_KERNEL);
++	if (!ctx)
++		return -ENOMEM;
++	test->priv = ctx;
++	ctx->parent = root_device_register("omci-access-kunit");
++	if (IS_ERR(ctx->parent))
++		return PTR_ERR(ctx->parent);
++	ctx->netdev = alloc_etherdev(0);
++	if (!ctx->netdev) {
++		ret = -ENOMEM;
++		goto unregister_parent;
++	}
++	ctx->status.access = OMCI_ACCESS_XDSL;
++	ctx->status.state = OMCI_LINE_UNAVAILABLE;
++	init_completion(&ctx->read_entered);
++	init_completion(&ctx->release_read);
++	init_completion(&ctx->remove_entered);
++	init_completion(&ctx->removed);
++	ctx->line = omci_line_register(ctx->parent, ctx->netdev,
++				       &omci_access_test_ops, ctx);
++	if (IS_ERR(ctx->line)) {
++		ret = PTR_ERR(ctx->line);
++		free_netdev(ctx->netdev);
++		goto unregister_parent;
++	}
++	return 0;
++unregister_parent:
++	root_device_unregister(ctx->parent);
++	return ret;
++}
++
++static void omci_access_test_exit(struct kunit *test)
++{
++	struct omci_access_test_ctx *ctx = test->priv;
++
++	omci_line_unregister(ctx->line);
++	free_netdev(ctx->netdev);
++	root_device_unregister(ctx->parent);
++}
++
++static void omci_access_registration(struct kunit *test)
++{
++	struct omci_access_test_ctx *ctx = test->priv;
++	struct omci_line *other;
++	struct omci_line_status status;
++	u32 id = omci_line_id(ctx->line);
++
++	other = omci_line_register(ctx->parent, ctx->netdev,
++				   &omci_access_test_ops, ctx);
++	KUNIT_EXPECT_EQ(test, PTR_ERR(other), -EBUSY);
++	if (!IS_ERR(other))
++		omci_line_unregister(other);
++	other = omci_line_register(ctx->parent, ctx->netdev, NULL, ctx);
++	KUNIT_EXPECT_EQ(test, PTR_ERR(other), -EINVAL);
++	if (!IS_ERR(other))
++		omci_line_unregister(other);
++	KUNIT_ASSERT_EQ(test, omci_line_read(id, &status), 0);
++	KUNIT_EXPECT_EQ(test, status.access, (u8)OMCI_ACCESS_XDSL);
++	KUNIT_EXPECT_EQ(test, status.state, (u8)OMCI_LINE_UNAVAILABLE);
++	KUNIT_EXPECT_EQ(test, status.flags, 0U);
++	omci_line_unregister(ctx->line);
++	ctx->line = NULL;
++	KUNIT_EXPECT_EQ(test, omci_line_read(id, &status), -ENODEV);
++	KUNIT_EXPECT_EQ(test, omci_line_retrain(id), -ENODEV);
++}
++
++static void omci_access_provider_errors(struct kunit *test)
++{
++	struct omci_access_test_ctx *ctx = test->priv;
++	struct omci_line_status status;
++	u32 id = omci_line_id(ctx->line);
++
++	ctx->status.state = OMCI_LINE_UP;
++	ctx->status.flags = OMCI_LINE_F_RATES_VALID | OMCI_LINE_F_CARRIER;
++	ctx->status.downstream_bps = 10000000000ULL;
++	ctx->status.upstream_bps = 2500000000ULL;
++	KUNIT_ASSERT_EQ(test, omci_line_read(id, &status), 0);
++	KUNIT_EXPECT_EQ(test, status.downstream_bps, 10000000000ULL);
++	KUNIT_EXPECT_EQ(test, status.upstream_bps, 2500000000ULL);
++	ctx->read_error = -EIO;
++	KUNIT_EXPECT_EQ(test, omci_line_read(id, &status), -EIO);
++	KUNIT_EXPECT_EQ(test, status.flags, 0U);
++	KUNIT_EXPECT_EQ(test, omci_line_retrain(id), -EIO);
++	KUNIT_EXPECT_EQ(test, ctx->retrain_calls, 0);
++	ctx->read_error = 0;
++	ctx->status.access = 0xff;
++	KUNIT_EXPECT_EQ(test, omci_line_read(id, &status), -EINVAL);
++}
++
++static void omci_access_retrain_dispatch(struct kunit *test)
++{
++	struct omci_access_test_ctx *ctx = test->priv;
++	u32 id = omci_line_id(ctx->line);
++
++	ctx->retrain_error = -ENETDOWN;
++	KUNIT_EXPECT_EQ(test, omci_line_retrain(id), -ENETDOWN);
++	KUNIT_EXPECT_EQ(test, ctx->retrain_calls, 1);
++	ctx->status.access = OMCI_ACCESS_XGSPON;
++	KUNIT_EXPECT_EQ(test, omci_line_retrain(id), -EOPNOTSUPP);
++	KUNIT_EXPECT_EQ(test, ctx->retrain_calls, 1);
++}
++
++static void omci_access_no_engine(struct kunit *test)
++{
++	static const struct omci_line_ops no_engine_ops = {
++		.get_status = omci_access_test_get,
++	};
++	struct omci_access_test_ctx *ctx = test->priv;
++
++	omci_line_unregister(ctx->line);
++	ctx->line = omci_line_register(ctx->parent, ctx->netdev,
++				       &no_engine_ops, ctx);
++	if (IS_ERR(ctx->line)) {
++		ctx->line = NULL;
++		KUNIT_FAIL(test, "failed to register no-engine provider");
++		return;
++	}
++	KUNIT_EXPECT_EQ(test, omci_line_retrain(omci_line_id(ctx->line)),
++			-EOPNOTSUPP);
++}
++
++static void omci_access_pon_modes(struct kunit *test)
++{
++	static const struct {
++		enum xpon_mode mode;
++		u8 access;
++	} cases[] = {
++		{ XPON_MODE_GPON, OMCI_ACCESS_GPON },
++		{ XPON_MODE_XGPON, OMCI_ACCESS_XGPON },
++		{ XPON_MODE_XGSPON, OMCI_ACCESS_XGSPON },
++	};
++	struct xpon_state state = {
++		.registration = XPON_REGISTRATION_OPERATIONAL,
++		.carrier = true,
++	};
++	struct omci_line_status status;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(cases); i++) {
++		state.mode = cases[i].mode;
++		omci_line_status_from_xpon(&state, true, &status);
++		KUNIT_EXPECT_EQ(test, status.access, cases[i].access);
++		KUNIT_EXPECT_EQ(test, status.state, (u8)OMCI_LINE_UP);
++		KUNIT_EXPECT_TRUE(test, status.flags & OMCI_LINE_F_CARRIER);
++		KUNIT_EXPECT_FALSE(test, status.flags & OMCI_LINE_F_RATES_VALID);
++	}
++	state.registration = XPON_REGISTRATION_REGISTERING;
++	state.carrier = false;
++	omci_line_status_from_xpon(&state, true, &status);
++	KUNIT_EXPECT_EQ(test, status.state, (u8)OMCI_LINE_TRAINING);
++	state.mode = XPON_MODE_EPON;
++	omci_line_status_from_xpon(&state, true, &status);
++	KUNIT_EXPECT_EQ(test, status.access, (u8)OMCI_ACCESS_UNSPEC);
++	KUNIT_EXPECT_EQ(test, status.state, (u8)OMCI_LINE_UNAVAILABLE);
++	KUNIT_EXPECT_EQ(test, status.flags, 0U);
++}
++
++static void omci_access_netlink_rates(struct kunit *test)
++{
++	struct omci_line_status status = {
++		.access = OMCI_ACCESS_XGSPON,
++		.state = OMCI_LINE_UP,
++		.downstream_bps = 10000000000ULL,
++		.upstream_bps = 10000000000ULL,
++	};
++	struct nlattr *attr;
++	struct sk_buff *msg;
++
++	msg = alloc_skb(256, GFP_KERNEL);
++	KUNIT_ASSERT_NOT_NULL(test, msg);
++	KUNIT_EXPECT_EQ(test, omci_line_put_status(msg, &status), 0);
++	attr = nla_find((struct nlattr *)msg->data, msg->len,
++			OMCI_ATTR_DOWNSTREAM_BPS);
++	KUNIT_EXPECT_PTR_EQ(test, attr, NULL);
++	skb_trim(msg, 0);
++	status.flags = OMCI_LINE_F_RATES_VALID;
++	KUNIT_EXPECT_EQ(test, omci_line_put_status(msg, &status), 0);
++	attr = nla_find((struct nlattr *)msg->data, msg->len,
++			OMCI_ATTR_DOWNSTREAM_BPS);
++	KUNIT_EXPECT_NOT_NULL(test, attr);
++	if (attr)
++		KUNIT_EXPECT_EQ(test, nla_get_u64(attr), 10000000000ULL);
++	attr = nla_find((struct nlattr *)msg->data, msg->len,
++			OMCI_ATTR_UPSTREAM_BPS);
++	KUNIT_EXPECT_NOT_NULL(test, attr);
++	if (attr)
++		KUNIT_EXPECT_EQ(test, nla_get_u64(attr), 10000000000ULL);
++	kfree_skb(msg);
++}
++
++static int omci_access_test_xmit(struct omci_device *odev,
++				 struct sk_buff *skb, u16 gem_port_id)
++{
++	kfree_skb(skb);
++	return 0;
++}
++
++static void omci_access_pon_registration(struct kunit *test)
++{
++	static const struct omci_device_ops transport_ops = {
++		.xmit = omci_access_test_xmit,
++	};
++	static const struct xpon_device_ops xpon_ops = {};
++	struct omci_access_test_ctx *ctx = test->priv;
++	struct xpon_device_desc desc = {
++		.netdev = ctx->netdev,
++		.ops = &xpon_ops,
++		.modes = XPON_MODE_XGSPON,
++		.mode = XPON_MODE_XGSPON,
++	};
++	struct omci_line_status status;
++	struct omci_device *odev;
++	struct xpon_device *xpon;
++	u32 id;
++
++	/* Replace the copper registration with a real OMCI core registration. */
++	omci_line_unregister(ctx->line);
++	ctx->line = NULL;
++	xpon = xpon_device_register(ctx->parent, &desc);
++	KUNIT_ASSERT_FALSE(test, IS_ERR(xpon));
++	odev = omci_device_register(xpon, 0, &transport_ops, NULL);
++	KUNIT_EXPECT_FALSE(test, IS_ERR(odev));
++	if (IS_ERR(odev))
++		goto unregister_xpon;
++	id = odev->line_id;
++	KUNIT_EXPECT_NE(test, id, 0U);
++	KUNIT_EXPECT_EQ(test, omci_line_read(id, &status), 0);
++	KUNIT_EXPECT_EQ(test, status.access, (u8)OMCI_ACCESS_XGSPON);
++	KUNIT_EXPECT_EQ(test, omci_line_retrain(id), -EOPNOTSUPP);
++	omci_device_unregister(odev);
++	KUNIT_EXPECT_EQ(test, omci_line_read(id, &status), -ENODEV);
++unregister_xpon:
++	xpon_device_unregister(xpon);
++}
++
++static int omci_access_read_thread(void *priv)
++{
++	struct omci_access_test_ctx *ctx = priv;
++	struct omci_line_status status;
++
++	return omci_line_read(omci_line_id(ctx->line), &status);
++}
++
++static int omci_access_remove_thread(void *priv)
++{
++	struct omci_access_test_ctx *ctx = priv;
++
++	complete(&ctx->remove_entered);
++	omci_line_unregister(ctx->line);
++	ctx->line = NULL;
++	complete(&ctx->removed);
++	return 0;
++}
++
++static void omci_access_remove_waits(struct kunit *test)
++{
++	struct omci_access_test_ctx *ctx = test->priv;
++	struct task_struct *reader, *remover;
++	unsigned long ready;
++
++	ctx->block_read = true;
++	reader = kthread_create(omci_access_read_thread, ctx, "omci-read-test");
++	KUNIT_ASSERT_FALSE(test, IS_ERR(reader));
++	get_task_struct(reader);
++	wake_up_process(reader);
++	ready = wait_for_completion_timeout(&ctx->read_entered, 5 * HZ);
++	KUNIT_EXPECT_NE(test, ready, 0UL);
++	if (!ready)
++		goto release_reader;
++	remover = kthread_create(omci_access_remove_thread, ctx, "omci-remove-test");
++	KUNIT_EXPECT_FALSE(test, IS_ERR(remover));
++	if (IS_ERR(remover))
++		goto release_reader;
++	get_task_struct(remover);
++	wake_up_process(remover);
++	ready = wait_for_completion_timeout(&ctx->remove_entered, 5 * HZ);
++	KUNIT_EXPECT_NE(test, ready, 0UL);
++	msleep(20);
++	KUNIT_EXPECT_FALSE(test, completion_done(&ctx->removed));
++	complete(&ctx->release_read);
++	kthread_stop(reader);
++	kthread_stop(remover);
++	put_task_struct(reader);
++	put_task_struct(remover);
++	KUNIT_EXPECT_TRUE(test, completion_done(&ctx->removed));
++	return;
++release_reader:
++	complete(&ctx->release_read);
++	kthread_stop(reader);
++	put_task_struct(reader);
++}
++
++static struct kunit_case omci_access_test_cases[] = {
++	KUNIT_CASE(omci_access_registration),
++	KUNIT_CASE(omci_access_provider_errors),
++	KUNIT_CASE(omci_access_retrain_dispatch),
++	KUNIT_CASE(omci_access_no_engine),
++	KUNIT_CASE(omci_access_pon_modes),
++	KUNIT_CASE(omci_access_netlink_rates),
++	KUNIT_CASE(omci_access_pon_registration),
++	KUNIT_CASE(omci_access_remove_waits),
++	{}
++};
++
++static struct kunit_suite omci_access_test_suite = {
++	.name = "omci-access",
++	.init = omci_access_test_init,
++	.exit = omci_access_test_exit,
++	.test_cases = omci_access_test_cases,
++};
++
++kunit_test_suite(omci_access_test_suite);
+diff --git a/net/xpon/omci/core.c b/net/xpon/omci/core.c
+--- a/net/xpon/omci/core.c
++++ b/net/xpon/omci/core.c
+@@ -62,6 +62,10 @@ static const struct nla_policy omci_policy[OMCI_ATTR_MAX + 1] = {
+ 	[OMCI_ATTR_OLT_PROFILE_FORCED] = { .type = NLA_U8 },
+ };
+ 
++static const struct nla_policy omci_line_policy[OMCI_ATTR_MAX + 1] = {
++	[OMCI_ATTR_LINE_ID] = NLA_POLICY_MIN(NLA_U32, 1),
++};
++
+ static struct omci_device *omci_find_locked(u32 id)
+ {
+ 	struct omci_device *odev;
+@@ -170,6 +174,8 @@ static int omci_put_status(struct sk_buff *msg, struct omci_device *odev)
+ 
+ 	if (omci_put_telemetry(msg, odev))
+ 		return -EMSGSIZE;
++	if (odev->line_id && nla_put_u32(msg, OMCI_ATTR_LINE_ID, odev->line_id))
++		return -EMSGSIZE;
+ 
+ 	return omci_agent_put_status(msg, odev);
+ }
+@@ -1046,7 +1052,29 @@ static int omci_cmd_mib_next(struct sk_buff *skb, struct genl_info *info)
+ 	return ret;
+ }
+ 
++static int omci_cmd_line_get(struct sk_buff *skb, struct genl_info *info)
++{
++	return omci_line_cmd_get(skb, info, &omci_genl_family);
++}
++
++static int omci_cmd_line_dump(struct sk_buff *skb, struct netlink_callback *cb)
++{
++	return omci_line_dump(skb, cb, &omci_genl_family);
++}
++
+ static const struct genl_ops omci_genl_ops[] = {
++	{
++		.cmd = OMCI_CMD_LINE_GET,
++		.policy = omci_line_policy,
++		.doit = omci_cmd_line_get,
++		.dumpit = omci_cmd_line_dump,
++	},
++	{
++		.cmd = OMCI_CMD_LINE_RETRAIN,
++		.flags = GENL_ADMIN_PERM,
++		.policy = omci_line_policy,
++		.doit = omci_line_cmd_retrain,
++	},
+ 	{
+ 		.cmd = OMCI_CMD_GET,
+ 		.policy = omci_policy,
+@@ -1301,6 +1329,23 @@ static struct notifier_block omci_netlink_nb = {
+ 	.notifier_call = omci_netlink_notify,
+ };
+ 
++static int omci_pon_get_line_status(void *priv, struct omci_line_status *status)
++{
++	struct omci_device *odev = priv;
++	struct xpon_state state;
++	unsigned long flags;
++
++	spin_lock_irqsave(&odev->xpon->state_lock, flags);
++	state = odev->xpon->state;
++	spin_unlock_irqrestore(&odev->xpon->state_lock, flags);
++	omci_line_status_from_xpon(&state, READ_ONCE(odev->started), status);
++	return 0;
++}
++
++static const struct omci_line_ops omci_pon_line_ops = {
++	.get_status = omci_pon_get_line_status,
++};
++
+ struct omci_device *
+ omci_device_register(struct xpon_device *xpon, u32 capabilities,
+ 		     const struct omci_device_ops *ops, void *priv)
+@@ -1348,6 +1393,17 @@ omci_device_register(struct xpon_device *xpon, u32 capabilities,
+ 			kfree(odev);
+ 			return ERR_PTR(ret);
+ 		}
++		odev->line = omci_line_register(odev->parent, xpon->netdev,
++						&omci_pon_line_ops, odev);
++		if (IS_ERR(odev->line)) {
++			ret = PTR_ERR(odev->line);
++			omci_sysfs_unregister(odev);
++			xpon->omci = NULL;
++			omci_agent_cleanup(odev);
++			kfree(odev);
++			return ERR_PTR(ret);
++		}
++		odev->line_id = omci_line_id(odev->line);
+ 	}
+ 
+ 	mutex_lock(&omci_devices_lock);
+@@ -1414,6 +1470,8 @@ void omci_device_unregister(struct omci_device *odev)
+ 	mutex_lock(&omci_devices_lock);
+ 	list_del_init(&odev->list);
+ 	mutex_unlock(&omci_devices_lock);
++	omci_line_unregister(odev->line);
++	odev->line = NULL;
+ 	omci_device_stop(odev);
+ 
+ 	cancel_work_sync(&odev->rx_work);
+diff --git a/net/xpon/omci/internal.h b/net/xpon/omci/internal.h
+--- a/net/xpon/omci/internal.h
++++ b/net/xpon/omci/internal.h
+@@ -122,6 +122,8 @@ struct omci_agent {
+ 
+ struct omci_device {
+ 	struct list_head list;
++	struct omci_line *line;
++	u32 line_id;
+ 	struct xpon_device *xpon;
+ 	struct device *parent;
+ 	const struct omci_device_ops *ops;
+@@ -159,6 +161,23 @@ struct omci_device {
+ 	struct omci_agent agent;
+ };
+ 
++struct genl_family;
++struct genl_info;
++struct netlink_callback;
++struct xpon_state;
++
++int omci_line_read(u32 id, struct omci_line_status *status);
++int omci_line_retrain(u32 id);
++int omci_line_put_status(struct sk_buff *msg,
++			 const struct omci_line_status *status);
++int omci_line_cmd_get(struct sk_buff *skb, struct genl_info *info,
++		      const struct genl_family *family);
++int omci_line_cmd_retrain(struct sk_buff *skb, struct genl_info *info);
++int omci_line_dump(struct sk_buff *skb, struct netlink_callback *cb,
++		   const struct genl_family *family);
++void omci_line_status_from_xpon(const struct xpon_state *state,
++				bool started, struct omci_line_status *status);
++
+ int omci_validate_tx(struct omci_device *odev, struct sk_buff *skb);
+ int omci_device_xmit(struct omci_device *odev, const void *data, size_t len);
+ void omci_device_notify(struct omci_device *odev, u8 event);
+

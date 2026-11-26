@@ -1,0 +1,1079 @@
+From 06578486027f107427a86005c94457efafcd9282 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Fri, 23 Oct 2026 20:30:15 -0300
+Subject: [PATCH] airoha: an7552: clean files and fix ethernet driver
+
+---
+ arch/arm/boot/dts/airoha/an7552-evb.dts   |  14 -
+ arch/arm/boot/dts/airoha/an7552.dtsi      | 487 +++++++++++++++++++++++++++++-
+ arch/arm/boot/dts/airoha/an7563-evb.dts   | 127 +++++++-
+ arch/arm/boot/dts/airoha/an7563.dtsi      |  14 -
+ drivers/net/dsa/mt7530-mmio.c             |   1 -
+ drivers/net/ethernet/airoha/airoha_eth.c  |  91 +++---
+ drivers/net/ethernet/airoha/airoha_ppe.c  |  21 +-
+ drivers/net/ethernet/airoha/airoha_regs.h |   1 +
+ drivers/net/phy/mediatek/airoha-ge-soc.c  |  32 +-
+ drivers/net/phy/mediatek/mtk-ge-soc.h     |   3 +-
+ 10 files changed, 670 insertions(+), 121 deletions(-)
+
+diff --git a/arch/arm/boot/dts/airoha/an7552-evb.dts b/arch/arm/boot/dts/airoha/an7552-evb.dts
+--- a/arch/arm/boot/dts/airoha/an7552-evb.dts
++++ b/arch/arm/boot/dts/airoha/an7552-evb.dts
+@@ -8,20 +8,6 @@
+ / {
+ 	model = "Airoha AN7552 Ethernet Evaluation Board";
+ 	compatible = "airoha,an7552-evb", "airoha,an7552";
+-
+-	aliases {
+-		serial0 = &uart1;
+-		ethernet0 = &gdm1;
+-	};
+-
+-	chosen {
+-		stdout-path = "serial0:115200n8";
+-	};
+-
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0x80000000 0x20000000>;
+-	};
+ };
+ 
+ &eth {
+diff --git a/arch/arm/boot/dts/airoha/an7552.dtsi b/arch/arm/boot/dts/airoha/an7552.dtsi
+--- a/arch/arm/boot/dts/airoha/an7552.dtsi
++++ b/arch/arm/boot/dts/airoha/an7552.dtsi
+@@ -1,8 +1,16 @@
+ // SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+ 
++#include <dt-bindings/interrupt-controller/irq.h>
+ #include <dt-bindings/interrupt-controller/arm-gic.h>
+ #include <dt-bindings/clock/en7523-clk.h>
+ #include <dt-bindings/reset/airoha,en7523-reset.h>
++#include <dt-bindings/leds/common.h>
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/soc/airoha,scu-ssr.h>
++#include <dt-bindings/thermal/thermal.h>
++#include <dt-bindings/phy/phy.h>
++#include <dt-bindings/phy/airoha,an7581-usb-phy.h>
++#include <dt-bindings/soc/airoha,soc-variant.h>
+ 
+ / {
+ 	compatible = "airoha,an7552";
+@@ -10,22 +18,85 @@ / {
+ 	#address-cells = <1>;
+ 	#size-cells = <1>;
+ 
++	aliases {
++		serial0 = &uart1;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	reserved-memory {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		ranges;
++
++		atf@80000000 {
++			no-map;
++			reg = <0x80000000 0x40000>;
++		};
++
++		npu_binary: npu-binary@84000000 {
++			no-map;
++			reg = <0x84000000 0x00100000>;
++		};
++
++		npu_pkt: npu-pkt@84d00000 {
++			no-map;
++			reg = <0x84d00000 0x01600000>;
++		};
++
++		qdma0_buf: qdma0-buf@86400000 {
++			reg = <0x86400000 0x02000000>;
++			no-map;
++		};
++
++		qdma1_buf: qdma1-buf@88400000 {
++			reg = <0x88400000 0x01000000>;
++			no-map;
++		};
++	};
++
++
+ 	cpus {
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 
++		cpu-map {
++			cluster0 {
++				core0 {
++					cpu = <&cpu0>;
++				};
++				core1 {
++					cpu = <&cpu1>;
++				};
++			};
++		};
++
+ 		cpu0: cpu@0 {
+ 			device_type = "cpu";
+ 			compatible = "arm,cortex-a53";
+-			reg = <0>;
++			reg = <0x0>;
++			// operating-points-v2 = <&cpu_opp_table>;
+ 			enable-method = "psci";
++			clock-frequency = <80000000>;
++			next-level-cache = <&L2_0>;
++			#cooling-cells = <2>;
+ 		};
+ 
+ 		cpu1: cpu@1 {
+ 			device_type = "cpu";
+ 			compatible = "arm,cortex-a53";
+-			reg = <1>;
++			reg = <0x1>;
++			// operating-points-v2 = <&cpu_opp_table>;
+ 			enable-method = "psci";
++			clock-frequency = <80000000>;
++			next-level-cache = <&L2_0>;
++			#cooling-cells = <2>;
++		};
++
++		L2_0: l2-cache0 {
++			compatible = "cache";
+ 		};
+ 	};
+ 
+@@ -42,6 +113,11 @@ timer {
+ 			     <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
+ 	};
+ 
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x80000000 0x40000000>;
++	};
++
+ 	gic: interrupt-controller@9000000 {
+ 		compatible = "arm,gic-v3";
+ 		reg = <0x09000000 0x20000>,
+@@ -85,6 +161,34 @@ pinctrl: pinctrl {
+ 			#interrupt-cells = <2>;
+ 			#address-cells = <0>;
+ 
++			pcie0_rst_pins: pcie0-rst-pins {
++				conf {
++					pins = "pcie_reset0";
++					drive-open-drain = <1>;
++				};
++			};
++
++			pcie1_rst_pins: pcie1-rst-pins {
++				conf {
++					pins = "pcie_reset1";
++					drive-open-drain = <1>;
++				};
++			};
++
++			pon_pinctrl: pon {
++				mux {
++					function = "pon";
++					groups = "pon";
++				};
++			};
++
++			uart2_pins: uart2 {
++				mux {
++					function = "uart";
++					groups = "uart2";
++				};
++			};
++
+ 			swp1_led_pins: switch-port1-led-pins {
+ 				mux {
+ 					function = "phy1_led0";
+@@ -113,6 +217,39 @@ mux {
+ 				};
+ 			};
+ 		};
++
++		pwm: pwm {
++			compatible = "airoha,en7581-pwm";
++
++			#pwm-cells = <3>;
++		};
++	};
++
++	watchdog@1fbf0100 {
++		compatible = "airoha,en7581-wdt";
++		reg = <0x1fbf0100 0x40>;
++
++		interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
++
++		clocks = <&scuclk EN7523_CLK_BUS>;
++		clock-names = "bus";
++
++		#interrupt-cells = <1>;
++	};
++
++	rng@1faa1000 {
++		compatible = "airoha,en7581-trng";
++		reg = <0x1faa1000 0xc04>;
++		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
++	};
++
++	crypto@1e004000 {
++		compatible = "inside-secure,safexcel-eip93ies";
++		reg = <0x1fb70000 0x1000>;
++		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+ 	};
+ 
+ 	uart1: serial@1fbf0000 {
+@@ -124,33 +261,333 @@ uart1: serial@1fbf0000 {
+ 		clock-frequency = <1843200>;
+ 	};
+ 
+-	reserved-memory {
++	uart2: serial@1fbf0300 {
++		compatible = "airoha,en7523-uart";
++		reg = <0x1fbf0300 0x30>;
++		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&uart2_pins>;
++
++		status = "disabled";
++	};
++
++	spi0: spi@1fa10000 {
++		compatible = "airoha,en7523-spi";
++		reg = <0x1fa10000 0x140>,
++		      <0x1fa11000 0x160>;
++
++		interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
++		clocks = <&scuclk EN7523_CLK_SPI>;
++		clock-names = "spi";
++
++		airoha,scu = <&scuclk>, <&chip_scu>;
++		airoha,scu-names = "scuclk", "chip-scu";
++
+ 		#address-cells = <1>;
+-		#size-cells = <1>;
+-		ranges;
++		#size-cells = <0>;
++	};
+ 
+-		qdma0_buf: qdma0-buf@86400000 {
+-			reg = <0x86400000 0x02000000>;
+-			no-map;
++	gdma: dma-controller@1fb30000 {
++		compatible = "airoha,en7523-gdma";
++		reg = <0x1fb30000 0x1000>;
++
++		resets = <&scuclk EN7523_GDMA_RST>;
++
++		#dma-cells = <1>;
++		dma-channels = <8>;
++	};
++
++	hsdma: dma-controller@1fa01800 {
++		compatible = "airoha,en7523-hsdma";
++		reg = <0x1fa01800 0x300>;
++
++		resets = <&scuclk EN7523_HSDMA_RST>;
++		interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
++
++		#dma-cells = <1>;
++		dma-channels = <2>;
++	};
++
++	i2cclock: i2cclock@0 {
++		#clock-cells = <0>;
++		compatible = "fixed-clock";
++
++		/* 20 MHz */
++		clock-frequency = <20000000>;
++	};
++
++	i2c0: i2c0@1fbf8000 {
++		compatible = "airoha,en7523-i2c";
++		reg = <0x1fbf8000 0x100>;
++
++		clocks = <&i2cclock>;
++
++		/* 100 kHz */
++		clock-frequency = <100000>;
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		status = "disabled";
++	};
++
++	usb0: usb@1fab0000 {
++		compatible = "mediatek,mtk-xhci";
++		reg = <0x1fab0000 0x3e00>,
++		      <0x1fab3e00 0x100>;
++		reg-names = "mac", "ippc";
++		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
++
++		phys = <&usb0_phy PHY_TYPE_USB2>, <&usb0_phy PHY_TYPE_USB3>;
++
++		status = "disabled";
++	};
++
++	usb0_phy: phy@1fac0000 {
++		compatible = "airoha,an7581-usb-phy";
++		reg = <0x1fad0000 0x1fff>;
++
++		airoha,scu = <&scuclk>;
++		airoha,usb2-monitor-clk-sel = <AIROHA_USB2_MONCLK_SEL1>;
++		airoha,serdes-port = <AIROHA_SCU_SERDES_USB1>;
++
++		#phy-cells = <1>;
++	};
++
++	pciephy: phy@1fa93700 {
++		compatible = "airoha,an7552-pcie-phy";
++		reg = <0x1fa93700 0x568>,
++		      <0x1fa95700 0x568>;
++		reg-names = "pcie0", "pcie1";
++		#phy-cells = <0>;
++		airoha,chip_scu = <&chip_scu>;
++	};
++
++	pcie0: pcie@1fa91000 {
++		compatible = "airoha,an7552-pcie";
++		device_type = "pci";
++		reg = <0x1fa91000 0x1000>;
++		reg-names = "port0";
++		linux,pci-domain = <0>;
++		#address-cells = <3>;
++		#size-cells = <2>;
++		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "pcie_irq";
++		clocks = <&scuclk EN7523_CLK_PCIE>;
++		clock-names = "sys_ck0";
++		bus-range = <0x00 0xff>;
++		ranges = <0x82000000 0 0x20000000 0x20000000 0 0x2000000>;
++		status = "disabled";
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&pcie0_rst_pins>;
++
++		airoha,npu = <&npu>;
++
++		phys = <&pciephy>;
++		phy-names = "pcie-phy";
++
++		#interrupt-cells = <1>;
++		interrupt-map-mask = <0 0 0 7>;
++		interrupt-map = <0 0 0 1 &pcie_intc0 0>,
++				<0 0 0 2 &pcie_intc0 1>,
++				<0 0 0 3 &pcie_intc0 2>,
++				<0 0 0 4 &pcie_intc0 3>;
++		pcie_intc0: interrupt-controller {
++			interrupt-controller;
++			#address-cells = <0>;
++			#interrupt-cells = <1>;
+ 		};
++	};
+ 
+-		qdma1_buf: qdma1-buf@88400000 {
+-			reg = <0x88400000 0x01000000>;
+-			no-map;
++	pcie1: pcie@1fa92000 {
++		compatible = "airoha,an7552-pcie";
++		device_type = "pci";
++		reg = <0x1fa92000 0x1000>;
++		reg-names = "port1";
++		linux,pci-domain = <1>;
++		#address-cells = <3>;
++		#size-cells = <2>;
++		interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "pcie_irq";
++		clocks = <&scuclk EN7523_CLK_PCIE>;
++		clock-names = "sys_ck1";
++		bus-range = <0x00 0xff>;
++		ranges = <0x82000000 0 0x22000000 0x22000000 0 0x2000000>;
++		status = "disabled";
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&pcie1_rst_pins>;
++
++		airoha,npu = <&npu>;
++
++		phys = <&pciephy>;
++		phy-names = "pcie-phy";
++
++		#interrupt-cells = <1>;
++		interrupt-map-mask = <0 0 0 7>;
++		interrupt-map = <0 0 0 1 &pcie_intc1 0>,
++				<0 0 0 2 &pcie_intc1 1>,
++				<0 0 0 3 &pcie_intc1 2>,
++				<0 0 0 4 &pcie_intc1 3>;
++		pcie_intc1: interrupt-controller {
++			interrupt-controller;
++			#address-cells = <0>;
++			#interrupt-cells = <1>;
+ 		};
+ 	};
+ 
++	thermal: thermal-sensor@1efbd800 {
++		compatible = "airoha,en7552-thermal";
++		reg = <0x1efbd000 0x0fff>;
++		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
++		airoha,chip-scu = <&chip_scu>;
++
++		#thermal-sensor-cells = <1>;
++	};
++
++	thermal-zones {
++		cpu_thermal: cpu-thermal {
++			polling-delay-passive = <200>;
++			polling-delay = <1000>;
++			thermal-sensors = <&thermal 0>;
++			trips {
++				cpu_passive: cpu-passive {
++					temperature = <105000>;
++					hysteresis = <0>;
++					type = "passive";
++				};
++			};
++			cooling-maps {
++				map0 {
++					trip = <&cpu_passive>;
++					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
++							 <&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
++				};
++			};
++		};
++	};
++
++	npu: npu@1e800000 {
++		compatible = "airoha,an7552-npu";
++		reg = <0x1e900000 0x313000>;
++		interrupts = <GIC_SPI 125 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 118 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 122 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 134 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>;
++
++		airoha,scu = <&scuclk>;
++		memory-region = <&npu_binary>, <&npu_pkt>;
++		memory-region-names = "binary", "pkt";
++	};
++
++	wed0: wed@1fa02000 {
++		compatible = "airoha,en7523-wed", "syscon";
++		reg = <0x1fa02000 0xb00>,
++		      <0x1fa06000 0x400>;
++		reg-names = "wed", "wdma";
++		interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
++	};
++
++	wed1: wed@1fa03000 {
++		compatible = "airoha,en7523-wed", "syscon";
++		reg = <0x1fa03000 0xb00>,
++		      <0x1fa06400 0x400>;
++		reg-names = "wed", "wdma";
++		interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
++	};
++
++	ipsec: ipsec@1fbfa000 {
++		compatible = "airoha,an7552-ipsec";
++		reg = <0x1fbfa000 0x268>;
++
++		interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
++	};
++
++	pon_pcs: pcs@1fa08000 {
++		compatible = "airoha,an7552-pcs-pon";
++		reg = <0x1fa08000 0x1000>,
++		      <0x1fa80000 0x64>,
++		      <0x1fa80a00 0x168>,
++		      <0x1fa84000 0x1000>,
++		      <0x1fa86000 0x400>,
++		      <0x1faf3000 0x1000>,
++		      <0x1faf4000 0x1000>;
++		reg-names = "pcs_mac", "hsgmii_an", "hsgmii_pcs",
++			    "multi_sgmii", "hsgmii_rate_adp",
++			    "pcs_ana", "pcs_pma";
++
++		resets = <&scuclk EN7523_XPON_MAC_RST>,
++			 <&scuclk EN7523_XPON_PHY_RST>;
++		reset-names = "mac", "phy";
++
++		airoha,scu = <&scuclk>;
++
++		#pcs-cells = <0>;
++
++		status = "disabled";
++	};
++
++	xpon_phy: phy@1faf0000 {
++		compatible = "airoha,an7552-xpon-phy";
++		reg = <0x1faf0000 0x5000>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&pon_pinctrl>;
++
++		interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
++		resets = <&scuclk EN7523_XPON_PHY_RST>;
++		reset-names = "phy";
++
++		airoha,scu = <&scuclk>;
++		tx-disable-gpios = <&pinctrl 14 GPIO_ACTIVE_HIGH>;
++
++		#phy-cells = <0>;
++
++		status = "disabled";
++	};
++
++	xpon: xmac@1fb60000 {
++		compatible = "airoha,an7552-xpon";
++
++		reg = <0x1fb60000 0x10000>;
++		reg-names = "mac";
++
++		interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
++		             <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
++		interrupt-names = "mac", "dying-gasp";
++
++		resets = <&scuclk EN7523_XPON_MAC_RST>;
++		reset-names = "mac";
++
++		phys = <&xpon_phy>;
++		phy-names = "xpon";
++
++		ethernet = <&gdm2>;
++		airoha,scu = <&scuclk>;
++
++		status = "disabled";
++	};
++
+ 	eth: ethernet@1fb50000 {
+ 		compatible = "airoha,an7552-eth";
++		status = "disabled";
+ 		reg = <0x1fb50000 0x2600>,
+ 		      <0x1fb54000 0x2000>,
+ 		      <0x1fb56000 0x2000>,
+ 		      <0x1fbf9000 0x1000>;
+ 		reg-names = "fe", "qdma0", "qdma1", "gdmp";
++
+ 		resets = <&scuclk EN7523_FE_RST>,
+ 			 <&scuclk EN7523_FE_PDMA_RST>,
+ 			 <&scuclk EN7523_FE_QDMA_RST>;
+ 		reset-names = "fe", "pdma", "qdma";
++
+ 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>,
+@@ -164,11 +601,15 @@ eth: ethernet@1fb50000 {
+ 		interrupt-names = "lan0", "lan1", "lan2", "lan3",
+ 				  "wan0", "wan1", "wan2", "wan3",
+ 				  "fe-error", "pdma";
++
+ 		memory-region = <&qdma0_buf>, <&qdma1_buf>;
+ 		memory-region-names = "qdma0-buf", "qdma1-buf";
++
++		airoha,npu = <&npu>;
++		airoha,wed = <&wed0>, <&wed1>;
++
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+-		status = "disabled";
+ 
+ 		gdm1: ethernet@1 {
+ 			compatible = "airoha,eth-mac";
+@@ -182,6 +623,28 @@ fixed-link {
+ 				pause;
+ 			};
+ 		};
++
++		gdm2: ethernet@2 {
++			compatible = "airoha,eth-mac";
++			reg = <2>;
++			pcs-handle = <&pon_pcs>;
++
++			status = "disabled";
++		};
++
++		gdm3: ethernet@3 {
++			compatible = "airoha,eth-mac";
++			reg = <3>;
++
++			status = "disabled";
++		};
++
++		gdm4: ethernet@4 {
++			compatible = "airoha,eth-mac";
++			reg = <4>;
++
++			status = "disabled";
++		};
+ 	};
+ 
+ 	switch: switch@1fb58000 {
+diff --git a/arch/arm/boot/dts/airoha/an7563-evb.dts b/arch/arm/boot/dts/airoha/an7563-evb.dts
+--- a/arch/arm/boot/dts/airoha/an7563-evb.dts
++++ b/arch/arm/boot/dts/airoha/an7563-evb.dts
+@@ -3,24 +3,131 @@
+ 
+ /memreserve/ 0x80000000 0x200000;
+ 
+-#include "an7563.dtsi"
++#include "an7552.dtsi"
+ 
+ / {
+ 	model = "Airoha AN7563 Ethernet Evaluation Board";
+-	compatible = "airoha,an7563-evb", "airoha,an7563";
++	compatible = "airoha,an7563-evb", "airoha,an7552";
+ 
+-	aliases {
+-		serial0 = &uart1;
+-		ethernet0 = &gdm1;
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x80000000 0x20000000>;
+ 	};
+ 
+-	chosen {
+-		stdout-path = "serial0:115200n8";
++	leds {
++		compatible = "gpio-leds";
++
++		internet {
++			label = "internet";
++			gpios = <&pinctrl 20 GPIO_ACTIVE_HIGH>;
++			linux,default-trigger = "timer";
++		};
++
++		power {
++			label = "power";
++			gpios = <&pinctrl 27 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "timer";
++		};
++
++		usb2 {
++			label = "usb2";
++			gpios = <&pinctrl 21 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "usbport";
++		};
++
++		usb_0 {
++			label = "usb_0";
++			gpios = <&pinctrl 1 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "usbport";
++		};
++
++		voip_hook {
++			label = "voip_hook";
++			gpios = <&pinctrl 2 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "timer";
++		};
++
++		wlan {
++			label = "wlan";
++			gpios = <&pinctrl 12 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "timer";
++		};
++
++		wps {
++			label = "wps";
++			gpios = <&pinctrl 4 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "timer";
++		};
++
++		xponLos {
++			label = "xponLos";
++			gpios = <&pinctrl 3 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "timer";
++		};
++
++		xponStatus {
++			label = "xponStatus";
++			gpios = <&pinctrl 7 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "timer";
++		};
+ 	};
+ 
+-	memory@80000000 {
+-		device_type = "memory";
+-		reg = <0x80000000 0x20000000>;
++	gpio-keys-polled {
++		compatible = "gpio-keys-polled";
++		poll-interval = <100>;
++
++		reset_ {
++			label = "reset";
++			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
++		};
++
++		wps {
++			label = "wps";
++			gpios = <&pinctrl 5 GPIO_ACTIVE_LOW>;
++		};
++	};
++};
++
++&spi0 {
++	flash@0 {
++		reg = <0>;
++		compatible = "spi-nand";
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <2>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			bootloader@0 {
++				label = "bootloader";
++				reg = <0x00000000 0x00080000>;
++				read-only;
++			};
++
++			tclinux@80000 {
++				label = "tclinux";
++				reg = <0x00080000 0x02800000>;
++			};
++
++			tclinux_slave@2880000 {
++				label = "tclinux_slave";
++				reg = <0x02880000 0x02800000>;
++			};
++
++			rootfs_data@5080000 {
++				label = "rootfs_data";
++				reg = <0x05080000 0x00800000>;
++			};
++
++			art@de80000 {
++				label = "art";
++				reg = <0x05880000 0x00380000>;
++				read-only;
++			};
++		};
+ 	};
+ };
+ 
+diff --git a/arch/arm/boot/dts/airoha/an7563.dtsi b/arch/arm/boot/dts/airoha/an7563.dtsi
+deleted file mode 100644
+--- a/arch/arm/boot/dts/airoha/an7563.dtsi
++++ /dev/null
+@@ -1,14 +0,0 @@
+-// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+-#include "an7552.dtsi"
+-
+-/ {
+-	compatible = "airoha,an7563";
+-};
+-
+-&eth {
+-	compatible = "airoha,an7563-eth", "airoha,an7552-eth";
+-};
+-
+-&switch {
+-	compatible = "airoha,an7563-switch", "airoha,an7552-switch";
+-};
+diff --git a/drivers/net/dsa/mt7530-mmio.c b/drivers/net/dsa/mt7530-mmio.c
+--- a/drivers/net/dsa/mt7530-mmio.c
++++ b/drivers/net/dsa/mt7530-mmio.c
+@@ -31,7 +31,6 @@ static int en751221_quiesce_hw_poll(struct mt7530_priv *priv)
+ 
+ static const struct of_device_id mt7988_of_match[] = {
+ 	{ .compatible = "airoha,an7552-switch", .data = &mt753x_table[ID_AN7552] },
+-	{ .compatible = "airoha,an7563-switch", .data = &mt753x_table[ID_AN7552] },
+ 	{ .compatible = "airoha,en7523-switch", .data = &mt753x_table[ID_EN7523], },
+ 	{ .compatible = "airoha,an7583-switch", .data = &mt753x_table[ID_AN7583], },
+ 	{ .compatible = "airoha,en7581-switch", .data = &mt753x_table[ID_EN7581], },
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -3267,18 +3267,16 @@ static int airoha_qdma_modern_init_hfwd(struct airoha_qdma *qdma)
+ 				   buf_size != AIROHA_MAX_PACKET_SIZE));
+ 	airoha_qdma_rmw(qdma, REG_FWD_DSCP_LOW_THR, FWD_DSCP_LOW_THR_MASK,
+ 			FIELD_PREP(FWD_DSCP_LOW_THR_MASK, 128));
+-	/* The AN7552 stock firmware runs the LMGR in DRAM mode
+-	 * (LMGR_SRAM_MODE clear). With SRAM mode set the QDMA consumes TX
+-	 * descriptors but never completes or transmits them: the TX rings
+-	 * wedge and no frame reaches GDM1. Run it in DRAM mode on AN7552.
++	/*
++	 * for an7552 family LMGR_SRAM_MODE_MASK is clenead to use
++	 * DRAM mode
+ 	 */
+ 	airoha_qdma_rmw(qdma, REG_LMGR_INIT_CFG,
+ 			LMGR_INIT_START | LMGR_SRAM_MODE_MASK |
+ 			HW_FWD_DESC_NUM_MASK,
+ 			FIELD_PREP(HW_FWD_DESC_NUM_MASK, num_desc) |
+-			LMGR_INIT_START |
+-			(airoha_is(qdma->eth, airoha_an7552) ? 0 :
+-			 LMGR_SRAM_MODE_MASK));
++			LMGR_INIT_START | (airoha_is(qdma->eth, airoha_an7552) ?
++						     0 : LMGR_SRAM_MODE_MASK));
+ 
+ 	return read_poll_timeout(airoha_qdma_rr, status,
+ 				 !(status & LMGR_INIT_START), USEC_PER_MSEC,
+@@ -10342,6 +10340,25 @@ static int airoha_an7583_get_dev_from_sport(struct airoha_eth *eth, u32 sport,
+ 	return 0;
+ }
+ 
++static int an7552_get_dev_from_sport(struct airoha_eth *eth, u32 sport,
++				     u16 *port, u16 *dev)
++{
++	*dev = 0;
++	switch (sport) {
++	case 0:
++	case 1:
++	case 0x10 ... 0x14:
++		*port = AIROHA_GDM1_IDX - 1;
++		return 0;
++	case 2:
++	case 5:
++		*port = AIROHA_GDM2_IDX - 1;
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
+ static const struct airoha_eth_xpon_ops econet_xpon_ops = {
+ 	.set_mode = econet_set_xpon_mode,
+ 	.set_datapath = econet_set_xpon_datapath,
+@@ -10532,40 +10549,6 @@ const struct airoha_eth_soc_data airoha_an7583_soc_data = {
+ 	},
+ };
+ 
+-static int an7552_get_dev_from_sport(struct airoha_eth *eth, u32 sport,
+-				     u16 *port, u16 *dev)
+-{
+-	*dev = 0;
+-	switch (sport) {
+-	case 0:
+-	case 1:
+-	case 0x10 ... 0x14:
+-		*port = AIROHA_GDM1_IDX - 1;
+-		return 0;
+-	case 2:
+-	case 5:
+-		*port = AIROHA_GDM2_IDX - 1;
+-		return 0;
+-	default:
+-		return -EINVAL;
+-	}
+-}
+-
+-static const struct airoha_eth_soc_data an7552_soc_data = {
+-	.version = airoha_an7552,
+-	.tx_ring = 8,
+-	.rx_ring = 16,
+-	.irq_banks = 4,
+-	.max_gdm_ports = 2,
+-	.pse_fq_cfg = PSE_FQ_CFG,
+-	/* PPE and hardware LRO require separate AN7552 profiles. */
+-	.ops = {
+-		.get_sport = airoha_en7523_get_sport,
+-		.get_vip_port = airoha_en7523_get_vip_port,
+-		.get_dev_from_sport = an7552_get_dev_from_sport,
+-	},
+-};
+-
+ const struct airoha_eth_soc_data airoha_en7523_soc_data = {
+ 	.version = airoha_en7523,
+ 	.xpon_ops = &airoha_xpon_ops,
+@@ -10591,6 +10574,31 @@ const struct airoha_eth_soc_data airoha_en7523_soc_data = {
+ 	},
+ };
+ 
++static const struct airoha_eth_soc_data an7552_soc_data = {
++	.version = airoha_an7552,
++	// .xpon_ops = &airoha_xpon_ops,
++	// .xsi_rsts_names = en7523_xsi_rsts_names,
++	// .num_xsi_rsts = ARRAY_SIZE(en7523_xsi_rsts_names),
++	.rx_ring = 16,
++	.tx_ring = 8,
++	.num_ppe = 1,
++	.irq_banks = 4,
++	.max_gdm_ports = 4,
++	.pse_fq_cfg = PSE_FQ_CFG,
++	.ppe_stats_entries = 0,
++	/* AN7552 uses 80-byte extended FoE entries with TB_ENTRY_SIZE=0,
++	 * 512 SRAM entries and a default 16K DRAM table in the vendor SDK.
++	 */
++	.ppe_sram_entries = 512,
++	.ppe_dram_entries = 16 * 1024,
++	.foe_format = AIROHA_FOE_FORMAT_V2_TUNNEL,
++	.ops = {
++		.get_sport = airoha_en7523_get_sport,
++		.get_vip_port = airoha_en7523_get_vip_port,
++		.get_dev_from_sport = an7552_get_dev_from_sport,
++	},
++};
++
+ static int airoha_eth_probe(struct platform_device *pdev)
+ {
+ 	const struct airoha_eth_soc_data *soc;
+@@ -11079,7 +11087,6 @@ EXPORT_SYMBOL_GPL(airoha_eth_xdsl_update_link);
+ 
+ static const struct of_device_id airoha_eth_of_match[] = {
+ 	{ .compatible = "airoha,an7552-eth", .data = &an7552_soc_data },
+-	{ .compatible = "airoha,an7563-eth", .data = &an7552_soc_data },
+ 	{ .compatible = "econet,en751221-eth", .data = &econet_en751221_soc_data },
+ 	{ .compatible = "econet,en751627-eth", .data = &econet_en7528_soc_data },
+ 	{ .compatible = "econet,en7528-eth", .data = &econet_en7528_soc_data },
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -406,6 +406,13 @@ static void airoha_ppe_hw_init(struct airoha_ppe *ppe)
+ 				      PPE_FLOW_CFG_L2_BRIDGE_MASK);
+ 		}
+ 
++		/* The AN7552 SDK explicitly disables FIN_FAST_RP. Clear it
++		 * even when firmware left the PPE configured before probing.
++		 */
++		if (airoha_is(eth, airoha_an7552))
++			airoha_fe_clear(eth, REG_PPE_TB_CFG(i),
++					PPE_TB_CFG_FIN_FAST_RP_MASK);
++
+ 		airoha_fe_rmw(eth, REG_PPE_BIND_RATE(i),
+ 			      PPE_BIND_RATE_L2B_BIND_MASK |
+ 			      PPE_BIND_RATE_BIND_MASK,
+@@ -702,12 +709,12 @@ static int airoha_ppe_foe_entry_prepare(struct airoha_eth *eth,
+ 			 * forwarding descriptors queue.
+ 			 */
+ 			/* The vendor SDK defines SUPPORT_FAST_PATH only for
+-			 * EN7580/EN7581/AN7583.  EN7523 must use the normal
++			 * EN7580/EN7581/AN7583. EN7523 and AN7552 use the normal
+ 			 * PPE-to-QDMA path; setting FAST_PATH makes a bound FOE
+ 			 * entry consume an unsupported descriptor path and drops
+ 			 * the flow as soon as it transitions to BIND.
+ 			 */
+-			if (!airoha_is(eth, airoha_en7523) &&
++			if (!airoha_is(eth, airoha_en7523, airoha_an7552) &&
+ 			    airoha_is_lan_gdm_dev(dev))
+ 				val |= AIROHA_FOE_IB2_FAST_PATH;
+ 			if (xpon_flow)
+@@ -905,12 +912,16 @@ static u32 airoha_ppe_foe_get_entry_hash(struct airoha_ppe *ppe,
+ 	hash ^= hv1 ^ hv2 ^ hv3;
+ 	hash ^= hash >> 16;
+ 
+-	if (airoha_is(ppe->common.eth, airoha_en7523)) {
++	if (airoha_is(ppe->common.eth, airoha_en7523, airoha_an7552)) {
+ 		u32 dram_entries = ppe->common.eth->soc->ppe_dram_entries;
+ 		u32 sram_entries = airoha_ppe_get_total_sram_num_entries(ppe);
+ 
+-		/* For the EN7523, the hardware maps the main BINDs using a mask on the DRAM.
+-		 * We masked to the DRAM boundaries and adjusted sw_idx to point to the area after the SRAM.
++		/* These SoCs have 512 SRAM entries plus a power-of-two DRAM
++		 * table. Masking by the combined size would collapse the
++		 * software hash into a small subset of foe_flow[]. Use the
++		 * DRAM-sized range after the SRAM shadow for these buckets.
++		 * The hardware-learned slot still determines where a flow is
++		 * committed; this does not change HW/SW index translation.
+ 		 */
+ 		hash &= (dram_entries - 1);
+ 		hash += sram_entries;
+diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
+--- a/drivers/net/ethernet/airoha/airoha_regs.h
++++ b/drivers/net/ethernet/airoha/airoha_regs.h
+@@ -397,6 +397,7 @@
+ #define PPE_TB_CFG_KEEPALIVE_MASK		GENMASK(13, 12)
+ #define PPE_TB_CFG_HASH_MODE_MASK		GENMASK(15, 14)
+ #define PPE_TB_CFG_SCAN_MODE_MASK		GENMASK(17, 16)
++#define PPE_TB_CFG_FIN_FAST_RP_MASK		BIT(27)
+ #define PPE_TB_CFG_AGE_TCP_FIN_MASK		BIT(11)
+ #define PPE_TB_CFG_AGE_UDP_MASK			BIT(10)
+ #define PPE_TB_CFG_AGE_TCP_MASK			BIT(9)
+diff --git a/drivers/net/phy/mediatek/airoha-ge-soc.c b/drivers/net/phy/mediatek/airoha-ge-soc.c
+--- a/drivers/net/phy/mediatek/airoha-ge-soc.c
++++ b/drivers/net/phy/mediatek/airoha-ge-soc.c
+@@ -3385,14 +3385,6 @@ static int an7583_phy_config_init(struct phy_device *phydev)
+ 	return 0;
+ }
+ 
+-static int an7552_phy_match(struct phy_device *phydev,
+-			    const struct phy_driver *phydrv)
+-{
+-	return (phydev->phy_id & 0xffff) == AIROHA_GPHY_ID_AN7552 &&
+-	       (of_machine_is_compatible("airoha,an7552") ||
+-		of_machine_is_compatible("airoha,an7563"));
+-}
+-
+ static int an7552_phy_config_init(struct phy_device *phydev)
+ {
+ 	static const u16 amp_regs[CALIB_CONST_TYPE_MAX] = {
+@@ -3498,18 +3490,6 @@ static int an7552_phy_config_init(struct phy_device *phydev)
+ }
+ 
+ static struct phy_driver mtk_socphy_driver[] = {
+-	{
+-		.phy_id = AIROHA_GPHY_ID_AN7552,
+-		.phy_id_mask = 0x0000ffff,
+-		.match_phy_device = an7552_phy_match,
+-		.name = "Airoha AN7552/AN7563 GPHY",
+-		.config_init = an7552_phy_config_init,
+-		.probe = an7581_phy_probe,
+-		.config_intr = genphy_no_config_intr,
+-		.handle_interrupt = genphy_handle_interrupt_no_ack,
+-		.read_page = mtk_phy_read_page,
+-		.write_page = mtk_phy_write_page,
+-	},
+ 	{
+ 		PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_EN7512),
+ 		.name		= "EcoNet EN7512/EN7521 GPHY",
+@@ -3574,6 +3554,16 @@ static struct phy_driver mtk_socphy_driver[] = {
+ 		.read_page	= mtk_phy_read_page,
+ 		.write_page	= mtk_phy_write_page,
+ 	},
++	{
++		PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7552),
++		.name = "Airoha AN7552 PHY",
++		.config_init = an7552_phy_config_init,
++		.probe = an7581_phy_probe,
++		.config_intr = genphy_no_config_intr,
++		.handle_interrupt = genphy_handle_interrupt_no_ack,
++		.read_page = mtk_phy_read_page,
++		.write_page = mtk_phy_write_page,
++	},
+ 	{
+ 		PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7583),
+ 		.name		= "Airoha AN7583 PHY",
+@@ -3593,11 +3583,11 @@ static struct phy_driver mtk_socphy_driver[] = {
+ module_phy_driver(mtk_socphy_driver);
+ 
+ static const struct mdio_device_id __maybe_unused airoha_socphy_tbl[] = {
+-	{ .phy_id = AIROHA_GPHY_ID_AN7552, .phy_id_mask = 0x0000ffff },
+ 	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_EN7512) },
+ 	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_EN7528) },
+ 	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_EN7523) },
+ 	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7581) },
++	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7552) },
+ 	{ PHY_ID_MATCH_EXACT(AIROHA_GPHY_ID_AN7583) },
+ 	{ }
+ };
+diff --git a/drivers/net/phy/mediatek/mtk-ge-soc.h b/drivers/net/phy/mediatek/mtk-ge-soc.h
+--- a/drivers/net/phy/mediatek/mtk-ge-soc.h
++++ b/drivers/net/phy/mediatek/mtk-ge-soc.h
+@@ -12,8 +12,7 @@
+ #define MTK_GPHY_ID_EN7528			0x03a29491
+ #define AIROHA_GPHY_ID_EN7523			0x03a294a1
+ #define AIROHA_GPHY_ID_AN7581			0x03a294c1
+-/* AN7552 SDK matches PHYSID2; the OUI half is read from hardware. */
+-#define AIROHA_GPHY_ID_AN7552			0x00000400
++#define AIROHA_GPHY_ID_AN7552			0xc0ff0400
+ #define AIROHA_GPHY_ID_AN7583			0xc0ff0420
+ 
+ #define MTK_EXT_PAGE_ACCESS			0x1f
+

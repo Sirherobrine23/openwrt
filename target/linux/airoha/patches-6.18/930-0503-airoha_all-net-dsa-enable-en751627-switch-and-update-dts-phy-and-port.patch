@@ -1,0 +1,204 @@
+From 4c6d431c53a8aea9bb13694a404d14951728afd9 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Thu, 19 Nov 2026 00:42:24 -0300
+Subject: [PATCH] net: dsa: enable en751627 switch and update dts phy and port
+
+---
+ arch/mips/boot/dts/econet/en751627.dtsi | 43 +++++++++++++++++++++++++++++++--
+ drivers/net/dsa/mt7530-mmio.c           |  3 +--
+ drivers/net/dsa/mt7530.c                | 29 ++++++++++++++++++++--
+ drivers/net/dsa/mt7530.h                |  1 +
+ 4 files changed, 70 insertions(+), 6 deletions(-)
+
+diff --git a/arch/mips/boot/dts/econet/en751627.dtsi b/arch/mips/boot/dts/econet/en751627.dtsi
+--- a/arch/mips/boot/dts/econet/en751627.dtsi
++++ b/arch/mips/boot/dts/econet/en751627.dtsi
+@@ -328,7 +328,7 @@ uart1: serial@1fbf0000 {
+ 			reg-io-width = <4>;
+ 			reg-shift = <2>;
+ 			big-endian;
+-	
++
+ 			interrupts = <GIC_SHARED 2 IRQ_TYPE_LEVEL_HIGH>;
+ 		};
+ 
+@@ -543,7 +543,6 @@ xpon: xmac@1fb60000 {
+ 			reset-names = "mac";
+ 			phys = <&xpon_phy>;
+ 			phy-names = "xpon";
+-			ethernet = <&gdm2_pon>;
+ 			airoha,scu = <&scuclk>;
+ 
+ 		};
+@@ -662,6 +661,7 @@ gdm2_pon: ethernet-port@0 {
+ 				gdm2_xdsl: ethernet-port@1 {
+ 					compatible = "airoha,eth-xdsl";
+ 					reg = <1>;
++					airoha,xdsl = <&xdsl>;
+ 					phy-mode = "internal";
+ 					status = "disabled";
+ 				};
+@@ -686,11 +686,20 @@ ports {
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+ 
++				gsw_port0: port@0 {
++					reg = <0>;
++					phy-mode = "internal";
++					phy-handle = <&gsw_phy0>;
++					status = "disabled";
++					label = "lan1";
++				};
++
+ 				gsw_port1: port@1 {
+ 					reg = <1>;
+ 					phy-mode = "internal";
+ 					phy-handle = <&gsw_phy1>;
+ 					status = "disabled";
++					label = "lan2";
+ 				};
+ 
+ 				gsw_port2: port@2 {
+@@ -698,6 +707,7 @@ gsw_port2: port@2 {
+ 					phy-mode = "internal";
+ 					phy-handle = <&gsw_phy2>;
+ 					status = "disabled";
++					label = "lan3";
+ 				};
+ 
+ 				gsw_port3: port@3 {
+@@ -705,6 +715,7 @@ gsw_port3: port@3 {
+ 					phy-mode = "internal";
+ 					phy-handle = <&gsw_phy3>;
+ 					status = "disabled";
++					label = "lan4";
+ 				};
+ 
+ 				gsw_port4: port@4 {
+@@ -712,6 +723,7 @@ gsw_port4: port@4 {
+ 					phy-mode = "internal";
+ 					phy-handle = <&gsw_phy4>;
+ 					status = "disabled";
++					label = "lan5";
+ 				};
+ 
+ 				gsw_port6: port@6 {
+@@ -731,6 +743,33 @@ mdio: mdio {
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+ 
++				gsw_phy0: ethernet-phy@8 {
++					compatible = "ethernet-phy-ieee802.3-c22";
++					reg = <8>;
++					phy-mode = "internal";
++					status = "disabled";
++
++					airoha,scu = <&scuclk>;
++
++					leds {
++						#address-cells = <1>;
++						#size-cells = <0>;
++
++						gsw_phy0_led0: led@0 {
++							reg = <0>;
++							function = LED_FUNCTION_LAN;
++							active-low;
++						};
++
++						gsw_phy0_led1: led@1 {
++							reg = <1>;
++							function = LED_FUNCTION_ACTIVITY;
++							status = "disabled";
++							active-low;
++						};
++					};
++				};
++
+ 				gsw_phy1: ethernet-phy@9 {
+ 					compatible = "ethernet-phy-ieee802.3-c22";
+ 					reg = <9>;
+diff --git a/drivers/net/dsa/mt7530-mmio.c b/drivers/net/dsa/mt7530-mmio.c
+--- a/drivers/net/dsa/mt7530-mmio.c
++++ b/drivers/net/dsa/mt7530-mmio.c
+@@ -35,8 +35,7 @@ static const struct of_device_id mt7988_of_match[] = {
+ 	{ .compatible = "airoha,an7583-switch", .data = &mt753x_table[ID_AN7583], },
+ 	{ .compatible = "airoha,en7581-switch", .data = &mt753x_table[ID_EN7581], },
+ 	{ .compatible = "econet,en751221-switch", .data = &mt753x_table[ID_EN751221], },
+-	{ .compatible = "airoha,en751627-switch", .data = &mt753x_table[ID_EN7528], },
+-	{ .compatible = "econet,en751627-switch", .data = &mt753x_table[ID_EN7528], },
++	{ .compatible = "econet,en751627-switch", .data = &mt753x_table[ID_EN751627], },
+ 	{ .compatible = "econet,en7528-switch", .data = &mt753x_table[ID_EN7528], },
+ 	{ .compatible = "econet,en7580-switch", .data = &mt753x_table[ID_EN7528], },
+ 	{ .compatible = "mediatek,mt7988-switch", .data = &mt753x_table[ID_MT7988], },
+diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -3435,6 +3435,20 @@ static void en7528_mac_port_get_caps(struct dsa_switch *ds, int port,
+ 	}
+ }
+ 
++/* EN751627 has one additional GPHY on port 0 (MDIO address 8). */
++static void en751627_mac_port_get_caps(struct dsa_switch *ds, int port,
++				       struct phylink_config *config)
++{
++	if (port == 0) {
++		__set_bit(PHY_INTERFACE_MODE_INTERNAL,
++			  config->supported_interfaces);
++		config->mac_capabilities |= MAC_10 | MAC_100 | MAC_1000FD;
++		return;
++	}
++
++	en7528_mac_port_get_caps(ds, port, config);
++}
++
+ static void en751221_mac_port_get_caps(struct dsa_switch *ds, int port,
+ 				       struct phylink_config *config)
+ {
+@@ -3703,7 +3717,7 @@ static void mt753x_phylink_get_caps(struct dsa_switch *ds, int port,
+ 	 * phylink disables EEE on these PHYs and refuses to enable it from
+ 	 * userspace.
+ 	 */
+-	if (priv->id != ID_EN7528 &&
++	if (priv->id != ID_EN7528 && priv->id != ID_EN751627 &&
+ 	    config->mac_capabilities & (MAC_100FD | MAC_1000FD)) {
+ 		u32 eeecr = mt7530_read(priv, MT753X_PMEEECR_P(port));
+ 
+@@ -3846,7 +3860,8 @@ mt753x_conduit_state_change(struct dsa_switch *ds,
+ 	 * interface is up.
+ 	 */
+ 	if (priv->id != ID_MT7530 && priv->id != ID_MT7621 &&
+-	    priv->id != ID_EN7528 && priv->id != ID_EN751221)
++	    priv->id != ID_EN7528 && priv->id != ID_EN751627 &&
++	    priv->id != ID_EN751221)
+ 		return;
+ 
+ 	mask = BIT(cpu_dp->index);
+@@ -4090,6 +4105,16 @@ const struct mt753x_info mt753x_table[] = {
+ 		.phy_write_c45 = mt7531_ind_c45_phy_write,
+ 		.mac_port_get_caps = en7528_mac_port_get_caps,
+ 	},
++	[ID_EN751627] = {
++		.id = ID_EN751627,
++		.pcs_ops = &mt7530_pcs_ops,
++		.sw_setup = mt7988_setup,
++		.phy_read_c22 = mt7531_ind_c22_phy_read,
++		.phy_write_c22 = mt7531_ind_c22_phy_write,
++		.phy_read_c45 = mt7531_ind_c45_phy_read,
++		.phy_write_c45 = mt7531_ind_c45_phy_write,
++		.mac_port_get_caps = en751627_mac_port_get_caps,
++	},
+ 	[ID_EN751221] = {
+ 		.id = ID_EN751221,
+ 		.pcs_ops = &mt7530_pcs_ops,
+diff --git a/drivers/net/dsa/mt7530.h b/drivers/net/dsa/mt7530.h
+--- a/drivers/net/dsa/mt7530.h
++++ b/drivers/net/dsa/mt7530.h
+@@ -25,6 +25,7 @@ enum mt753x_id {
+ 	ID_EN7523 = 7,
+ 	ID_EN751221 = 8,
+ 	ID_AN7552 = 9,
++	ID_EN751627 = 10,
+ };
+ 
+ #define	NUM_TRGMII_CTRL			5
+

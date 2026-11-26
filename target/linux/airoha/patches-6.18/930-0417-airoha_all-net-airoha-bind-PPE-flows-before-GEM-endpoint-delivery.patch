@@ -1,0 +1,49 @@
+From 0aa06e02c2e09ee713b5cfc52949d7f769508ce6 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 21 Oct 2026 00:32:09 -0300
+Subject: [PATCH] net: airoha: bind PPE flows before GEM endpoint delivery
+
+The EcoNet RX path calls econet_xpon_receive_data() before the generation-1
+PPE bind callback. A running GEM endpoint consumes the skb and enters the
+network stack directly, so downstream flows installed by the LAN flowtable
+callback keep hash=ffff and never acquire a hardware FoE slot.
+
+Run the existing PPE RX callback on the original Ethernet frame before
+endpoint delivery. Preserve the earlier OAM diversion and the separate
+keepalive maintenance/disposal path.
+
+This fixes the observed state with armed=1, six software flows, an empty
+bind table and all flows at hash=ffff while the WAN uses pon2.10.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -488,15 +488,18 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
+ 		return;
+ 	}
+ 
+-	if (econet_xpon_receive_data(q->qdma->qdma->eth,
+-				     q->qdma->qdma->id, skb, &desc.msg))
+-		return;
+-
+ 	skb_set_hash(skb, jhash_1word(hash, 0),
+ 		     PKT_HASH_TYPE_L4);
+ 	airoha_ppe_dev_check_skb_reason(eth->ppe_dev, skb, hash, reason,
+ 					ingress_gem);
+ 
++	/* GEM endpoints consume the skb, so bind the original Ethernet tuple
++	 * before endpoint delivery changes skb->data and enters the stack.
++	 */
++	if (econet_xpon_receive_data(q->qdma->qdma->eth,
++				     q->qdma->qdma->id, skb, &desc.msg))
++		return;
++
+ 	if (airoha_is(q->qdma->qdma->eth, econet_en7528))
+ 		sport = FIELD_GET(EN7528_ERX_SPORT_MASK,
+ 				  desc.msg.erx.bitfield_0);
+

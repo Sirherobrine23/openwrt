@@ -1,0 +1,48 @@
+From d172f8cbc16b0f56a85dfacf5395fd7b3ddd4567 Mon Sep 17 00:00:00 2001
+From: AK Sharma <maskachoska@yahoo.com>
+Date: Sat, 24 Oct 2026 00:48:54 +0530
+Subject: [PATCH] net: airoha: run the AN7552 QDMA LMGR in DRAM mode
+
+The AN7552 datapath inherits the generic QDMA LMGR init, which sets
+LMGR_SRAM_MODE. On this SoC the stock firmware runs the local memory
+manager in DRAM mode; with SRAM mode set the QDMA consumes TX
+descriptors but never completes or transmits them, so every TX ring
+wedges and no frame reaches GDM1. RX is unaffected.
+
+Clear LMGR_SRAM_MODE for airoha_an7552 so the LMGR runs in DRAM mode,
+matching stock (LMGR_INIT_CFG 0x11804000 vs 0x51804000, bit 30).
+
+Tested on a Nokia AOT4221NK (AN7552) on top of airoha_en7552: without
+this, eth0 tx_packets stays 0 and host<->board ARP never completes;
+with it, ping completes with 0% loss including 1400-byte frames and the
+TX queues drain.
+
+Signed-off-by: AK Sharma <maskachoska@yahoo.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -3267,11 +3267,18 @@ static int airoha_qdma_modern_init_hfwd(struct airoha_qdma *qdma)
+ 				   buf_size != AIROHA_MAX_PACKET_SIZE));
+ 	airoha_qdma_rmw(qdma, REG_FWD_DSCP_LOW_THR, FWD_DSCP_LOW_THR_MASK,
+ 			FIELD_PREP(FWD_DSCP_LOW_THR_MASK, 128));
++	/* The AN7552 stock firmware runs the LMGR in DRAM mode
++	 * (LMGR_SRAM_MODE clear). With SRAM mode set the QDMA consumes TX
++	 * descriptors but never completes or transmits them: the TX rings
++	 * wedge and no frame reaches GDM1. Run it in DRAM mode on AN7552.
++	 */
+ 	airoha_qdma_rmw(qdma, REG_LMGR_INIT_CFG,
+ 			LMGR_INIT_START | LMGR_SRAM_MODE_MASK |
+ 			HW_FWD_DESC_NUM_MASK,
+ 			FIELD_PREP(HW_FWD_DESC_NUM_MASK, num_desc) |
+-			LMGR_INIT_START | LMGR_SRAM_MODE_MASK);
++			LMGR_INIT_START |
++			(airoha_is(qdma->eth, airoha_an7552) ? 0 :
++			 LMGR_SRAM_MODE_MASK));
+ 
+ 	return read_poll_timeout(airoha_qdma_rr, status,
+ 				 !(status & LMGR_INIT_START), USEC_PER_MSEC,
+

@@ -1,0 +1,208 @@
+From 1fe91148be29aac35b545224f263a5c52aaed47d Mon Sep 17 00:00:00 2001
+From: idiazraz <muhammadrazman@gmail.com>
+Date: Mon, 2 Nov 2026 11:27:51 +0800
+Subject: [PATCH] xpon: export GPON line-quality counters
+
+Enable the EN7523 PHY error counters at configure time and turn on BIP
+accounting there, as the stock phy.ko does (phy_cnt_enable(),
+phy_bip_counter()). Add a reader for the latched FEC and frame/LOF
+counters (stock phy_rx_fec_counter()/show_phy_cnt()) and a gpon_counters
+sysfs file with those plus the MAC HEC/CRC/GEM debug counters, for line
+diagnostics.
+---
+ drivers/net/ethernet/airoha/airoha_xpon.c | 55 ++++++++++++++++++++++++++++++-
+ drivers/phy/airoha/xpon/core.c            | 42 +++++++++++++++++++++++
+ drivers/phy/airoha/xpon/en7523.c          | 10 +++++-
+ drivers/phy/airoha/xpon/xpon.h            | 10 ++++++
+ include/linux/phy/phy-airoha-xpon.h       | 14 ++++++++
+ 5 files changed, 129 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -1963,7 +1963,60 @@ static ssize_t gpon_bip_show(struct device *dev, struct device_attribute *attr,
+ }
+ static DEVICE_ATTR_RO(gpon_bip);
+ 
+-static struct attribute *gpon_bip_attrs[] = { &dev_attr_gpon_bip.attr, NULL };
++/*
++ * Line-quality counters for diagnostics, one "name=value" per line.  The
++ * MAC values are the raw GPON_DBG registers; the PHY ones are the latched
++ * cumulative FEC/frame/LOF counters and are left out while the PHY is not
++ * in GPON mode.
++ */
++static ssize_t gpon_counters_show(struct device *dev,
++				  struct device_attribute *attr, char *buf)
++{
++	struct xpon_priv *priv = dev_get_drvdata(dev);
++	struct airoha_xpon_phy_gpon_rx_counters c;
++	unsigned long flags;
++	ssize_t len;
++	u64 bip;
++
++	if (!priv)
++		return -ENODEV;
++
++	spin_lock_irqsave(&priv->bip_lock, flags);
++	bip = priv->bip_total;
++	spin_unlock_irqrestore(&priv->bip_lock, flags);
++
++	len = sysfs_emit(buf,
++			 "hec_corrected_1bit=%u\nhec_corrected_2bit=%u\nhec_uncorrectable=%u\n"
++			 "rx_crc_errors=%u\nrx_gem=%u\nrx_gtc=%u\ntx_gem=%u\ntx_bursts=%u\n"
++			 "bip_errors=%llu\n",
++			 gpon_read(priv, GPON_DBG_GEM_HEC_ONE_ERR_CNT),
++			 gpon_read(priv, GPON_DBG_GEM_HEC_TWO_ERR_CNT),
++			 gpon_read(priv, GPON_DBG_GEM_HEC_UC_ERR_CNT),
++			 gpon_read(priv, GPON_DBG_RX_CRC_ERR_CNT),
++			 gpon_read(priv, GPON_DBG_RX_GEM_CNT),
++			 gpon_read(priv, GPON_DBG_RX_GTC_CNT),
++			 gpon_read(priv, GPON_DBG_TX_GEM_CNT),
++			 gpon_read(priv, GPON_DBG_TX_BST_CNT),
++			 bip);
++
++	if (airoha_xpon_phy_get_gpon_rx_counters(priv->phy, &c))
++		return len;
++
++	return len + sysfs_emit_at(buf, len,
++			"fec_corrected_bytes=%u\nfec_corrected_codewords=%u\n"
++			"fec_uncorrectable_codewords=%u\nfec_codewords=%u\n"
++			"fec_seconds=%u\nrx_frames=%llu\nlof=%u\n",
++			c.fec_corrected_bytes, c.fec_corrected_codewords,
++			c.fec_uncorrectable_codewords, c.fec_codewords,
++			c.fec_seconds, c.frames, c.lof);
++}
++static DEVICE_ATTR_RO(gpon_counters);
++
++static struct attribute *gpon_bip_attrs[] = {
++	&dev_attr_gpon_bip.attr,
++	&dev_attr_gpon_counters.attr,
++	NULL
++};
+ 
+ static const struct attribute_group gpon_bip_group = {
+ 	.attrs = gpon_bip_attrs,
+diff --git a/drivers/phy/airoha/xpon/core.c b/drivers/phy/airoha/xpon/core.c
+--- a/drivers/phy/airoha/xpon/core.c
++++ b/drivers/phy/airoha/xpon/core.c
+@@ -227,6 +227,48 @@ int airoha_xpon_phy_take_gpon_bip(struct phy *phy, u32 *count)
+ }
+ EXPORT_SYMBOL_GPL(airoha_xpon_phy_take_gpon_bip);
+ 
++/*
++ * Latch and read the cumulative FEC and frame/LOF counters, as the vendor
++ * phy_rx_fec_counter() and show_phy_cnt() do.  The latch is a command
++ * register write; nothing is cleared here.
++ */
++int airoha_xpon_phy_get_gpon_rx_counters(
++	struct phy *phy, struct airoha_xpon_phy_gpon_rx_counters *c)
++{
++	struct airoha_xpon_phy *priv;
++	unsigned long flags;
++	u32 high;
++	int ret;
++
++	if (!c)
++		return -EINVAL;
++
++	ret = airoha_xpon_phy_get_active_gpon(phy, &priv);
++	if (ret)
++		return ret;
++
++	spin_lock_irqsave(&priv->counter_lock, flags);
++	airoha_xpon_phy_write(priv, XPON_RX_COUNTER_CTRL, XPON_RX_FEC_LATCH);
++	c->fec_corrected_bytes =
++		airoha_xpon_phy_read(priv, XPON_RX_FEC_CORRECTED_BYTES);
++	c->fec_corrected_codewords =
++		airoha_xpon_phy_read(priv, XPON_RX_FEC_CORRECTED_CW);
++	c->fec_uncorrectable_codewords =
++		airoha_xpon_phy_read(priv, XPON_RX_FEC_UNCORRECTABLE_CW);
++	c->fec_codewords = airoha_xpon_phy_read(priv, XPON_RX_FEC_TOTAL_CW);
++	c->fec_seconds = airoha_xpon_phy_read(priv, XPON_RX_FEC_SECONDS);
++
++	airoha_xpon_phy_write(priv, XPON_RX_COUNTER_CTRL, XPON_RX_FRAME_LATCH);
++	high = airoha_xpon_phy_read(priv, XPON_RX_FRAME_COUNT_HIGH);
++	c->frames = (u64)high << 32 |
++		    airoha_xpon_phy_read(priv, XPON_RX_FRAME_COUNT_LOW);
++	c->lof = airoha_xpon_phy_read(priv, XPON_RX_LOF_COUNTER);
++	spin_unlock_irqrestore(&priv->counter_lock, flags);
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(airoha_xpon_phy_get_gpon_rx_counters);
++
+ int airoha_xpon_phy_get_gpon_tx_counters(struct phy *phy,
+ 					 u32 *frame_count,
+ 					 u32 *burst_count)
+diff --git a/drivers/phy/airoha/xpon/en7523.c b/drivers/phy/airoha/xpon/en7523.c
+--- a/drivers/phy/airoha/xpon/en7523.c
++++ b/drivers/phy/airoha/xpon/en7523.c
+@@ -111,7 +111,13 @@ static int airoha_en7523_xpon_phy_configure(struct airoha_xpon_phy *priv)
+ 		return dev_err_probe(priv->dev, ret,
+ 				     "failed to enable xPON I/O mux\n");
+ 
+-	return airoha_xpon_phy_configure_integrated_pma(priv);
++	ret = airoha_xpon_phy_configure_integrated_pma(priv);
++	if (ret)
++		return ret;
++
++	/* The stock EN7523 phy.ko enables the BIP/FEC/LOF counters too. */
++	econet_xpon_phy_counter_init(priv);
++	return 0;
+ }
+ 
+ static void en7523_xpon_phy_complete_ready(struct airoha_xpon_phy *priv)
+@@ -125,6 +131,8 @@ static void en7523_xpon_phy_complete_ready(struct airoha_xpon_phy *priv)
+ 
+ static const struct airoha_xpon_phy_soc_data airoha_en7523_xpon_phy_data = {
+ 	.name = "EN7523",
++	/* Same latch/read/clear sequence in the stock phy_bip_counter(). */
++	.has_gpon_bip = true,
+ 	.min_size = 0x480c,
+ 	.gpon_bit_delay_reg = XPON_GPON_TX_BIT_DELAY,
+ 	.gpon_bit_delay_mask = XPON_GPON_TX_BIT_DELAY_MASK,
+diff --git a/drivers/phy/airoha/xpon/xpon.h b/drivers/phy/airoha/xpon/xpon.h
+--- a/drivers/phy/airoha/xpon/xpon.h
++++ b/drivers/phy/airoha/xpon/xpon.h
+@@ -43,6 +43,16 @@ struct reset_control;
+ #define XPON_RX_BIP_COUNTER			0x024c
+ #define XPON_RX_BIP_LATCH			BIT(2)
+ #define XPON_RX_BIP_CLEAR			BIT(3)
++#define XPON_RX_FEC_LATCH		BIT(0)
++#define XPON_RX_FRAME_LATCH		BIT(4)
++#define XPON_RX_FEC_CORRECTED_BYTES	0x0238
++#define XPON_RX_FEC_CORRECTED_CW	0x023c
++#define XPON_RX_FEC_UNCORRECTABLE_CW	0x0240
++#define XPON_RX_FEC_TOTAL_CW		0x0244
++#define XPON_RX_FEC_SECONDS		0x0248
++#define XPON_RX_FRAME_COUNT_LOW		0x0250
++#define XPON_RX_FRAME_COUNT_HIGH	0x0254
++#define XPON_RX_LOF_COUNTER		0x0258
+ #define XPON_RX_COUNTER_CTRL2			0x0298
+ #define XPON_GPON_PREAMBLE			0x0400
+ #define XPON_GPON_DELIMITER_GUARD		0x0404
+diff --git a/include/linux/phy/phy-airoha-xpon.h b/include/linux/phy/phy-airoha-xpon.h
+--- a/include/linux/phy/phy-airoha-xpon.h
++++ b/include/linux/phy/phy-airoha-xpon.h
+@@ -49,6 +49,20 @@ int airoha_xpon_phy_get_gpon_tx_counters(struct phy *phy,
+ 					 u32 *burst_count);
+ int airoha_xpon_phy_get_gpon_fec_status(struct phy *phy,
+ 					bool *downstream, bool *upstream);
++
++/* Cumulative downstream counters, as the vendor show_phy_cnt() reads them. */
++struct airoha_xpon_phy_gpon_rx_counters {
++	u32 fec_corrected_bytes;
++	u32 fec_corrected_codewords;
++	u32 fec_uncorrectable_codewords;
++	u32 fec_codewords;
++	u32 fec_seconds;
++	u64 frames;
++	u32 lof;
++};
++
++int airoha_xpon_phy_get_gpon_rx_counters(
++	struct phy *phy, struct airoha_xpon_phy_gpon_rx_counters *c);
+ int airoha_xpon_phy_set_gpon_overhead(struct phy *phy, u8 guard_bits,
+ 				      u8 t1_pbits, u8 t2_pbits,
+ 				      u8 t3_pattern,
+

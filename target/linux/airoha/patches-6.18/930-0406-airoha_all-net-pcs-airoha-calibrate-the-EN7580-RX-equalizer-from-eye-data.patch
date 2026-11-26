@@ -1,0 +1,381 @@
+From 2ec9ec7189705aaeb291fee7b8b80f084d9936cb Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Tue, 13 Oct 2026 16:31:15 -0300
+Subject: [PATCH] net: pcs: airoha: calibrate the EN7580 RX equalizer from eye
+ data
+
+The recovered EN7580 startup tables omit XFI_EO_Scan(), which the XGZ030
+GPL executes between RX L2D transition and RX ready. The missing scan
+leaves receive equalization at its fixed preset even when another
+peaking value yields a larger eye opening.
+
+Port the normal eight-point LEQ peaking scan with gain fixed at 1, using
+the mode-specific setup, calibration strobes and measurement delays
+from en7580_xsi_pma.i. Split the existing start table before RX ready so
+all original operations retain their order around the new calibration.
+
+Only accept completed horizontal and vertical measurements. Preserve the
+first best setting on ties and restore the original gain and peaking if
+no completed measurement has a positive opening, including boot without
+a signal. Reproduce the vendor CDR tracking restart when HEO is not ready.
+Sleep during long measurement windows and propagate register access
+errors while the MAC gates and PCS reset remain held.
+
+The source is sdk/en7580/linux-4.4.115/en7580_xsi_pma.i in the
+XGZ030 v1 GPL.
+
+Validation: MIPS32 little-endian PCS object build, checkpatch, original
+sequence preservation, and native register-backend comparisons against
+the GPL C for all four modes with ties, incomplete/no-signal/zero-eye
+fallback and 1524 register-access fault cases. Hardware testing pending.
+---
+ .../device_drivers/ethernet/airoha/en7580-pcs.rst  |  42 ++++++-
+ drivers/net/pcs/airoha/pcs-en7580-seq.h            |  89 ++++++++++++-
+ drivers/net/pcs/airoha/pcs-en7580.c                | 137 +++++++++++++++++++++
+ 3 files changed, 264 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/networking/device_drivers/ethernet/airoha/en7580-pcs.rst b/Documentation/networking/device_drivers/ethernet/airoha/en7580-pcs.rst
+--- a/Documentation/networking/device_drivers/ethernet/airoha/en7580-pcs.rst
++++ b/Documentation/networking/device_drivers/ethernet/airoha/en7580-pcs.rst
+@@ -9,8 +9,8 @@ Quantum C6500XK vendor firmware's unstripped ``xsi_phy.ko``. It is separate
+ from the optical PON PHY and from the AN7581/AN7583 PCS implementations.
+ 
+ The provider supports out-of-band 10GBASE-R, 5GBASE-R, 2500BASE-X and
+-1000BASE-X. SGMII negotiation, USXGMII, interrupts and the vendor eye-scan/TDC
+-recovery paths are not implemented. In particular, 1000BASE-X must not be
++1000BASE-X. SGMII negotiation, USXGMII, interrupts and TDC recovery paths
++are not implemented. In particular, 1000BASE-X must not be
+ substituted for an AQR113C firmware profile that selects SGMII at 1 Gbit/s.
+ The AQR113C firmware upload remains the responsibility of its PHY driver.
+ 
+@@ -32,7 +32,8 @@ Recovery evidence
+ -----------------
+ 
+ The init table is the ``xsi_init(mode)`` path (235 operations). The start
+-and calibration table is ``xsi_plug_reset(1, mode)`` (174 operations).
++and ready tables contain the recovered ``xsi_plug_reset(1, mode)`` path
++(174 operations), split to insert the adaptive eye scan before RX ready.
+ Vendor modes 0, 1, 4 and 5 select 10G, 5G, 2.5G and 1G respectively.
+ There are 21 mode-dependent values across these 409 operations. The rest
+ share the same register, mask and value. Repeated writes are retained and
+@@ -53,6 +54,31 @@ The firmware boot log reports successful XFI initialization and later
+ ``LineRate 2500 PhyMode 4``. This demonstrates the vendor path, not the
+ operation of this new driver on hardware.
+ 
++Adaptive RX equalization
++------------------------
++
++The XGZ030 v1 GPL contains preprocessed C sources in
++``sdk/en7580/linux-4.4.115/en7580_xsi_pma.i``. Its
++``XFI_EO_Scan(mode, 0, 7, 0)`` path calibrates each of the eight LEQ peaking
++settings with gain fixed at 1 and retains the largest horizontal eye
++opening. The driver runs that scan between the start and ready tables,
++while the PCS reset and MAC traffic gates are still held.
++
++The eye setup, calibration strobes and measurement times follow the GPL:
++10 ms for 10G/5G, 110 ms for 2.5G and 55 ms for 1G per point, plus 1 ms
++for PI calibration. These waits sleep rather than busy-wait. The scan
++requires completed horizontal and vertical measurements before accepting
++a score and reproduces the CDR tracking restart when HEO is not ready.
++Equal scores keep the first best setting, as in the vendor scan.
++
++If no completed measurement has a positive opening, the initial gain and
++peaking are restored. This permits initial configuration without a signal,
++rather than selecting a setting from stale eye data. Register access
++errors abort configuration with traffic gated and PCS reset still held.
++The scan runs on initial configuration and interface changes, not on
++every link-status poll. Continuous tracking and interrupt recovery remain
++separate work.
++
+ Validation and testing
+ ----------------------
+ 
+@@ -60,6 +86,16 @@ All 409 register/mask/value and delay operations for each of the four
+ modes were compared against an independent Unicorn MIPS32 little-endian
+ emulation of the original ELF code. The traces matched exactly.
+ 
++The adaptive scan's register writes and delays were compared against the
++GPL C implementation with a simulated register backend in all four modes.
++The checks cover score ties, both eye-window directions, incomplete and
++absent measurements, zero openings and register access failures. The
++original 409 sequence operations remain unchanged.
++
++The PCS with adaptive equalization also compiled as a MIPS32 little-endian
++object with GCC 12.2.0 against Linux 6.18.55. This does not replace a full
++kernel build or hardware validation of the new scan.
++
+ The PCS object was compiled against this kernel with an x86_64 compile-test
+ configuration. The Ethernet object also compiled with its pre-existing
+ 64-bit format warning at the GPON OAM descriptor log demoted using
+diff --git a/drivers/net/pcs/airoha/pcs-en7580-seq.h b/drivers/net/pcs/airoha/pcs-en7580-seq.h
+--- a/drivers/net/pcs/airoha/pcs-en7580-seq.h
++++ b/drivers/net/pcs/airoha/pcs-en7580-seq.h
+@@ -1,5 +1,5 @@
+ /* SPDX-License-Identifier: GPL-2.0 */
+-/* EN7580 PMA sequences recovered from the C6500XK xsi_phy.ko.
++/* EN7580 PMA sequences from the C6500XK xsi_phy.ko and XGZ030 GPL.
+  * Preserve the order, masks and delays, including repeated writes.
+  * Mode columns: XFI 10G, XFI 5G, HSGMII 2.5G, HSGMII 1G.
+  */
+@@ -428,6 +428,9 @@ static const struct en7580_pcs_step en7580_pcs_start_seq[] = {
+ 	EN7580_SEQ(0x0630, 0x00010000, 0x00010000),
+ 	EN7580_SEQ(0xffff, 0x00000000, 0x000000c8),
+ 	EN7580_SEQ(0x0368, 0x01000000, 0x01000000),
++};
++
++static const struct en7580_pcs_step en7580_pcs_ready_seq[] = {
+ 	/* seq_XFI_RX_rxrdy */
+ 	EN7580_SEQ(0x0368, 0x01000000, 0x01000000),
+ 	EN7580_SEQ(0x0360, 0x01000000, 0x00000000),
+@@ -443,5 +446,89 @@ static const struct en7580_pcs_step en7580_pcs_start_seq[] = {
+ 	EN7580_SEQ(0x0758, 0x00000001, 0x00000000),
+ };
+ 
++/* XGZ030 GPL: eye_setting(), eye_Cal() and eye_EO(). */
++static const struct en7580_pcs_step en7580_pcs_eye_setup_seq[] = {
++	EN7580_MODE_SEQ(0x0030, 0x00006000, 0x00000000, 0x00002000, 0x00002000, 0x00006000),
++	EN7580_MODE_SEQ(0x0330, 0xff000000, 0xff000000, 0xff000000, 0xff000000, 0x22000000),
++	EN7580_MODE_SEQ(0x0300, 0x000007ff, 0x000001c0, 0x00000180, 0x00000140, 0x00000000),
++	EN7580_MODE_SEQ(0x0300, 0x07ff0000, 0x02400000, 0x02800000, 0x02c00000, 0x04000000),
++	EN7580_SEQ(0x0330, 0x000003ff, 0x000000f8),
++	EN7580_SEQ(0x0330, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x0338, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0304, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x0308, 0x000fffff, 0x0000fff8),
++	EN7580_SEQ(0x030c, 0x00000001, 0x00000000),
++	EN7580_SEQ(0x030c, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x030c, 0x00010000, 0x00010000),
++	EN7580_SEQ(0x0320, 0x000000ff, 0x00000004),
++	EN7580_SEQ(0x0320, 0x0000ff00, 0x00000400),
++	EN7580_SEQ(0x0324, 0x000007ff, 0x00000004),
++	EN7580_SEQ(0x0324, 0x00ff0000, 0x00040000),
++	EN7580_SEQ(0x0374, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x0374, 0x00000001, 0x00000000),
++	EN7580_SEQ(0x0374, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0378, 0x00000003, 0x00000001),
++	EN7580_SEQ(0x0374, 0x01000000, 0x00000000),
++	EN7580_SEQ(0x0370, 0x000000ff, 0x00000080),
++	EN7580_SEQ(0x0430, 0x00000700, 0x00000400),
++};
++
++static const struct en7580_pcs_step en7580_pcs_eye_cal_seq[] = {
++	EN7580_SEQ(0x0644, 0x01000000, 0x01000000),
++	EN7580_SEQ(0x0370, 0x000000ff, 0x00000080),
++	EN7580_SEQ(0x0430, 0x00000700, 0x00000400),
++	EN7580_SEQ(0x0494, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x0670, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0664, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0670, 0x00000001, 0x00000000),
++	EN7580_SEQ(0x0664, 0x00000001, 0x00000000),
++	EN7580_SEQ(0x0660, 0x01000000, 0x00000000),
++	EN7580_SEQ(0x0654, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x035c, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0364, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0494, 0x00010000, 0x00010000),
++	EN7580_SEQ(0x0664, 0x00000100, 0x00000100),
++	EN7580_SEQ(0x0664, 0x00000001, 0x00000001),
++	EN7580_SEQ(0x0654, 0x00000100, 0x00000100),
++	EN7580_SEQ(0xffff, 0x00000000, 0x000003e8),
++	EN7580_SEQ(0x0654, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0658, 0x00000001, 0x00000000),
++	EN7580_SEQ(0x0648, 0x00000001, 0x00000001),
++};
++
++static const struct en7580_pcs_step en7580_pcs_eye_measure_seq[] = {
++	EN7580_SEQ(0x0330, 0x000003ff, 0x0000000a),
++	EN7580_MODE_SEQ(0x0308, 0x000fffff, 0x0000044c, 0x0000044c, 0x00000898, 0x0000044c),
++	EN7580_SEQ(0x0678, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x066c, 0x00000100, 0x00000100),
++	EN7580_SEQ(0x066c, 0x00000100, 0x00000000),
++	EN7580_SEQ(0x0678, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x066c, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x066c, 0x00010000, 0x00010000),
++	EN7580_MODE_SEQ(0xffff, 0x00000000, 0x00002710, 0x00002710, 0x0001adb0, 0x0000d6d8),
++	EN7580_SEQ(0x0644, 0x00000100, 0x00000100),
++	EN7580_SEQ(0x0644, 0x01000000, 0x01000000),
++	EN7580_SEQ(0x0334, 0x00000100, 0x00000100),
++	EN7580_SEQ(0x0674, 0x01000000, 0x01000000),
++	EN7580_SEQ(0x0334, 0x00000001, 0x00000001),
++};
++
++static const struct en7580_pcs_step en7580_pcs_eye_stop_seq[] = {
++	EN7580_SEQ(0x066c, 0x00000100, 0x00000100),
++	EN7580_SEQ(0x0678, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x066c, 0x00010000, 0x00000000),
++	EN7580_SEQ(0x0658, 0x00000001, 0x00000000),
++	EN7580_SEQ(0x0648, 0x00000001, 0x00000000),
++};
++
++/* readout_EO(): restart CDR tracking when HEO is not ready. */
++static const struct en7580_pcs_step en7580_pcs_eye_cdr_seq[] = {
++	EN7580_SEQ(0x063c, 0x01000000, 0x00000000),
++	EN7580_SEQ(0x0630, 0x01000000, 0x00000000),
++	EN7580_SEQ(0xffff, 0x00000000, 0x000001f4),
++	EN7580_SEQ(0x0630, 0x01000000, 0x01000000),
++	EN7580_SEQ(0xffff, 0x00000000, 0x000001f4),
++};
++
+ #undef EN7580_SEQ
+ #undef EN7580_MODE_SEQ
+diff --git a/drivers/net/pcs/airoha/pcs-en7580.c b/drivers/net/pcs/airoha/pcs-en7580.c
+--- a/drivers/net/pcs/airoha/pcs-en7580.c
++++ b/drivers/net/pcs/airoha/pcs-en7580.c
+@@ -40,6 +40,23 @@
+ #define EN7580_SEQ_DELAY			0xffff
+ #define EN7580_SEQ_SCU			BIT(15)
+ 
++#define EN7580_PMA_RX_EQ			0x630
++#define EN7580_RX_EQ_GAIN			GENMASK(1, 0)
++#define EN7580_RX_EQ_PEAKING		GENMASK(10, 8)
++#define EN7580_PMA_RX_EQ_CTRL		0x63c
++#define EN7580_RX_EQ_GAIN_AUTO		BIT(0)
++#define EN7580_RX_EQ_PEAKING_AUTO		BIT(8)
++#define EN7580_PMA_EYE_LATCH		0x49c
++#define EN7580_EYE_LATCH			BIT(24)
++#define EN7580_PMA_EYE_DONE		0x548
++#define EN7580_EYE_DONE			(BIT(16) | BIT(24))
++#define EN7580_PMA_EYE_READY		0x538
++#define EN7580_EYE_HREADY			BIT(16)
++#define EN7580_EYE_VREADY			BIT(24)
++#define EN7580_PMA_EYE_WINDOW		0x54c
++#define EN7580_EYE_LEFT			GENMASK(26, 16)
++#define EN7580_EYE_RIGHT			GENMASK(10, 0)
++
+ struct en7580_pcs_step {
+ 	u16 reg;
+ 	u32 mask;
+@@ -135,6 +152,118 @@ static int en7580_pcs_digital_reset(struct en7580_pcs *priv, int mode,
+ 	return regmap_write_bits(priv->digital, ctrl, second, release ? second : 0);
+ }
+ 
++static int en7580_pcs_eye_score(struct en7580_pcs *priv, unsigned int *score)
++{
++	u32 done, ready, window;
++	int ret;
++
++	*score = 0;
++	ret = regmap_write_bits(priv->pma, EN7580_PMA_EYE_LATCH,
++				EN7580_EYE_LATCH, 0);
++	if (ret)
++		return ret;
++	ret = regmap_write_bits(priv->pma, EN7580_PMA_EYE_LATCH,
++				EN7580_EYE_LATCH, EN7580_EYE_LATCH);
++	if (ret)
++		return ret;
++	ret = regmap_read(priv->pma, EN7580_PMA_EYE_DONE, &done);
++	if (ret)
++		return ret;
++	ret = regmap_read(priv->pma, EN7580_PMA_EYE_READY, &ready);
++	if (ret)
++		return ret;
++
++	/* readout_EO() restarts CDR tracking when the horizontal eye is not ready. */
++	if (!(ready & EN7580_EYE_HREADY))
++		return en7580_pcs_sequence(priv, en7580_pcs_eye_cdr_seq,
++					   ARRAY_SIZE(en7580_pcs_eye_cdr_seq), 0);
++
++	/* Do not select an equalizer setting from stale or incomplete results. */
++	if ((done & EN7580_EYE_DONE) != EN7580_EYE_DONE ||
++	    !(ready & EN7580_EYE_VREADY))
++		return 0;
++
++	ret = regmap_read(priv->pma, EN7580_PMA_EYE_WINDOW, &window);
++	if (ret)
++		return ret;
++	*score = abs((int)FIELD_GET(EN7580_EYE_RIGHT, window) -
++		     (int)FIELD_GET(EN7580_EYE_LEFT, window));
++	return 0;
++}
++
++static int en7580_pcs_eye_scan(struct en7580_pcs *priv, unsigned int mode)
++{
++	u32 original, best = 0, score, peaking;
++	u32 best_score = 0;
++	int ret, err;
++
++	ret = regmap_read(priv->pma, EN7580_PMA_RX_EQ, &original);
++	if (ret)
++		return ret;
++	ret = en7580_pcs_sequence(priv, en7580_pcs_eye_setup_seq,
++				  ARRAY_SIZE(en7580_pcs_eye_setup_seq), mode);
++	if (ret)
++		return ret;
++	ret = regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ_CTRL,
++				EN7580_RX_EQ_GAIN_AUTO, 0);
++	if (ret)
++		return ret;
++	ret = regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ,
++				EN7580_RX_EQ_GAIN, FIELD_PREP(EN7580_RX_EQ_GAIN, 1));
++	if (ret)
++		return ret;
++
++	/* XFI_EO_Scan(): sweep peaking 0..7 with LEQ gain fixed at 1. */
++	for (peaking = 0; peaking <= FIELD_MAX(EN7580_RX_EQ_PEAKING); peaking++) {
++		ret = regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ_CTRL,
++					EN7580_RX_EQ_PEAKING_AUTO, 0);
++		if (ret)
++			return ret;
++		ret = regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ,
++					EN7580_RX_EQ_PEAKING,
++					FIELD_PREP(EN7580_RX_EQ_PEAKING, peaking));
++		if (ret)
++			return ret;
++		ret = en7580_pcs_sequence(priv, en7580_pcs_eye_cal_seq,
++					  ARRAY_SIZE(en7580_pcs_eye_cal_seq), mode);
++		if (ret)
++			return ret;
++		ret = en7580_pcs_sequence(priv, en7580_pcs_eye_measure_seq,
++					  ARRAY_SIZE(en7580_pcs_eye_measure_seq), mode);
++		if (!ret)
++			ret = en7580_pcs_eye_score(priv, &score);
++		/* Stop measurement even if a status read failed. */
++		err = en7580_pcs_sequence(priv, en7580_pcs_eye_stop_seq,
++					  ARRAY_SIZE(en7580_pcs_eye_stop_seq), mode);
++		if (ret || err)
++			return ret ?: err;
++		if (score > best_score) {
++			best_score = score;
++			best = peaking;
++		}
++	}
++
++	ret = regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ_CTRL,
++				EN7580_RX_EQ_GAIN_AUTO, 0);
++	if (ret)
++		return ret;
++	ret = regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ_CTRL,
++				EN7580_RX_EQ_PEAKING_AUTO, 0);
++	if (ret)
++		return ret;
++	/* A disconnected lane need not produce a usable eye during initial setup. */
++	if (!best_score)
++		return regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ,
++					 EN7580_RX_EQ_GAIN | EN7580_RX_EQ_PEAKING,
++					 original);
++
++	dev_dbg(priv->dev, "RX eye peaking %u, horizontal opening %u\n",
++		best, best_score);
++	return regmap_write_bits(priv->pma, EN7580_PMA_RX_EQ,
++				 EN7580_RX_EQ_PEAKING,
++				 FIELD_PREP(EN7580_RX_EQ_PEAKING, best));
++}
++
+ static unsigned int en7580_pcs_inband_caps(struct phylink_pcs *pcs,
+ 					 phy_interface_t interface)
+ {
+@@ -191,6 +320,14 @@ static int en7580_pcs_config_locked(struct phylink_pcs *pcs,
+ 	if (ret)
+ 		return ret;
+ 
++	ret = en7580_pcs_eye_scan(priv, mode);
++	if (ret)
++		return ret;
++	ret = en7580_pcs_sequence(priv, en7580_pcs_ready_seq,
++				  ARRAY_SIZE(en7580_pcs_ready_seq), mode);
++	if (ret)
++		return ret;
++
+ 	ret = en7580_pcs_digital_reset(priv, mode, true);
+ 	if (ret)
+ 		return ret;
+

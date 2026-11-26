@@ -1,0 +1,74 @@
+From 42f0da6cdc4d8e672bda78cdf65541636565a3c1 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Tue, 27 Oct 2026 08:36:10 -0300
+Subject: [PATCH] pinctrl: airoha: enable pcie mux en7523
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm/boot/dts/airoha/en7523.dtsi    |  8 ++++++++
+ drivers/pinctrl/airoha/pinctrl-en7523.c | 13 +++++++++++++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
+--- a/arch/arm/boot/dts/airoha/en7523.dtsi
++++ b/arch/arm/boot/dts/airoha/en7523.dtsi
+@@ -283,6 +283,10 @@ pinctrl: pinctrl {
+ 			gpio-ranges = <&pinctrl 0 12 28>;
+ 
+ 			pcie0_rst_pins: pcie0-rst-pins {
++				mux {
++					function = "pcie_reset";
++					groups = "pcie_reset0";
++				};
+ 				conf {
+ 					pins = "pcie_reset0";
+ 					drive-open-drain = <1>;
+@@ -290,6 +294,10 @@ conf {
+ 			};
+ 
+ 			pcie1_rst_pins: pcie1-rst-pins {
++				mux {
++					function = "pcie_reset";
++					groups = "pcie_reset1";
++				};
+ 				conf {
+ 					pins = "pcie_reset1";
+ 					drive-open-drain = <1>;
+diff --git a/drivers/pinctrl/airoha/pinctrl-en7523.c b/drivers/pinctrl/airoha/pinctrl-en7523.c
+--- a/drivers/pinctrl/airoha/pinctrl-en7523.c
++++ b/drivers/pinctrl/airoha/pinctrl-en7523.c
+@@ -125,6 +125,10 @@
+ #define REG_GPIO_L_PU				0x004c
+ #define REG_GPIO_L_PD				0x0050
+ 
++#define REG_PCIE_RESET_OD			0x018c
++#define PCIE1_RESET_OD_MASK			BIT(1)
++#define PCIE0_RESET_OD_MASK			BIT(0)
++
+ /* PWM MODE CONF */
+ #define REG_GPIO_FLASH_MODE_CFG			0x0034
+ #define GPIO15_FLASH_MODE_CFG			BIT(15)
+@@ -1102,6 +1106,11 @@ static const struct airoha_pinctrl_conf pinctrl_drive_e4_conf[] = {
+ 	PINCTRL_CONF_DESC(41, REG_I2C_SDA_E4, PCIE1_RESET_E4_MASK),
+ };
+ 
++static const struct airoha_pinctrl_conf pinctrl_pcie_rst_od_conf[] = {
++	PINCTRL_CONF_DESC(40, REG_PCIE_RESET_OD, PCIE0_RESET_OD_MASK),
++	PINCTRL_CONF_DESC(41, REG_PCIE_RESET_OD, PCIE1_RESET_OD_MASK),
++};
++
+ static const struct airoha_pinctrl_hwinit_regs hwinit_regs[] = {
+ 	{ REG_GPIO_2ND_I2C_MODE, 0 },
+ 	{ REG_GPIO_SPI_CS1_MODE, 0 },
+@@ -1141,6 +1150,10 @@ static const struct airoha_pinctrl_match_data pinctrl_match_data = {
+ 			.confs = pinctrl_drive_e4_conf,
+ 			.num_confs = ARRAY_SIZE(pinctrl_drive_e4_conf),
+ 		},
++		[AIROHA_PINCTRL_CONFS_PCIE_RST_OD] = {
++			.confs = pinctrl_pcie_rst_od_conf,
++			.num_confs = ARRAY_SIZE(pinctrl_pcie_rst_od_conf),
++		},
+ 	},
+ };
+ 
+

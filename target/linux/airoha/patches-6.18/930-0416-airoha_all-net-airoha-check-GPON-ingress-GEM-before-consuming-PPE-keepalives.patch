@@ -1,0 +1,363 @@
+From dc72d34a21055d10b51a5133c3fe887230ef80da Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 21 Oct 2026 00:31:25 -0300
+Subject: [PATCH] net: airoha: check GPON ingress GEM before consuming PPE
+ keepalives
+
+The vendor PpeRxHandler() does more than recognize duplicate old-header
+keepalives. With check_gemport enabled, it compares the incoming GPON GEM
+with the GEM saved when the flow was bound and invalidates a changed FoE
+entry through PpeGemportCheck(). Dropping the copy before this maintenance
+would lose that behavior.
+
+Pass optional ingress GEM metadata through check_skb_reason(), record it
+when a v1 flow acquires its FoE slot, and process EN751221 duplicate
+keepalives before freeing them. Only managed EN751221 GPON traffic from
+GDM2 on the WAN QDMA supplies a GEM; LAN, xDSL, EPON and other SoCs use an
+explicit sentinel, so GEM zero remains valid.
+
+Validate the slot's software owner, BIND state and original five-tuple
+before invalidating it on a GEM change. Include the L4 protocol in the
+v1 tuple match so a TCP flow cannot match an otherwise identical UDP
+keepalive. Release ownership and clear the PPE cache, allowing a later
+unbound data packet to bind again on its new GEM.
+
+Keep the normal bind callback after xPON data handling. Only duplicate
+keepalive maintenance runs before endpoint delivery and the RX drop.
+Retain hardware timestamp based flow activity and the existing keepalive
+configuration. The vendor's L2 aging and asymmetric QoS hooks have no
+counterpart in the current v1 backend and are not introduced here.
+
+Expose parsed keepalives and GEM-triggered invalidations in the v1 PPE
+registers debugfs file for hardware validation.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c         | 41 +++++++++++++---
+ drivers/net/ethernet/airoha/airoha_eth.h         |  4 ++
+ drivers/net/ethernet/airoha/airoha_ppe.c         | 60 ++++++++++++++++++++++--
+ drivers/net/ethernet/airoha/airoha_ppe_debugfs.c |  2 +
+ include/linux/soc/airoha/airoha_offload.h        | 12 +++--
+ 5 files changed, 105 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -67,6 +67,8 @@ static bool airoha_xpon_receive_data(struct airoha_gdm_dev *dev,
+ 				     u16 wire_id);
+ static bool econet_xpon_receive_data(struct airoha_eth *eth, u8 qdma_id,
+ 				     struct sk_buff *skb, union desc_msg *msg);
++static u16 econet_rx_ingress_gem(struct airoha_qdma *qdma,
++				 const union desc_msg *msg);
+ 
+ static void econet_prepare_qdma_cfg(struct airoha_qdma_mips_cfg *cfg,
+ 				    const struct airoha_eth_soc_data *soc,
+@@ -423,12 +425,14 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
+ 				     struct airoha_whnat_batch *batch)
+ {
+ 	struct econet_q_rx_ent *e = &q->entry[cpu_i];
++	struct airoha_eth *eth = q->qdma->qdma->eth;
+ 	int headroom = econet_rx_headroom(q->qdma);
+ 	struct sk_buff *skb;
+ 	struct page *page;
+ 	struct desc desc;
++	u16 ingress_gem;
+ 	u32 hash;
+-	u8 sport;
++	u8 sport, reason;
+ 	int len;
+ 
+ 	memcpy(&desc, &q->desc[cpu_i], sizeof(desc));
+@@ -469,12 +473,17 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
+ 					q->qdma->qdma->id, skb, &desc.msg))
+ 		return;
+ 
++	hash = get_erx_ppe_entry(&desc.msg.erx);
++	reason = get_erx_crsn(&desc.msg.erx);
++	ingress_gem = econet_rx_ingress_gem(q->qdma->qdma, &desc.msg);
+ 	/* The PPE has already forwarded the original packet. Do not route its
+ 	 * duplicate keepalive copy through the network stack a second time.
++	 * Process it first so the PPE can invalidate a changed ingress GEM.
+ 	 */
+-	if (airoha_is(q->qdma->qdma->eth, econet_en751221) &&
+-	    get_erx_crsn(&desc.msg.erx) ==
++	if (airoha_is(eth, econet_en751221) && reason ==
+ 	    AIROHA_PPE_CPU_REASON_KEEPALIVE_DUP_OLD_HDR) {
++		airoha_ppe_dev_check_skb_reason(eth->ppe_dev, skb, hash,
++						reason, ingress_gem);
+ 		dev_kfree_skb(skb);
+ 		return;
+ 	}
+@@ -483,11 +492,10 @@ static void econet_qdma_rx_process_one(struct econet_q_rx *q, u32 cpu_i,
+ 				     q->qdma->qdma->id, skb, &desc.msg))
+ 		return;
+ 
+-	hash = get_erx_ppe_entry(&desc.msg.erx);
+ 	skb_set_hash(skb, jhash_1word(hash, 0),
+ 		     PKT_HASH_TYPE_L4);
+-	airoha_ppe_dev_check_skb_reason(q->qdma->qdma->eth->ppe_dev, skb, hash,
+-					get_erx_crsn(&desc.msg.erx));
++	airoha_ppe_dev_check_skb_reason(eth->ppe_dev, skb, hash, reason,
++					ingress_gem);
+ 
+ 	if (airoha_is(q->qdma->qdma->eth, econet_en7528))
+ 		sport = FIELD_GET(EN7528_ERX_SPORT_MASK,
+@@ -5168,6 +5176,27 @@ static void airoha_retire_all(struct net_device *netdev)
+ 	WRITE_ONCE(dev->xpon_tx_stopped, false);
+ }
+ 
++static u16 econet_rx_ingress_gem(struct airoha_qdma *qdma,
++				 const union desc_msg *msg)
++{
++	struct airoha_eth *eth = qdma->eth;
++	struct airoha_gdm_dev *port;
++	u8 sport;
++
++	/* Word 0 is GPON metadata only on the managed EN751221 WAN path. */
++	if (!airoha_is(eth, econet_en751221) || qdma->id != 1)
++		return AIROHA_PPE_RX_GEM_NONE;
++	sport = FIELD_GET(ERX_SPORT_MASK, msg->erx.bitfield_0);
++	if (sport != ETX_FPORT_GDM2 && sport != ETX_FPORT_QDMA1_CPU)
++		return AIROHA_PPE_RX_GEM_NONE;
++	port = airoha_eth_get_gdm_dev(eth, AIROHA_GDM2_IDX);
++	if (!port || !(READ_ONCE(port->flags) & AIROHA_PRIV_F_XPON_MANAGED) ||
++	    READ_ONCE(port->xpon_mode) != AIROHA_XPON_MODE_GPON)
++		return AIROHA_PPE_RX_GEM_NONE;
++
++	return FIELD_GET(ERX_XPON_GEM_MASK, msg->raw[0]);
++}
++
+ static bool econet_xpon_receive_data(struct airoha_eth *eth, u8 qdma_id,
+ 				     struct sk_buff *skb, union desc_msg *msg)
+ {
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -807,6 +807,8 @@ struct airoha_flow_table_entry {
+ 	const void *v1_owner;
+ 	/* v1: never bind again (its WiFi vif went away). */
+ 	bool v1_dead;
++	/* v1: GPON ingress GEM recorded at bind, or AIROHA_PPE_RX_GEM_NONE. */
++	u16 v1_ingress_gem;
+ 	u16 addr_type;
+ 	u16 src_port;
+ 	u16 dest_port;
+@@ -1193,6 +1195,8 @@ struct airoha_ppe_v1 {
+ 	struct airoha_flow_table_entry **foe_owner;
+ 	bool armed;
+ 	u32 rx_multicast_skip;
++	u32 rx_keepalive;
++	u32 rx_gem_changed;
+ };
+ 
+ struct airoha_ppe {
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -2860,8 +2860,10 @@ static void airoha_ppe_v1_clear_owner(struct airoha_ppe *ppe, u16 hash)
+ 		return;
+ 
+ 	owner = ppe->v1.foe_owner[hash];
+-	if (owner && owner->hash == hash)
++	if (owner && owner->hash == hash) {
+ 		owner->hash = AIROHA_FOE_V1_INVALID_HASH;
++		owner->v1_ingress_gem = AIROHA_PPE_RX_GEM_NONE;
++	}
+ 	ppe->v1.foe_owner[hash] = NULL;
+ }
+ 
+@@ -2875,6 +2877,7 @@ static void airoha_ppe_v1_release_flow_slot(struct airoha_ppe *ppe,
+ 	    hash >= ppe->common.eth->soc->ppe_dram_entries ||
+ 	    ppe->v1.foe_owner[hash] != flow) {
+ 		flow->hash = AIROHA_FOE_V1_INVALID_HASH;
++		flow->v1_ingress_gem = AIROHA_PPE_RX_GEM_NONE;
+ 		return;
+ 	}
+ 
+@@ -2882,6 +2885,7 @@ static void airoha_ppe_v1_release_flow_slot(struct airoha_ppe *ppe,
+ 		airoha_ppe_v1_invalidate_entry(ppe, hash);
+ 	ppe->v1.foe_owner[hash] = NULL;
+ 	flow->hash = AIROHA_FOE_V1_INVALID_HASH;
++	flow->v1_ingress_gem = AIROHA_PPE_RX_GEM_NONE;
+ }
+ 
+ #if IS_ENABLED(CONFIG_NET_AIROHA_WHNAT)
+@@ -2974,6 +2978,7 @@ static u16 airoha_ppe_v1_find_bind_way(struct airoha_ppe *ppe,
+ 
+ struct airoha_foe_v1_tuple {
+ 	u16 addr_type;
++	u8 l4proto;
+ 	union {
+ 		struct {
+ 			u32 src;
+@@ -3047,6 +3052,7 @@ static bool airoha_foe_v1_parse_tuple(struct sk_buff *skb,
+ 
+ 		l4 = iph + ihl;
+ 		tuple->addr_type = FLOW_DISSECTOR_KEY_IPV4_ADDRS;
++		tuple->l4proto = iph[9];
+ 		tuple->v4.src = get_unaligned_be32(iph + offsetof(struct iphdr, saddr));
+ 		tuple->v4.dest = get_unaligned_be32(iph + offsetof(struct iphdr, daddr));
+ 		tuple->src_port = get_unaligned_be16(l4);
+@@ -3069,6 +3075,7 @@ static bool airoha_foe_v1_parse_tuple(struct sk_buff *skb,
+ 			return false;
+ 
+ 		tuple->addr_type = FLOW_DISSECTOR_KEY_IPV6_ADDRS;
++		tuple->l4proto = nexthdr;
+ 		memcpy(&tuple->v6.src,
+ 		       data + off + offsetof(struct ipv6hdr, saddr),
+ 		       sizeof(tuple->v6.src));
+@@ -3088,6 +3095,8 @@ airoha_foe_v1_flow_matches_tuple(const struct airoha_flow_table_entry *flow,
+ 			      const struct airoha_foe_v1_tuple *tuple)
+ {
+ 	if (flow->addr_type != tuple->addr_type ||
++	    !!(flow->data.ib1 & AIROHA_FOE_IB1_BIND_UDP) !=
++	    (tuple->l4proto == IPPROTO_UDP) ||
+ 	    flow->src_port != tuple->src_port ||
+ 	    flow->dest_port != tuple->dest_port)
+ 		return false;
+@@ -3103,8 +3112,44 @@ airoha_foe_v1_flow_matches_tuple(const struct airoha_flow_table_entry *flow,
+ 	return false;
+ }
+ 
++static void
++airoha_ppe_v1_rx_keepalive(struct airoha_ppe *ppe, struct sk_buff *skb,
++			   u16 hash, u16 ingress_gem)
++{
++	struct airoha_flow_table_entry *flow;
++	struct airoha_foe_v1_tuple tuple;
++	struct airoha_foe_entry raw;
++
++	if (!airoha_foe_v1_parse_tuple(skb, &tuple))
++		return;
++
++	spin_lock_bh(&ppe->v1.lock);
++	ppe->v1.rx_keepalive++;
++	flow = ppe->v1.foe_owner[hash];
++	if (!flow || flow->hash != hash || flow->v1_dead ||
++	    !airoha_foe_v1_flow_matches_tuple(flow, &tuple))
++		goto out;
++	airoha_ppe_v1_read_entry(ppe, hash, &raw);
++	if (airoha_ppe_v1_raw_state(&raw) != AIROHA_FOE_STATE_BIND)
++		goto out;
++
++	/* PpeGemportCheck() invalidates a bound downstream flow when its
++	 * ingress GEM changes. The slot may already have been reused, so
++	 * check its software owner and the original-header tuple first.
++	 */
++	if (ingress_gem != AIROHA_PPE_RX_GEM_NONE &&
++	    flow->v1_ingress_gem != AIROHA_PPE_RX_GEM_NONE &&
++	    flow->v1_ingress_gem != ingress_gem) {
++		airoha_ppe_v1_release_flow_slot(ppe, flow, true);
++		airoha_ppe_v1_cache_clean(ppe);
++		ppe->v1.rx_gem_changed++;
++	}
++out:
++	spin_unlock_bh(&ppe->v1.lock);
++}
++
+ static void airoha_ppe_v1_rx_check(struct airoha_ppe *ppe, struct sk_buff *skb,
+-				u16 hash, u8 reason)
++				u16 hash, u8 reason, u16 ingress_gem)
+ {
+ 	struct airoha_foe_v1_tuple tuple;
+ 	struct airoha_flow_table_entry *flow;
+@@ -3115,6 +3160,10 @@ static void airoha_ppe_v1_rx_check(struct airoha_ppe *ppe, struct sk_buff *skb,
+ 	if (!ppe || !READ_ONCE(ppe->v1.armed) ||
+ 	    hash >= ppe->common.eth->soc->ppe_dram_entries)
+ 		return;
++	if (reason == AIROHA_PPE_CPU_REASON_KEEPALIVE_DUP_OLD_HDR) {
++		airoha_ppe_v1_rx_keepalive(ppe, skb, hash, ingress_gem);
++		return;
++	}
+ 	if (reason != EN751221_PPE_CPU_REASON_NO_FLOW &&
+ 	    reason != AIROHA_PPE_CPU_REASON_HIT_UNBIND &&
+ 	    reason != AIROHA_PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
+@@ -3157,18 +3206,20 @@ static void airoha_ppe_v1_rx_check(struct airoha_ppe *ppe, struct sk_buff *skb,
+ 				       lookup_valid ? &lookup_raw : NULL);
+ 		ppe->v1.foe_owner[bind_hash] = flow;
+ 		flow->hash = bind_hash;
++		flow->v1_ingress_gem = ingress_gem;
+ 		break;
+ 	}
+ 	spin_unlock_bh(&ppe->v1.lock);
+ }
+ 
+ static void airoha_ppe_check_skb_reason(struct airoha_ppe_dev *ppe_dev,
+-				       struct sk_buff *skb, u16 hash, u8 reason)
++				       struct sk_buff *skb, u16 hash, u8 reason,
++				       u16 ingress_gem)
+ {
+ 	struct airoha_ppe *ppe = ppe_dev->priv;
+ 
+ 	if (ppe->common.eth->soc->foe_format == AIROHA_FOE_FORMAT_V1)
+-		airoha_ppe_v1_rx_check(ppe, skb, hash, reason);
++		airoha_ppe_v1_rx_check(ppe, skb, hash, reason, ingress_gem);
+ }
+ 
+ static void airoha_ppe_v1_flush(struct airoha_ppe *ppe)
+@@ -3769,6 +3820,7 @@ static int airoha_ppe_v1_flow_offload_replace(struct net_device *dev,
+ 	flow->dest_port = ntohs(dest_port);
+ 	flow->hash = AIROHA_FOE_V1_INVALID_HASH;
+ 	flow->v1_lastused = jiffies;
++	flow->v1_ingress_gem = AIROHA_PPE_RX_GEM_NONE;
+ 	flow->v1_owner = owner;
+ 	INIT_LIST_HEAD(&flow->v1_list);
+ 
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe_debugfs.c
+@@ -598,6 +598,8 @@ static int airoha_ppe_v1_debugfs_regs_show(struct seq_file *m, void *private)
+ 	seq_printf(m, "armed=%u\n", READ_ONCE(ppe->v1.armed));
+ 	seq_printf(m, "rx_multicast_skip=%u\n",
+ 		   READ_ONCE(ppe->v1.rx_multicast_skip));
++	seq_printf(m, "rx_keepalive=%u\n", READ_ONCE(ppe->v1.rx_keepalive));
++	seq_printf(m, "rx_gem_changed=%u\n", READ_ONCE(ppe->v1.rx_gem_changed));
+ 	seq_printf(m, "flows=%u\n", flows);
+ 	seq_printf(m, "foe_cpu=%px\n", ppe->common.foe);
+ 	seq_printf(m, "foe_dma=%pad\n", &ppe->common.foe_dma);
+diff --git a/include/linux/soc/airoha/airoha_offload.h b/include/linux/soc/airoha/airoha_offload.h
+--- a/include/linux/soc/airoha/airoha_offload.h
++++ b/include/linux/soc/airoha/airoha_offload.h
+@@ -20,6 +20,8 @@ enum {
+ 	PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED = 0x0f,
+ };
+ 
++#define AIROHA_PPE_RX_GEM_NONE 0xffff
++
+ struct airoha_ppe_dev {
+ 	struct {
+ 		int (*setup_tc_block_cb)(struct airoha_ppe_dev *dev,
+@@ -29,7 +31,7 @@ struct airoha_ppe_dev {
+ 				  bool rx_wlan);
+ 		void (*check_skb_reason)(struct airoha_ppe_dev *dev,
+ 					 struct sk_buff *skb, u16 hash,
+-					 u8 reason);
++					 u8 reason, u16 ingress_gem);
+ 		int (*setup_tc)(struct airoha_ppe_dev *dev,
+ 				struct net_device *netdev,
+ 				enum tc_setup_type type, void *type_data);
+@@ -59,10 +61,11 @@ static inline void airoha_ppe_dev_check_skb(struct airoha_ppe_dev *dev,
+ 
+ static inline void
+ airoha_ppe_dev_check_skb_reason(struct airoha_ppe_dev *dev,
+-				struct sk_buff *skb, u16 hash, u8 reason)
++				struct sk_buff *skb, u16 hash, u8 reason,
++				u16 ingress_gem)
+ {
+ 	if (dev && dev->ops.check_skb_reason)
+-		dev->ops.check_skb_reason(dev, skb, hash, reason);
++		dev->ops.check_skb_reason(dev, skb, hash, reason, ingress_gem);
+ }
+ 
+ static inline int airoha_ppe_dev_setup_tc(struct airoha_ppe_dev *dev,
+@@ -100,7 +103,8 @@ static inline void airoha_ppe_dev_check_skb(struct airoha_ppe_dev *dev,
+ 
+ static inline void
+ airoha_ppe_dev_check_skb_reason(struct airoha_ppe_dev *dev,
+-				struct sk_buff *skb, u16 hash, u8 reason)
++				struct sk_buff *skb, u16 hash, u8 reason,
++				u16 ingress_gem)
+ {
+ }
+ 
+

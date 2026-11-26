@@ -1,0 +1,90 @@
+From 88e1bddbd76a789392ad0f23089893b3967d569a Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 25 Oct 2026 23:41:38 -0300
+Subject: [PATCH] ARM: dts: airoha: wire AN7552 PCIe hosts to PHY and PBUS
+
+Add the PBUS syscon and per-port decoder offsets. Name the shared PHY
+references pcie-phy0/pcie-phy1 so the MediaTek driver actually acquires
+them, and select the reset pad mux as well as its open-drain setting.
+Remove the unused NPU references and the EN7523-only PHY SCU property.
+
+Retain the existing 32 MiB windows and disabled host status. Board DTS
+files enable their connected ports; the AN7552ST package must keep them
+disabled. AN7563 inherits these resources through an7552.dtsi.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm/boot/dts/airoha/an7552.dtsi | 22 +++++++++++++++++-----
+ 1 file changed, 17 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm/boot/dts/airoha/an7552.dtsi b/arch/arm/boot/dts/airoha/an7552.dtsi
+--- a/arch/arm/boot/dts/airoha/an7552.dtsi
++++ b/arch/arm/boot/dts/airoha/an7552.dtsi
+@@ -163,6 +163,10 @@ pinctrl: pinctrl {
+ 			#address-cells = <0>;
+ 
+ 			pcie0_rst_pins: pcie0-rst-pins {
++				mux {
++					function = "pcie_reset";
++					groups = "pcie_reset0";
++				};
+ 				conf {
+ 					pins = "pcie_reset0";
+ 					drive-open-drain = <1>;
+@@ -170,6 +174,10 @@ conf {
+ 			};
+ 
+ 			pcie1_rst_pins: pcie1-rst-pins {
++				mux {
++					function = "pcie_reset";
++					groups = "pcie_reset1";
++				};
+ 				conf {
+ 					pins = "pcie_reset1";
+ 					drive-open-drain = <1>;
+@@ -355,13 +363,17 @@ usb0_phy: phy@1fac0000 {
+ 		#phy-cells = <1>;
+ 	};
+ 
++	pbus_csr: syscon@1fbe3400 {
++		compatible = "airoha,an7552-pbus-csr", "syscon";
++		reg = <0x1fbe3400 0xfc>;
++	};
++
+ 	pciephy: phy@1fa93700 {
+ 		compatible = "airoha,an7552-pcie-phy";
+ 		reg = <0x1fa93700 0x568>,
+ 		      <0x1fa95700 0x568>;
+ 		reg-names = "pcie0", "pcie1";
+ 		#phy-cells = <0>;
+-		airoha,chip_scu = <&chip_scu>;
+ 	};
+ 
+ 	pcie0: pcie@1fa91000 {
+@@ -383,10 +395,10 @@ pcie0: pcie@1fa91000 {
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pcie0_rst_pins>;
+ 
+-		airoha,npu = <&npu>;
++		mediatek,pbus-csr = <&pbus_csr 0x0 0x4>;
+ 
+ 		phys = <&pciephy>;
+-		phy-names = "pcie-phy";
++		phy-names = "pcie-phy0";
+ 
+ 		#interrupt-cells = <1>;
+ 		interrupt-map-mask = <0 0 0 7>;
+@@ -420,10 +432,10 @@ pcie1: pcie@1fa92000 {
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pcie1_rst_pins>;
+ 
+-		airoha,npu = <&npu>;
++		mediatek,pbus-csr = <&pbus_csr 0x8 0xc>;
+ 
+ 		phys = <&pciephy>;
+-		phy-names = "pcie-phy";
++		phy-names = "pcie-phy1";
+ 
+ 		#interrupt-cells = <1>;
+ 		interrupt-map-mask = <0 0 0 7>;
+

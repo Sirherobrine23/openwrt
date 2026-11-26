@@ -1,0 +1,120 @@
+From 4e53ef17379beedb61a390680f3cda94e8840a10 Mon Sep 17 00:00:00 2001
+From: idiazraz <muhammadrazman@gmail.com>
+Date: Mon, 2 Nov 2026 11:27:50 +0800
+Subject: [PATCH] net: airoha: xpon: hold the GPON MAC until the identity is
+ applied
+
+A box with no serial in the device tree or NVMEM keeps its identity in
+userspace. Probe still started the MAC at about 7 s, with a random serial,
+and rpcd only applies the identity at about 33 s. Every boot showed the OLT
+2 to 4 unknown ONUs, each ended with Deactivate_ONU-ID, and repeated alarms
+can get a serial or PLOAM banned.
+
+Hold gpon_enable() while the serial is the generated one. restart_work ends
+the hold, so nothing new has to be cancelled and the MAC starts down the
+path every restart already takes:
+
+- The first apply that changes an identity key schedules it as before.
+  The MAC is off, so there is nothing to stop and no restart delay.
+- A box with no identity changes no such key, but rpcd's apply still
+  changes "permissive" from the kernel default, so that schedules it too.
+- Otherwise the hold timeout fires it and the MAC starts on the random
+  serial, as it did before.
+
+TX_DISABLE is asserted from PHY probe until gpon_enable() releases it, so a
+held box is dark. A serial from the device tree, NVMEM or the MAC is not
+held. An SFP link-up must not end the hold early.
+---
+ drivers/net/ethernet/airoha/airoha_xpon.c | 32 +++++++++++++++++++++++++++++++
+ drivers/net/ethernet/airoha/airoha_xpon.h |  8 ++++++++
+ 2 files changed, 40 insertions(+)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -1056,6 +1056,7 @@ static int gpon_load_credentials(struct xpon_priv *priv)
+ 
+ 	if (!(identity->valid & OMCI_IDENTITY_F_SERIAL_NUMBER)) {
+ 		gpon_random_serial_number(airoha_default_vendor_id, identity);
++		priv->identity_hold = true;
+ 		dev_warn(
+ 			priv->dev,
+ 			"GPON serial number missing; generated random development serial %8phN\n",
+@@ -2199,6 +2200,15 @@ void airoha_gpon_omci_hw_config_changed(void *hw_priv, u16 key,
+ 		dev_dbg(priv->dev,
+ 			"OMCI configuration changed (key %u), GPON restart not required\n",
+ 			key);
++		/*
++		 * A box with no identity changes nothing that needs a restart,
++		 * but rpcd's first apply still lands here: the default
++		 * permissive option differs from the kernel's. If it didn't,
++		 * the hold would just run to its timeout.
++		 */
++		if (READ_ONCE(priv->identity_hold))
++			mod_delayed_work(priv->fsm_wq, &priv->restart_work,
++					 msecs_to_jiffies(GPON_CONFIG_RESTART_DEBOUNCE_MS));
+ 		return;
+ 	}
+ 
+@@ -2812,6 +2822,23 @@ static int gpon_enable(struct xpon_priv *priv)
+ 	if (!READ_ONCE(priv->started) || !READ_ONCE(priv->optical_active))
+ 		return -ENETDOWN;
+ 
++	/*
++	 * The real identity is in userspace, which can't apply it for another
++	 * 26 s. Ranging before then shows the OLT a random serial, it answers
++	 * with Deactivate_ONU-ID, and repeated alarms can get a line banned.
++	 * TX_DISABLE stays asserted from PHY probe, so a held box is dark.
++	 * restart_work ends the hold on the first apply, or on this timeout so
++	 * that a box with no identity still comes up.
++	 */
++	if (READ_ONCE(priv->identity_hold)) {
++		dev_info(priv->dev,
++			 "GPON MAC held for the identity, up to %u ms\n",
++			 GPON_IDENTITY_HOLD_MS);
++		queue_delayed_work(priv->fsm_wq, &priv->restart_work,
++				   msecs_to_jiffies(GPON_IDENTITY_HOLD_MS));
++		return 0;
++	}
++
+ 	dev_info(priv->dev, "starting GPON MAC from state %s\n",
+ 		 gpon_state_name(ploam_get_state(priv->ploam)));
+ 
+@@ -3352,6 +3379,11 @@ static void gpon_restart_work_fn(struct work_struct *work)
+ 	int ret;
+ 
+ 	config_restart = gpon_take_pending_identity(priv, &identity, &key);
++	if (READ_ONCE(priv->identity_hold)) {
++		WRITE_ONCE(priv->identity_hold, false);
++		dev_info(priv->dev, "GPON MAC hold released (%s)\n",
++			 config_restart ? "new identity" : "no new identity");
++	}
+ 	if (!READ_ONCE(priv->started) || !READ_ONCE(priv->optical_active)) {
+ 		if (config_restart)
+ 			gpon_apply_runtime_identity(priv, &identity);
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
+--- a/drivers/net/ethernet/airoha/airoha_xpon.h
++++ b/drivers/net/ethernet/airoha/airoha_xpon.h
+@@ -482,6 +482,12 @@ airoha_xgspon_fifo_decode(u8 body[XGSPON_PLOAM_BODY_LEN],
+ #define GPON_DEACTIVATE_RESTART_MS	500
+ /* Coalesce a net/omci apply batch into one complete MAC/PHY restart. */
+ #define GPON_CONFIG_RESTART_DEBOUNCE_MS	250
++/*
++ * Longest the MAC waits for userspace to apply an identity. rpcd does so
++ * 26-29 s after the hold starts. Past this the MAC starts on the random
++ * serial, which is what it always did before the hold.
++ */
++#define GPON_IDENTITY_HOLD_MS		60000
+ #define XPON_LINK_POLL_MS		250
+ #define GPON_REARM_RETRY_MS		1000
+ 
+@@ -581,6 +587,8 @@ struct xpon_priv {
+ 	bool started;
+ 	bool optical_active;
+ 	bool mac_enabled;
++	/* No stored serial: stay off the fibre until userspace applies one */
++	bool identity_hold;
+ 	/* True after a switch has detached the old protocol services. */
+ 	bool mode_switch_detached;
+ 	/* O7 gated a transmitter that O2 does not gate again */
+

@@ -1,0 +1,28 @@
+From e23bc65e633b1c27fcc945afb4eef49a5d0395d1 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 25 Oct 2026 20:54:48 -0300
+Subject: [PATCH] ARM: dts: airoha: supply AN7552 xPON PHY crystal strap syscon
+
+Connect the optical PHY to chip SCU for the crystal-dependent PLL
+recovery path. Leave the SoC nodes disabled for board-specific opt-in.
+Boards using optical PON enable xpon_phy and xpon while leaving the
+mutually exclusive pon_pcs disabled, and describe their BOSA control
+and signal polarities independently.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm/boot/dts/airoha/an7552.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/dts/airoha/an7552.dtsi b/arch/arm/boot/dts/airoha/an7552.dtsi
+--- a/arch/arm/boot/dts/airoha/an7552.dtsi
++++ b/arch/arm/boot/dts/airoha/an7552.dtsi
+@@ -548,6 +548,7 @@ xpon_phy: phy@1faf0000 {
+ 		reset-names = "phy";
+ 
+ 		airoha,scu = <&scuclk>;
++		airoha,chip-scu = <&chip_scu>;
+ 		tx-disable-gpios = <&pinctrl 14 GPIO_ACTIVE_HIGH>;
+ 
+ 		#phy-cells = <0>;
+

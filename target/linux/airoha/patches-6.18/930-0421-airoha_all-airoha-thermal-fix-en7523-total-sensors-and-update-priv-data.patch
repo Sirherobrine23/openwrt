@@ -1,0 +1,33 @@
+From 4aadaf039350dc681941f199af3d583d82b24c93 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sat, 24 Oct 2026 00:43:37 -0300
+Subject: [PATCH] airoha: thermal: fix en7523 total sensors and update priv
+ data
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/thermal/airoha_thermal.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/airoha_thermal.c b/drivers/thermal/airoha_thermal.c
+--- a/drivers/thermal/airoha_thermal.c
++++ b/drivers/thermal/airoha_thermal.c
+@@ -847,7 +847,8 @@ static int en7523_thermal_probe(struct platform_device *pdev,
+ 
+ static int en7523_thermal_get_temp(struct thermal_zone_device *tz, int *temp)
+ {
+-	struct airoha_thermal_priv *priv = thermal_zone_device_priv(tz);
++	struct airoha_thermal_zone *zone = thermal_zone_device_priv(tz);
++	struct airoha_thermal_priv *priv = zone->priv;
+ 	int adc_val, temp_x10;
+ 	adc_val = airoha_get_thermal_ADC(priv);
+ 	temp_x10 = 1000 * (adc_val - priv->default_offset) / priv->default_slope + 300;
+@@ -942,6 +943,7 @@ static const struct airoha_thermal_soc_data an7583_data = {
+ };
+ 
+ static const struct airoha_thermal_soc_data en7523_data = {
++	.num_sensors = 1,
+ 	.pllrg_protect_key = AN7583_SCU_THERMAL_PROTECT_KEY,
+ 	.pllrg_protect = EN7523_PLLRG_PROTECT,
+ 	.thdev_ops = &en7523_thdev_ops,
+

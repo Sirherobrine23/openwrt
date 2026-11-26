@@ -1,0 +1,872 @@
+From b98ee8613d57f51f5eb7527be460e844fa8da62f Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Thu, 29 Oct 2026 22:57:03 -0300
+Subject: [PATCH] net: airoha: add tod for xpon on an7581
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm64/boot/dts/airoha/an7581.dtsi        |  10 +-
+ arch/arm64/boot/dts/airoha/an7583.dtsi        |  11 +-
+ drivers/net/ethernet/airoha/Kconfig           |   1 +
+ drivers/net/ethernet/airoha/Makefile          |   2 +-
+ drivers/net/ethernet/airoha/airoha_omci.c     |  16 +-
+ drivers/net/ethernet/airoha/airoha_omci.h     |   6 +-
+ drivers/net/ethernet/airoha/airoha_xpon.c     |  18 +-
+ drivers/net/ethernet/airoha/airoha_xpon.h     |   3 +
+ drivers/net/ethernet/airoha/airoha_xpon_tod.c | 481 ++++++++++++++++++++++++++
+ drivers/net/ethernet/airoha/airoha_xpon_tod.h |  12 +
+ include/net/xpon/omci.h                       |  21 +-
+ net/xpon/omci/agent.c                         |  15 +-
+ 12 files changed, 576 insertions(+), 20 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/airoha/an7581.dtsi b/arch/arm64/boot/dts/airoha/an7581.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7581.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7581.dtsi
+@@ -934,12 +934,14 @@ xpon_phy: phy@1faf0000 {
+ 		xpon: xmac@1fb60000 {
+ 			compatible = "airoha,an7581-xpon";
+ 
+-			reg = <0x0 0x1fb60000 0x0 0x10000>;
+-			reg-names = "mac";
++			reg = <0x0 0x1fb60000 0x0 0x10000>,
++			      <0x0 0x1fbe2300 0x0 0xd4>;
++			reg-names = "mac", "tod";
+ 
+ 			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
+-			             <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+-			interrupt-names = "mac", "dying-gasp";
++				     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "mac", "dying-gasp", "tod";
+ 
+ 			resets = <&scuclk EN7581_XPON_MAC_RST>;
+ 			reset-names = "mac";
+diff --git a/arch/arm64/boot/dts/airoha/an7583.dtsi b/arch/arm64/boot/dts/airoha/an7583.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7583.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7583.dtsi
+@@ -7,6 +7,7 @@
+ #include <dt-bindings/phy/phy.h>
+ #include <dt-bindings/reset/airoha,an7583-reset.h>
+ #include <dt-bindings/leds/common.h>
++#include <dt-bindings/gpio/gpio.h>
+ #include <dt-bindings/thermal/thermal.h>
+ 
+ / {
+@@ -700,12 +701,14 @@ xpon_phy: phy@1faf0000 {
+ 
+ 		xpon: xmac@1fb60000 {
+ 			compatible = "airoha,an7583-xpon";
+-			reg = <0x0 0x1fb60000 0x0 0x10000>;
+-			reg-names = "mac";
++			reg = <0x0 0x1fb60000 0x0 0x10000>,
++			      <0x0 0x1fbe2300 0x0 0xd4>;
++			reg-names = "mac", "tod";
+ 
+ 			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>,
+-				     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+-			interrupt-names = "mac", "dying-gasp";
++				     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "mac", "dying-gasp", "tod";
+ 
+ 			resets = <&scuclk AN7583_XPON_MAC_RST>;
+ 			reset-names = "mac";
+diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
+--- a/drivers/net/ethernet/airoha/Kconfig
++++ b/drivers/net/ethernet/airoha/Kconfig
+@@ -80,6 +80,7 @@ config AIROHA_XPON
+ 	depends on SFP
+ 	depends on OPTICAL_FRONTEND
+ 	depends on MFD_SYSCON
++	depends on PTP_1588_CLOCK_OPTIONAL
+ 	select PHY_AIROHA_XPON
+ 	select XPON
+ 	select XPON_OMCI
+diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
+--- a/drivers/net/ethernet/airoha/Makefile
++++ b/drivers/net/ethernet/airoha/Makefile
+@@ -11,5 +11,5 @@ airoha-eth-$(CONFIG_NET_AIROHA_WHNAT) += airoha_whnat.o
+ airoha-eth-$(CONFIG_NET_AIROHA_TSO) += airoha_tso.o
+ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
+ obj-$(CONFIG_AIROHA_XPON) += airoha-xpon.o
+-airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_omci.o
++airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_omci.o airoha_xpon_tod.o
+ obj-$(CONFIG_AIROHA_XDSL) += airoha_xdsl.o
+diff --git a/drivers/net/ethernet/airoha/airoha_omci.c b/drivers/net/ethernet/airoha/airoha_omci.c
+--- a/drivers/net/ethernet/airoha/airoha_omci.c
++++ b/drivers/net/ethernet/airoha/airoha_omci.c
+@@ -147,6 +147,15 @@ airoha_gpon_omci_config_changed(struct omci_device *odev, u16 key,
+ 	airoha_gpon_omci_hw_config_changed(omci->hw_priv, key, identity);
+ }
+ 
++static int
++airoha_gpon_omci_set_time_of_day(struct omci_device *odev,
++				const struct omci_time_of_day *time)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_set_time_of_day(omci->hw_priv, time);
++}
++
+ static const struct omci_device_ops airoha_gpon_omci_ops = {
+ 	.start = airoha_gpon_omci_start_transport,
+ 	.stop = airoha_gpon_omci_stop_transport,
+@@ -168,15 +177,18 @@ int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
+ 			      struct xpon_device *xpon,
+ 			      struct net_device *gdm_dev,
+ 			      void *hw_priv,
+-			      const struct omci_identity *identity)
++			      const struct omci_identity *identity, bool has_tod)
+ {
+ 	int ret;
+ 
+ 	omci->gdm_dev = gdm_dev;
+ 	omci->hw_priv = hw_priv;
++	omci->ops = airoha_gpon_omci_ops;
++	if (has_tod)
++		omci->ops.set_time_of_day = airoha_gpon_omci_set_time_of_day;
+ 	omci->odev = omci_device_register(xpon,
+ 					  OMCI_CAP_HW_MIC | OMCI_CAP_TELEMETRY,
+-					  &airoha_gpon_omci_ops, omci);
++					  &omci->ops, omci);
+ 	if (IS_ERR(omci->odev))
+ 		return PTR_ERR(omci->odev);
+ 
+diff --git a/drivers/net/ethernet/airoha/airoha_omci.h b/drivers/net/ethernet/airoha/airoha_omci.h
+--- a/drivers/net/ethernet/airoha/airoha_omci.h
++++ b/drivers/net/ethernet/airoha/airoha_omci.h
+@@ -3,6 +3,7 @@
+ #define _AIROHA_GPON_OMCI_H
+ 
+ #include <linux/types.h>
++#include <net/xpon/omci.h>
+ 
+ struct device;
+ struct net_device;
+@@ -17,6 +18,7 @@ struct xpon_device;
+ 
+ struct airoha_gpon_omci {
+ 	struct omci_device *odev;
++	struct omci_device_ops ops;
+ 	struct net_device *gdm_dev;
+ 	void *hw_priv;
+ };
+@@ -25,7 +27,7 @@ int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
+ 			      struct xpon_device *xpon,
+ 			      struct net_device *gdm_dev,
+ 			      void *hw_priv,
+-			      const struct omci_identity *identity);
++			      const struct omci_identity *identity, bool has_tod);
+ int airoha_gpon_omci_start(struct airoha_gpon_omci *omci);
+ void airoha_gpon_omci_stop(struct airoha_gpon_omci *omci);
+ void airoha_gpon_omci_unregister(struct airoha_gpon_omci *omci);
+@@ -59,6 +61,8 @@ int airoha_gpon_omci_hw_get_telemetry(void *hw_priv,
+ 				      struct omci_telemetry *telemetry);
+ int airoha_gpon_omci_hw_set_olt_profile(void *hw_priv,
+ 					const struct omci_olt_profile_state *state);
++int airoha_gpon_omci_hw_set_time_of_day(void *hw_priv,
++				     const struct omci_time_of_day *time);
+ void airoha_gpon_omci_hw_set_operational(void *hw_priv, bool operational);
+ void airoha_gpon_omci_hw_config_changed(void *hw_priv, u16 key,
+ 					const struct omci_identity *identity);
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -50,6 +50,7 @@
+ 
+ #include "airoha_eth.h"
+ #include "airoha_xpon.h"
++#include "airoha_xpon_tod.h"
+ #include "airoha_omci.h"
+ #include "airoha_regs.h"
+ #include "airoha_ploam.h"
+@@ -2372,8 +2373,11 @@ static void gpon_cb_state_changed(void *hw_priv, enum gpon_state state)
+ 	}
+ 
+ 	mutex_lock(&priv->link_state_lock);
+-	priv->gpon_o5 = state == GPON_O5_OPERATION;
++	WRITE_ONCE(priv->gpon_o5, state == GPON_O5_OPERATION);
+ 	mutex_unlock(&priv->link_state_lock);
++	if (state == GPON_O1_INITIAL || state == GPON_O2_STANDBY ||
++	    state == GPON_O7_EMERGENCY_STOP)
++		airoha_xpon_tod_stop(priv);
+ 	gpon_refresh_netdev_link(priv, false);
+ 
+ 	if (state != GPON_O5_OPERATION)
+@@ -2713,6 +2717,7 @@ static void gpon_disable(struct xpon_priv *priv)
+ 	 * remains enabled so no activation edge is lost across a restart.
+ 	 */
+ 	WRITE_ONCE(priv->mac_enabled, false);
++	airoha_xpon_tod_stop(priv);
+ 	gpon_bip_set_active(priv, false);
+ 	if (mac_enabled) {
+ 		gpon_write(priv, GPON_INT_ENABLE, 0);
+@@ -4510,7 +4515,7 @@ static int airoha_xpon_register_gpon_omci(struct xpon_priv *priv)
+ 
+ 	dev_info(priv->dev, "EN7528 test: registering OMCI device\n");
+ 	ret = airoha_gpon_omci_register(&priv->omci, priv->xpon, priv->gdm_dev,
+-					priv, &priv->identity);
++					priv, &priv->identity, !!priv->tod);
+ 	dev_info(priv->dev, "EN7528 test: OMCI register returned %d\n", ret);
+ 	if (ret)
+ 		goto err_unregister_oam;
+@@ -5424,18 +5429,17 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	link_ops = airoha_xpon_get_link_ops(priv);
+-	dev_info(dev, "EN7528 test: registering Ethernet xPON provider on %s\n",
+-		 priv->gdm_dev->name);
+ 	ret = airoha_eth_register_xpon(priv->gdm_dev, priv->mode, link_ops,
+ 				       priv);
+-	dev_info(dev, "EN7528 test: Ethernet xPON registration returned %d\n",
+-		 ret);
+ 	if (ret)
+ 		goto err_del_upstream;
+ 
+ 	airoha_xpon_update_netdev_link(priv, false);
+ 
+ 	if (airoha_xpon_is_gpon(priv)) {
++		ret = airoha_xpon_tod_init(pdev, priv);
++		if (ret)
++			goto err_unregister_xpon;
+ 		ret = airoha_xpon_register_gpon_omci(priv);
+ 		if (ret) {
+ 			ret = dev_err_probe(dev, ret, "error on register OMCI");
+@@ -5477,6 +5481,7 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 	if (priv->sfp_bus)
+ 		sfp_bus_put(priv->sfp_bus);
+ err_unregister_core:
++	airoha_xpon_tod_remove(priv);
+ 	airoha_xpon_unregister_epon_oam(priv);
+ 	xpon_device_unregister(priv->xpon);
+ 	priv->xpon = NULL;
+@@ -5538,6 +5543,7 @@ static void airoha_xpon_remove(struct platform_device *pdev)
+ 		cancel_delayed_work_sync(&priv->to2_work);
+ 	}
+ 
++	airoha_xpon_tod_remove(priv);
+ 	airoha_xpon_unregister_epon_oam(priv);
+ 	xpon_device_unregister(priv->xpon);
+ 	priv->xpon = NULL;
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
+--- a/drivers/net/ethernet/airoha/airoha_xpon.h
++++ b/drivers/net/ethernet/airoha/airoha_xpon.h
+@@ -428,6 +428,8 @@ struct epon_llid {
+ 	u16 value;
+ };
+ 
++struct airoha_xpon_tod;
++
+ struct xpon_priv {
+ 	void __iomem *base;
+ 	void __iomem *gpon_reg;
+@@ -456,6 +458,7 @@ struct xpon_priv {
+ 	struct xpon_device *xpon;
+ 	struct xpon_oam *oam;
+ 	struct airoha_gpon_omci omci;
++	struct airoha_xpon_tod *tod;
+ 	struct airoha_xpon_oam_handler omci_handler;
+ 	struct sfp_bus *sfp_bus;
+ 	struct optical_frontend *frontend;
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon_tod.c b/drivers/net/ethernet/airoha/airoha_xpon_tod.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/airoha/airoha_xpon_tod.c
+@@ -0,0 +1,481 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* AN7581/AN7583 Time of Day generator, owned by the xPON MAC. */
++
++#include <linux/bitfield.h>
++#include <linux/completion.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/iopoll.h>
++#include <linux/math64.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/platform_device.h>
++#include <linux/ptp_clock_kernel.h>
++#include <linux/slab.h>
++#include <linux/timekeeping.h>
++
++#include "airoha_xpon.h"
++#include "airoha_xpon_tod.h"
++
++#define TOD_CTRL			0x00
++#define TOD_LOAD			BIT(0)
++#define TOD_SOURCE_CPU			BIT(1)
++#define TOD_ADJUST_OFFSET		BIT(8)
++#define TOD_NEW_SEC_HI			0x04
++#define TOD_NEW_SEC_LO			0x08
++#define TOD_NEW_NSEC			0x0c
++#define TOD_OFFSET_SEC_HI			0x10
++#define TOD_OFFSET_NEGATIVE		BIT(31)
++#define TOD_OFFSET_SEC_LO			0x14
++#define TOD_OFFSET_NSEC			0x18
++#define TOD_ADD_UNIT_INT			0x30
++#define TOD_ADD_UNIT_NUM			0x34
++#define TOD_ADD_UNIT_DEN			0x38
++#define TOD_1PPS_WIDTH			0x50
++#define TOD_CUR_SEC_HI			0x54
++#define TOD_CUR_SEC_LO			0x58
++#define TOD_CUR_NSEC			0x5c
++#define TOD_INT_ENABLE			0x60
++#define TOD_INT_STATUS			0x64
++#define TOD_INT_LOAD_DONE			BIT(0)
++#define TOD_INT_1PPS			BIT(1)
++#define TOD_INT_FREQ_DONE			BIT(2)
++#define TOD_INT_ALL			GENMASK(2, 0)
++#define TOD_SEC_HI_MASK			GENMASK(15, 0)
++#define TOD_MAX_SECONDS			GENMASK_ULL(47, 0)
++#define TOD_RESOURCE_SIZE			0xd4
++#define TOD_LOAD_TIMEOUT_MS		100
++#define GPON_TOD_SUPERFRAME_MASK		GENMASK(29, 0)
++#define GPON_PHY_RX_DLY			0x3e4
++#define GPON_PHY_RX_DLY_MASK		GENMASK(11, 0)
++
++struct airoha_xpon_tod {
++	struct xpon_priv *priv;
++	void __iomem *base;
++	/* Serializes clock operations and GPON clock handover. */
++	struct mutex lock;
++	/* Serializes command arming with the W1C interrupt snapshot. */
++	spinlock_t irq_lock;
++	struct completion load_done;
++	struct ptp_clock_info info;
++	struct ptp_clock *clock;
++	int irq;
++	bool pending;
++	bool gpon_source;
++	bool pps_enabled;
++	bool failed;
++	bool dead;
++};
++
++static u32 tod_read(struct airoha_xpon_tod *tod, u32 reg)
++{
++	return readl(tod->base + reg);
++}
++
++static void tod_write(struct airoha_xpon_tod *tod, u32 reg, u32 val)
++{
++	writel(val, tod->base + reg);
++}
++
++static int tod_read_time(struct airoha_xpon_tod *tod, struct timespec64 *ts,
++			 struct ptp_system_timestamp *sts)
++{
++	u32 hi, lo, ns, hi_after, lo_after;
++	int i;
++
++	/* There is no snapshot command: retry a read that crosses a second. */
++	for (i = 0; i < 4; i++) {
++		hi = tod_read(tod, TOD_CUR_SEC_HI) & TOD_SEC_HI_MASK;
++		lo = tod_read(tod, TOD_CUR_SEC_LO);
++		ptp_read_system_prets(sts);
++		ns = tod_read(tod, TOD_CUR_NSEC);
++		ptp_read_system_postts(sts);
++		lo_after = tod_read(tod, TOD_CUR_SEC_LO);
++		hi_after = tod_read(tod, TOD_CUR_SEC_HI) & TOD_SEC_HI_MASK;
++		if (hi == hi_after && lo == lo_after && ns < NSEC_PER_SEC) {
++			ts->tv_sec = (u64)hi << 32 | lo;
++			ts->tv_nsec = ns;
++			return 0;
++		}
++	}
++
++	return -EAGAIN;
++}
++
++/* The caller holds lock; IRQ cannot consume an old completion while arming. */
++static int tod_load_time(struct airoha_xpon_tod *tod,
++			 const struct timespec64 *ts, bool gpon, u32 superframe)
++{
++	unsigned long flags;
++	u32 ctrl, cfg;
++
++	if (tod->dead)
++		return -ENODEV;
++	if (tod->failed)
++		return -EIO;
++	if (ts->tv_sec < 0 || ts->tv_sec > TOD_MAX_SECONDS ||
++	    (unsigned long)ts->tv_nsec >= NSEC_PER_SEC)
++		return -ERANGE;
++
++	spin_lock_irqsave(&tod->irq_lock, flags);
++	if (tod->pending) {
++		spin_unlock_irqrestore(&tod->irq_lock, flags);
++		return -EBUSY;
++	}
++
++	/* LOAD latches both the timestamp and its clock increment. */
++	ctrl = gpon ? 0 : TOD_SOURCE_CPU;
++	tod_write(tod, TOD_CTRL, ctrl);
++	tod_write(tod, TOD_INT_STATUS, TOD_INT_LOAD_DONE);
++	reinit_completion(&tod->load_done);
++	if (gpon) {
++		/* ASIC recovered PON clock: 6 + 209/486 ns (vendor SDK). */
++		tod_write(tod, TOD_ADD_UNIT_INT, 6);
++		tod_write(tod, TOD_ADD_UNIT_NUM, 209);
++		tod_write(tod, TOD_ADD_UNIT_DEN, 486);
++		cfg = readl(tod->priv->gpon_reg + GPON_TOD_CFG);
++		cfg &= ~GPON_TOD_SUPERFRAME_MASK;
++		writel(cfg | superframe, tod->priv->gpon_reg + GPON_TOD_CFG);
++	} else {
++		/* Match tod_module_init() for the CPU-selected clock. */
++		tod_write(tod, TOD_ADD_UNIT_INT, 5);
++		tod_write(tod, TOD_ADD_UNIT_NUM, 0);
++		tod_write(tod, TOD_ADD_UNIT_DEN, 1);
++	}
++	tod_write(tod, TOD_NEW_SEC_HI, (u64)ts->tv_sec >> 32);
++	tod_write(tod, TOD_NEW_SEC_LO, lower_32_bits(ts->tv_sec));
++	tod_write(tod, TOD_NEW_NSEC, ts->tv_nsec);
++	WRITE_ONCE(tod->pending, true);
++	tod->gpon_source = gpon;
++	tod_write(tod, TOD_CTRL, ctrl | TOD_LOAD);
++	tod_read(tod, TOD_CTRL);
++	spin_unlock_irqrestore(&tod->irq_lock, flags);
++
++	/* OLT updates are asynchronous and may name a future superframe. */
++	if (gpon)
++		return 0;
++	if (wait_for_completion_timeout(&tod->load_done,
++					msecs_to_jiffies(TOD_LOAD_TIMEOUT_MS)))
++		return 0;
++
++	spin_lock_irqsave(&tod->irq_lock, flags);
++	tod_write(tod, TOD_CTRL, TOD_SOURCE_CPU);
++	tod_write(tod, TOD_INT_STATUS, TOD_INT_LOAD_DONE);
++	WRITE_ONCE(tod->pending, false);
++	/* Do not attribute a late completion to another load after a timeout. */
++	tod->failed = true;
++	spin_unlock_irqrestore(&tod->irq_lock, flags);
++	return -ETIMEDOUT;
++}
++
++static int tod_gettimex(struct ptp_clock_info *info, struct timespec64 *ts,
++			struct ptp_system_timestamp *sts)
++{
++	struct airoha_xpon_tod *tod = container_of(info, typeof(*tod), info);
++	int ret;
++
++	mutex_lock(&tod->lock);
++	ret = tod->dead ? -ENODEV : tod_read_time(tod, ts, sts);
++	mutex_unlock(&tod->lock);
++	return ret;
++}
++
++static int tod_settime(struct ptp_clock_info *info, const struct timespec64 *ts)
++{
++	struct airoha_xpon_tod *tod = container_of(info, typeof(*tod), info);
++	int ret;
++
++	mutex_lock(&tod->lock);
++	ret = tod_load_time(tod, ts, false, 0);
++	mutex_unlock(&tod->lock);
++	return ret;
++}
++
++static int tod_adjtime(struct ptp_clock_info *info, s64 delta)
++{
++	struct airoha_xpon_tod *tod = container_of(info, typeof(*tod), info);
++	u64 magnitude = delta < 0 ? -(delta + 1) + 1ULL : delta;
++	struct timespec64 now, offset, adjusted;
++	u32 ns, ctrl;
++	u64 sec;
++	int ret = 0;
++
++	sec = div_u64_rem(magnitude, NSEC_PER_SEC, &ns);
++	mutex_lock(&tod->lock);
++	if (tod->dead) {
++		ret = -ENODEV;
++		goto out;
++	}
++	if (tod->failed) {
++		ret = -EIO;
++		goto out;
++	}
++	if (READ_ONCE(tod->pending)) {
++		ret = -EBUSY;
++		goto out;
++	}
++	ret = tod_read_time(tod, &now, NULL);
++	if (ret)
++		goto out;
++	offset = ns_to_timespec64(delta);
++	adjusted = timespec64_add(now, offset);
++	if (adjusted.tv_sec < 0 || adjusted.tv_sec > TOD_MAX_SECONDS) {
++		ret = -ERANGE;
++		goto out;
++	}
++
++	ctrl = tod_read(tod, TOD_CTRL) & TOD_SOURCE_CPU;
++	tod_write(tod, TOD_CTRL, ctrl);
++	tod_write(tod, TOD_OFFSET_SEC_HI, upper_32_bits(sec) |
++		  (delta < 0 ? TOD_OFFSET_NEGATIVE : 0));
++	tod_write(tod, TOD_OFFSET_SEC_LO, lower_32_bits(sec));
++	tod_write(tod, TOD_OFFSET_NSEC, ns);
++	tod_write(tod, TOD_CTRL, ctrl | TOD_ADJUST_OFFSET);
++	ret = readl_poll_timeout(tod->base + TOD_CTRL, ctrl,
++				 !(ctrl & TOD_ADJUST_OFFSET), 10, 10000);
++	if (ret)
++		tod->failed = true;
++out:
++	mutex_unlock(&tod->lock);
++	return ret;
++}
++
++static int tod_adjfine(struct ptp_clock_info *info, long scaled_ppm)
++{
++	/* The SDK exposes raw frequency fractions, but not their ppb encoding. */
++	return scaled_ppm ? -EOPNOTSUPP : 0;
++}
++
++static int tod_enable(struct ptp_clock_info *info,
++		      struct ptp_clock_request *request, int on)
++{
++	struct airoha_xpon_tod *tod = container_of(info, typeof(*tod), info);
++	unsigned long flags;
++	u32 mask = TOD_INT_LOAD_DONE;
++	int ret = 0;
++
++	if (request->type != PTP_CLK_REQ_PPS)
++		return -EOPNOTSUPP;
++	mutex_lock(&tod->lock);
++	if (tod->dead) {
++		ret = -ENODEV;
++		goto out;
++	}
++	spin_lock_irqsave(&tod->irq_lock, flags);
++	if (on) {
++		/* Minimum pulse width; board pinctrl owns any external output. */
++		tod_write(tod, TOD_1PPS_WIDTH, 1);
++		mask |= TOD_INT_1PPS;
++	}
++	WRITE_ONCE(tod->pps_enabled, !!on);
++	tod_write(tod, TOD_INT_STATUS, TOD_INT_1PPS);
++	tod_write(tod, TOD_INT_ENABLE, mask);
++	spin_unlock_irqrestore(&tod->irq_lock, flags);
++out:
++	mutex_unlock(&tod->lock);
++	return ret;
++}
++
++static irqreturn_t tod_interrupt(int irq, void *data)
++{
++	struct airoha_xpon_tod *tod = data;
++	struct ptp_clock_event event = { .type = PTP_CLOCK_PPS };
++	unsigned long flags;
++	u32 status, active;
++
++	spin_lock_irqsave(&tod->irq_lock, flags);
++	status = tod_read(tod, TOD_INT_STATUS);
++	if (!status) {
++		spin_unlock_irqrestore(&tod->irq_lock, flags);
++		return IRQ_NONE;
++	}
++	active = status & tod_read(tod, TOD_INT_ENABLE);
++	tod_write(tod, TOD_INT_STATUS, status);
++	if ((active & TOD_INT_LOAD_DONE) && tod->pending) {
++		WRITE_ONCE(tod->pending, false);
++		complete(&tod->load_done);
++	}
++	spin_unlock_irqrestore(&tod->irq_lock, flags);
++	if ((active & TOD_INT_1PPS) && READ_ONCE(tod->pps_enabled) && tod->clock)
++		ptp_clock_event(tod->clock, &event);
++	return IRQ_HANDLED;
++}
++
++/* floor(one-way fibre delay - RX PHY delay), using the SDK optical ratios. */
++static u64 tod_gpon_delay(u32 eqd, u32 response, u32 rx_delay)
++{
++	u64 tx = ((u64)eqd + (u64)response * 32) * 2 * 14682;
++	u64 rx = (u64)rx_delay * 29359;
++
++	if (tx <= rx)
++		return 0;
++	return div64_u64((tx - rx) * 100000, 248832ULL * 29359);
++}
++
++int airoha_gpon_omci_hw_set_time_of_day(void *hw_priv,
++					const struct omci_time_of_day *time)
++{
++	struct xpon_priv *priv = hw_priv;
++	struct airoha_xpon_tod *tod = priv->tod;
++	struct timespec64 ts, delay;
++	u32 response, rx_delay;
++	int ret;
++
++	if (!tod)
++		return -EOPNOTSUPP;
++	if (time->superframe > GPON_TOD_SUPERFRAME_MASK ||
++	    time->seconds > TOD_MAX_SECONDS || time->nanoseconds >= NSEC_PER_SEC)
++		return -EINVAL;
++
++	mutex_lock(&tod->lock);
++	if (tod->dead) {
++		ret = -ENODEV;
++		goto out;
++	}
++	if (!READ_ONCE(priv->mac_enabled) || !READ_ONCE(priv->gpon_o5)) {
++		ret = -ENOLINK;
++		goto out;
++	}
++	response = readl(priv->gpon_reg + GPON_RSP_TIME) & GENMASK(15, 0);
++	rx_delay = readl(priv->gpon_reg + GPON_PHY_RX_DLY) & GPON_PHY_RX_DLY_MASK;
++	delay = ns_to_timespec64(tod_gpon_delay(ploam_get_eqd(priv->ploam),
++						response, rx_delay));
++	ts = (struct timespec64) {
++		.tv_sec = time->seconds,
++		.tv_nsec = time->nanoseconds,
++	};
++	ts = timespec64_sub(ts, delay);
++	ret = tod_load_time(tod, &ts, true, time->superframe);
++out:
++	mutex_unlock(&tod->lock);
++	return ret;
++}
++
++void airoha_xpon_tod_stop(struct xpon_priv *priv)
++{
++	struct airoha_xpon_tod *tod = priv->tod;
++	struct timespec64 ts;
++	unsigned long flags;
++	int ret;
++
++	if (!tod)
++		return;
++	mutex_lock(&tod->lock);
++	if (tod->dead || !tod->gpon_source)
++		goto out;
++	ret = tod_read_time(tod, &ts, NULL);
++	spin_lock_irqsave(&tod->irq_lock, flags);
++	/* Cancel a superframe load before the MAC/PHY clock disappears. */
++	tod_write(tod, TOD_CTRL, TOD_SOURCE_CPU);
++	tod_write(tod, TOD_INT_STATUS, TOD_INT_LOAD_DONE);
++	WRITE_ONCE(tod->pending, false);
++	tod->gpon_source = false;
++	spin_unlock_irqrestore(&tod->irq_lock, flags);
++	if (!ret)
++		ret = tod_load_time(tod, &ts, false, 0);
++	if (ret)
++		dev_warn(priv->dev, "failed to switch ToD to the CPU clock: %d\n", ret);
++out:
++	mutex_unlock(&tod->lock);
++}
++
++static void tod_unregister(void *data)
++{
++	struct airoha_xpon_tod *tod = data;
++	unsigned long flags;
++
++	mutex_lock(&tod->lock);
++	if (tod->dead) {
++		mutex_unlock(&tod->lock);
++		return;
++	}
++	tod->dead = true;
++	WRITE_ONCE(tod->pps_enabled, false);
++	spin_lock_irqsave(&tod->irq_lock, flags);
++	tod_write(tod, TOD_INT_ENABLE, 0);
++	tod_write(tod, TOD_CTRL, TOD_SOURCE_CPU);
++	tod_write(tod, TOD_INT_STATUS, TOD_INT_ALL);
++	WRITE_ONCE(tod->pending, false);
++	tod_read(tod, TOD_INT_ENABLE);
++	spin_unlock_irqrestore(&tod->irq_lock, flags);
++	mutex_unlock(&tod->lock);
++	synchronize_irq(tod->irq);
++	if (tod->clock) {
++		ptp_clock_unregister(tod->clock);
++		tod->clock = NULL;
++	}
++}
++
++void airoha_xpon_tod_remove(struct xpon_priv *priv)
++{
++	if (priv->tod)
++		tod_unregister(priv->tod);
++}
++
++int airoha_xpon_tod_init(struct platform_device *pdev, struct xpon_priv *priv)
++{
++	struct device *dev = &pdev->dev;
++	struct airoha_xpon_tod *tod;
++	struct timespec64 now;
++	struct resource *res;
++	int ret;
++
++	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "tod");
++	if (!res)
++		return 0;
++	if (priv->mode != AIROHA_XPON_MODE_GPON ||
++	    (priv->match_data->version != airoha_en7581 &&
++	     priv->match_data->version != airoha_an7583))
++		return dev_err_probe(dev, -EOPNOTSUPP, "unsupported ToD integration\n");
++	if (resource_size(res) < TOD_RESOURCE_SIZE)
++		return dev_err_probe(dev, -EINVAL, "ToD register resource is too small\n");
++	tod = devm_kzalloc(dev, sizeof(*tod), GFP_KERNEL);
++	if (!tod)
++		return -ENOMEM;
++	tod->priv = priv;
++	mutex_init(&tod->lock);
++	spin_lock_init(&tod->irq_lock);
++	init_completion(&tod->load_done);
++	tod->base = devm_ioremap_resource(dev, res);
++	if (IS_ERR(tod->base))
++		return PTR_ERR(tod->base);
++	tod->irq = platform_get_irq_byname(pdev, "tod");
++	if (tod->irq < 0)
++		return tod->irq;
++	tod_write(tod, TOD_INT_ENABLE, 0);
++	tod_write(tod, TOD_INT_STATUS, TOD_INT_ALL);
++	ret = devm_request_irq(dev, tod->irq, tod_interrupt, 0, "xpon-tod", tod);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to request ToD interrupt\n");
++	ret = devm_add_action_or_reset(dev, tod_unregister, tod);
++	if (ret)
++		return ret;
++	tod_write(tod, TOD_INT_ENABLE, TOD_INT_LOAD_DONE);
++	ktime_get_real_ts64(&now);
++	mutex_lock(&tod->lock);
++	ret = tod_load_time(tod, &now, false, 0);
++	mutex_unlock(&tod->lock);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to initialize ToD clock\n");
++
++	tod->info = (struct ptp_clock_info) {
++		.owner = THIS_MODULE,
++		.name = "airoha-xpon-tod",
++		.pps = 1,
++		.gettimex64 = tod_gettimex,
++		.settime64 = tod_settime,
++		.adjtime = tod_adjtime,
++		.adjfine = tod_adjfine,
++		.enable = tod_enable,
++	};
++	tod->clock = ptp_clock_register(&tod->info, dev);
++	if (IS_ERR(tod->clock)) {
++		ret = PTR_ERR(tod->clock);
++		tod->clock = NULL;
++		return dev_err_probe(dev, ret, "failed to register ToD PHC\n");
++	}
++	priv->tod = tod;
++	dev_info(dev, "ToD initialized, PTP clock index %d\n",
++		 tod->clock ? ptp_clock_index(tod->clock) : -1);
++	return 0;
++}
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon_tod.h b/drivers/net/ethernet/airoha/airoha_xpon_tod.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/airoha/airoha_xpon_tod.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _AIROHA_XPON_TOD_H
++#define _AIROHA_XPON_TOD_H
++
++struct platform_device;
++struct xpon_priv;
++
++int airoha_xpon_tod_init(struct platform_device *pdev, struct xpon_priv *priv);
++void airoha_xpon_tod_stop(struct xpon_priv *priv);
++void airoha_xpon_tod_remove(struct xpon_priv *priv);
++
++#endif /* _AIROHA_XPON_TOD_H */
+diff --git a/include/net/xpon/omci.h b/include/net/xpon/omci.h
+--- a/include/net/xpon/omci.h
++++ b/include/net/xpon/omci.h
+@@ -68,13 +68,27 @@ enum omci_gem_port_direction {
+ };
+ 
+ /**
+- * struct omci_olt_g - parsed OLT-G identification attributes
++ * struct omci_time_of_day - OLT time at a GPON superframe boundary
++ * @superframe: GPON superframe at which the timestamp becomes valid
++ * @seconds: unsigned 48-bit seconds since the Unix epoch
++ * @nanoseconds: fractional second, less than one billion
++ */
++struct omci_time_of_day {
++	u32 superframe;
++	u64 seconds;
++	u32 nanoseconds;
++};
++
++/**
++ * struct omci_olt_g - parsed OLT-G identification and time attributes
+  * @vendor_id: four-character OLT vendor identifier
+  * @equipment_id: OLT equipment or model identifier
+  * @version: OLT software or hardware version identifier
+  * @vendor_id_valid: @vendor_id has been received from the OLT
+  * @equipment_id_valid: @equipment_id has been received from the OLT
+  * @version_valid: @version has been received from the OLT
++ * @time_of_day: latest time synchronization request from the OLT
++ * @time_of_day_valid: @time_of_day has been received from the OLT
+  * @valid: at least one identification attribute is available
+  */
+ struct omci_olt_g {
+@@ -84,6 +98,8 @@ struct omci_olt_g {
+ 	bool vendor_id_valid;
+ 	bool equipment_id_valid;
+ 	bool version_valid;
++	struct omci_time_of_day time_of_day;
++	bool time_of_day_valid;
+ 	bool valid;
+ };
+ 
+@@ -304,6 +320,7 @@ struct omci_ani_topology {
+  * @delete_service: remove a normalized upstream service by cookie
+  * @get_telemetry: refresh PON FEC and optical telemetry
+  * @set_olt_profile: apply a resolved OLT interoperability profile
++ * @set_time_of_day: optional hardware synchronization to an OLT timestamp
+  * @set_operational: report whether the in-kernel OMCI agent is operational
+  * @config_changed: report a normalized runtime OMCI configuration change
+  */
+@@ -330,6 +347,8 @@ struct omci_device_ops {
+ 			     struct omci_telemetry *telemetry);
+ 	int (*set_olt_profile)(struct omci_device *odev,
+ 			       const struct omci_olt_profile_state *state);
++	int (*set_time_of_day)(struct omci_device *odev,
++			       const struct omci_time_of_day *time);
+ 	void (*set_operational)(struct omci_device *odev, bool operational);
+ 	void (*config_changed)(struct omci_device *odev, u16 key,
+ 			       const struct omci_identity *identity);
+diff --git a/net/xpon/omci/agent.c b/net/xpon/omci/agent.c
+--- a/net/xpon/omci/agent.c
++++ b/net/xpon/omci/agent.c
+@@ -20,6 +20,7 @@
+ #include <linux/reboot.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
++#include <linux/time64.h>
+ #include <linux/unaligned.h>
+ #include <net/netlink.h>
+ #include <net/xpon.h>
+@@ -292,8 +293,13 @@ static int omci_olt_g_parse_set(struct omci_mib_object *object, u16 mask,
+ 	if (mask & OMCI_OLT_G_TIME_OF_DAY_MASK) {
+ 		value = omci_olt_g_consume(&data, &len,
+ 					   OMCI_OLT_G_TIME_OF_DAY_LEN);
+-		if (!value)
++		if (!value || get_unaligned_be32(value + 10) >= NSEC_PER_SEC)
+ 			return -EINVAL;
++		olt->time_of_day.superframe = get_unaligned_be32(value);
++		olt->time_of_day.seconds = (u64)get_unaligned_be16(value + 4) << 32 |
++					   get_unaligned_be32(value + 6);
++		olt->time_of_day.nanoseconds = get_unaligned_be32(value + 10);
++		olt->time_of_day_valid = true;
+ 	}
+ 	olt->valid = olt->vendor_id_valid || olt->equipment_id_valid ||
+ 		     olt->version_valid;
+@@ -3407,6 +3413,13 @@ static u8 omci_agent_set_locked(struct omci_device *odev, u16 class_id,
+ 		if (ret)
+ 			goto rollback_processing;
+ 	}
++	/* Apply only a fresh OLT-G SET, after all other fallible work. */
++	if (class_id == OMCI_CLASS_OLT_G &&
++	    (mask & OMCI_OLT_G_TIME_OF_DAY_MASK) && odev->ops->set_time_of_day) {
++		ret = odev->ops->set_time_of_day(odev, &object->olt_g.time_of_day);
++		if (ret)
++			goto rollback_processing;
++	}
+ 	omci_agent_increment_mib_sync_locked(agent);
+ 	ret = OMCI_RESULT_SUCCESS;
+ 	goto out_free_previous;
+

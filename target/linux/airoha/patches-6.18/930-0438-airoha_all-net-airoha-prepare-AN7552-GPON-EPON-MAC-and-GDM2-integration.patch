@@ -1,0 +1,171 @@
+From 30658da17980ce38a844eb6ed3f774e27987a90e Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 25 Oct 2026 15:37:02 -0300
+Subject: [PATCH] net: airoha: prepare AN7552 GPON/EPON MAC and GDM2
+ integration
+
+Add an AN7552 MAC profile with the SDK idle-GEM threshold of 0x5a and
+the existing shared 1G activation/table interface. Advertise ordinary
+GPON and EPON only. Enable GDM2 link, OAM and service operations on
+AN7552, retaining its AN7581-style RX word1 SPORT decoding while using
+the common word0 OAM/channel/GEM fields.
+
+Skip EN7523 egress trTCM setup on AN7552, matching the early return from
+the SDK gpon_qos_init/deinit functions. Keep native AN7552 reset,
+analog/PMA and calibration support out of this patch: no compatible
+alias to the EN7523 PHY is added, and the existing DT nodes remain
+disabled. A matching native PHY provider is still required before this
+MAC can start.
+
+Validated by cross-compiling airoha_eth.o, airoha_xpon.o, airoha_ploam.o
+and airoha_gpon_omci.o for ARM with GCC 13. A host check using the SDK
+PWAN_FERxMsg_T and PWAN_FETxMsg_T verifies the descriptor fields used by
+the new path. No optical hardware validation was performed.
+
+Signed-off-by: Codex <codex@openai.com>
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c  | 25 ++++++++++++++-----------
+ drivers/net/ethernet/airoha/airoha_xpon.c | 16 ++++++++++++++++
+ drivers/net/ethernet/airoha/airoha_xpon.h |  1 +
+ 3 files changed, 31 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -2583,7 +2583,7 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ 
+ 		desc = airoha_qdma_rx_frame_desc(q, desc, &frame_desc);
+ 		msg0 = le32_to_cpu(READ_ONCE(desc->msg0));
+-		if (airoha_is(eth, airoha_en7523) &&
++		if (airoha_is(eth, airoha_en7523, airoha_an7552) &&
+ 		    q - &q->qdma->q_rx[0] == 15) {
+ 			u32 msg2 = le32_to_cpu(READ_ONCE(desc->msg2));
+ 			u32 msg3 = le32_to_cpu(READ_ONCE(desc->msg3));
+@@ -2599,7 +2599,7 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ 					     channel, gem_port_id,
+ 					     !!(msg0 & EN7523_QDMA_ETH_RXMSG_NO_MIC_MASK));
+ 		}
+-		xpon_oam = airoha_is(eth, airoha_en7523) &&
++		xpon_oam = airoha_is(eth, airoha_en7523, airoha_an7552) &&
+ 			   (msg0 & EN7523_QDMA_ETH_RXMSG_OAM_MASK);
+ 
+ 		/* GPON OAM descriptors are not required to carry an Ethernet
+@@ -2640,7 +2640,7 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ 		if (FIELD_GET(QDMA_DESC_MORE_MASK, desc_ctrl))
+ 			continue;
+ 
+-		if (airoha_is(eth, airoha_en7523)) {
++		if (airoha_is(eth, airoha_en7523, airoha_an7552)) {
+ 			struct airoha_xpon_oam_handler *handler;
+ 
+ 			if (xpon_oam) {
+@@ -2655,8 +2655,7 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ 				channel = FIELD_GET(EN7523_QDMA_ETH_RXMSG_CHAN_MASK,
+ 						    msg0);
+ 				msg1 = le32_to_cpu(READ_ONCE(desc->msg1));
+-				sport = FIELD_GET(EN7523_QDMA_ETH_RXMSG_SPORT_MASK,
+-						  msg1);
++				sport = airoha_qdma_get_rx_sport(eth, desc);
+ 				if (!(msg0 & EN7523_QDMA_ETH_RXMSG_NO_MIC_MASK))
+ 					flags |= AIROHA_XPON_OAM_RX_F_MIC_PRESENT;
+ 				if (!(msg0 & EN7523_QDMA_ETH_RXMSG_CRC_ERR_MASK))
+@@ -2705,7 +2704,7 @@ static int airoha_qdma_rx_process(struct airoha_queue *q, int budget)
+ 			}
+ 		}
+ 
+-		if (airoha_is(eth, airoha_en7523) &&
++		if (airoha_is(eth, airoha_en7523, airoha_an7552) &&
+ 		    (READ_ONCE(dev->flags) & AIROHA_PRIV_F_XPON_MANAGED)) {
+ 			bool consumed;
+ 			u8 channel = FIELD_GET(EN7523_QDMA_ETH_RXMSG_CHAN_MASK, msg0);
+@@ -5553,11 +5552,11 @@ static int airoha_validate_xpon_link_gdm2(struct net_device *netdev,
+ 		return -ENODEV;
+ 
+ 	/*
+-	 * Link ownership is shared by EN7523, EN7528 and EN7580. Their
++	 * Link ownership is shared by EN7523, AN7552, EN7528 and EN7580. Their
+ 	 * protocol-specific FE and descriptor operations remain separate.
+ 	 */
+ 	if (common->family == AIROHA_ETH_FAMILY_AIROHA) {
+-		if (!airoha_is(common->eth, airoha_en7523))
++		if (!airoha_is(common->eth, airoha_en7523, airoha_an7552))
+ 			return -EOPNOTSUPP;
+ 	} else if (common->family == AIROHA_ETH_FAMILY_ECONET) {
+ 		if (!airoha_is(common->eth, econet_en7528, econet_en7580))
+@@ -5747,8 +5746,12 @@ static int airoha_xpon_set_tcont_channel(struct net_device *netdev,
+ 	if (channel >= 32)
+ 		return -EINVAL;
+ 
++	/* The AN7552 SDK returns early from gpon_qos_init()/deinit();
++	 * its T-CONT channels do not use the EN7523 egress trTCM setup.
++	 */
+ 	setup_dba = dev->xpon_mode == AIROHA_XPON_MODE_GPON &&
+-		    !dev->eth->soc->legacy_qdma;
++		    !dev->eth->soc->legacy_qdma &&
++		    !airoha_is(dev->eth, airoha_an7552);
+ 
+ 	/*
+ 	 * gpon_qos_init() in the EN7523 SDK configures both egress trTCM
+@@ -8113,7 +8116,7 @@ static netdev_tx_t __airoha_dev_xmit(struct sk_buff *skb,
+ 	qid = airoha_qdma_get_txq(qdma, xpon ? xpon->queue :
+ 				    skb_get_queue_mapping(skb));
+ 	if (xpon) {
+-		if (!airoha_is(qdma->eth, airoha_en7523))
++		if (!airoha_is(qdma->eth, airoha_en7523, airoha_an7552))
+ 			goto error;
+ 
+ 		msg0 = FIELD_PREP(QDMA_ETH_TXMSG_QUEUE_MASK, xpon->queue) |
+@@ -10650,7 +10653,7 @@ const struct airoha_eth_soc_data airoha_en7523_soc_data = {
+ 
+ static const struct airoha_eth_soc_data an7552_soc_data = {
+ 	.version = airoha_an7552,
+-	// .xpon_ops = &airoha_xpon_ops,
++	.xpon_ops = &airoha_xpon_ops,
+ 	// .xsi_rsts_names = en7523_xsi_rsts_names,
+ 	// .num_xsi_rsts = ARRAY_SIZE(en7523_xsi_rsts_names),
+ 	.rx_ring = 16,
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -5608,12 +5608,28 @@ static const struct airoha_xpon_match_data en7523_xpon_data = {
+ 			  XPON_MODE_EPON,
+ };
+ 
++/* The AN7552 1G MAC retains the EN7523 activation and table interface.
++ * GPON_IDLE_GEM_THLD is 0x5a in the AN7552 SDK, rather than 0x1a.
++ * Symmetric GPON uses different PHY timing and is not advertised here.
++ */
++static const struct airoha_xpon_match_data an7552_xpon_data = {
++	.version = airoha_an7552,
++	.wan_mode_mask = EN7523_SCU_WAN_MODE_MASK,
++	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_AN7552,
++	.en7523_gpon_defaults = true,
++	.gpon_reset_on_start = true,
++	.xpon_mode_comp = XPON_MODE_GPON | XPON_MODE_EPON,
++};
++
+ static const struct of_device_id airoha_xpon_of_match[] = {
+ 	{ .compatible = "econet,en751221-xpon", .data = &en751221_xpon_data },
+ 	{ .compatible = "airoha,en751627-xpon", .data = &en7528_xpon_data },
+ 	{ .compatible = "airoha,en7528-xpon", .data = &en7528_xpon_data },
+ 	{ .compatible = "airoha,en7580-xpon", .data = &en7580_xpon_data },
+ 	{ .compatible = "airoha,en7523-xpon", .data = &en7523_xpon_data },
++	{ .compatible = "airoha,an7552-xpon", .data = &an7552_xpon_data },
+ 	{}
+ };
+ MODULE_DEVICE_TABLE(of, airoha_xpon_of_match);
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
+--- a/drivers/net/ethernet/airoha/airoha_xpon.h
++++ b/drivers/net/ethernet/airoha/airoha_xpon.h
+@@ -365,6 +365,7 @@ struct airoha_xpon_match_data {
+ #define GPON_RSP_TIME_ACT_EN751221	0x058b
+ #define GPON_IDLE_GEM_THLD_DEFAULT	0x00A0
+ #define GPON_IDLE_GEM_THLD_EN7523	0x001A
++#define GPON_IDLE_GEM_THLD_AN7552	0x005A
+ 
+ /* TO1 timer: 10 seconds in O3/O4 without Ranging_Time → return to O2 */
+ #define GPON_TO1_MS			10000
+

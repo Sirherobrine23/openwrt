@@ -1,0 +1,808 @@
+From d48403dab9dae7b7ecb8ea2a7f0bafc803f22e97 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Fri, 16 Oct 2026 23:45:03 -0300
+Subject: [PATCH] net: xpon: preflight OMCI services and recover failed updates
+
+Validate the desired service set before touching the live classifier.
+Release obsolete and changed cookies before applying replacements so
+only the final set needs to fit. Reapply unchanged services as well,
+since a GPON restart may have cleared their hardware bindings.
+
+Remove attempted replacements before restoring the previous snapshot,
+check every rollback result, and retain xarray reservations through the
+software commit. Report scheduler exhaustion separately from classifier
+exhaustion. Add capacity-limited provider tests for reprovisioning,
+rollback, validation, restart replay and removal.
+---
+ drivers/net/ethernet/airoha/airoha_gpon_omci.c |  11 +
+ drivers/net/ethernet/airoha/airoha_gpon_omci.h |   3 +
+ drivers/net/ethernet/airoha/airoha_xpon.c      |  67 +++++-
+ include/net/xpon/omci.h                        |   4 +
+ net/xpon/Kconfig                               |  10 +
+ net/xpon/omci/Makefile                         |   3 +-
+ net/xpon/omci/agent.c                          |  83 -------
+ net/xpon/omci/internal.h                       |   3 +
+ net/xpon/omci/services.c                       | 176 ++++++++++++++
+ net/xpon/omci/services_test.c                  | 311 +++++++++++++++++++++++++
+ 10 files changed, 586 insertions(+), 85 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
+--- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
++++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
+@@ -86,6 +86,16 @@ static int airoha_gpon_omci_set_uni(struct omci_device *odev,
+ 	return airoha_gpon_omci_hw_set_uni(omci->hw_priv, entity_id, enable);
+ }
+ 
++static int
++airoha_gpon_omci_validate_services(struct omci_device *odev,
++				   const struct omci_service_config *services,
++				   size_t count)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_validate_services(omci->hw_priv, services, count);
++}
++
+ static int
+ airoha_gpon_omci_replace_service(struct omci_device *odev,
+ 				 const struct omci_service_config *service)
+@@ -145,6 +155,7 @@ static const struct omci_device_ops airoha_gpon_omci_ops = {
+ 	.set_tcont = airoha_gpon_omci_set_tcont,
+ 	.set_gem_port = airoha_gpon_omci_set_gem_port,
+ 	.set_uni = airoha_gpon_omci_set_uni,
++	.validate_services = airoha_gpon_omci_validate_services,
+ 	.replace_service = airoha_gpon_omci_replace_service,
+ 	.delete_service = airoha_gpon_omci_delete_service,
+ 	.get_telemetry = airoha_gpon_omci_get_telemetry,
+diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
+--- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
++++ b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
+@@ -49,6 +49,9 @@ int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,
+ 				     u16 gem_port_id, u16 tcont_entity_id,
+ 				     u8 direction, bool valid, bool encrypted);
+ int airoha_gpon_omci_hw_set_uni(void *hw_priv, u16 entity_id, bool enable);
++int airoha_gpon_omci_hw_validate_services(void *hw_priv,
++					  const struct omci_service_config *services,
++					  size_t count);
+ int airoha_gpon_omci_hw_replace_service(void *hw_priv,
+ 					const struct omci_service_config *service);
+ int airoha_gpon_omci_hw_delete_service(void *hw_priv, u32 cookie);
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -2025,6 +2025,65 @@ int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,
+ 	return 0;
+ }
+ 
++int airoha_gpon_omci_hw_validate_services(void *hw_priv,
++					  const struct omci_service_config *services,
++					  size_t count)
++{
++	struct xpon_priv *priv = hw_priv;
++	struct airoha_xpon_service_cfg *configs;
++	u16 schedulers[GPON_MAX_TCONT - 1];
++	bool by_alloc[GPON_MAX_TCONT - 1];
++	unsigned int nschedulers = 0, channel;
++	size_t i;
++	int ret = 0;
++
++	configs = kvmalloc_array(count, sizeof(*configs), GFP_KERNEL);
++	if (!configs && count)
++		return -ENOMEM;
++	for (i = 0; i < count; i++) {
++		const struct omci_service_config *service = &services[i];
++		bool alloc = service->alloc_id && service->alloc_id != 0xffff;
++		u16 scheduler = alloc ? service->alloc_id : service->tcont_entity_id;
++
++		if (service->multicast || service->vlan_treatment_valid ||
++		    service->direction == OMCI_GEM_PORT_DIRECTION_ANI_TO_UNI) {
++			ret = -EOPNOTSUPP;
++			goto out;
++		}
++		/* Only scheduler equality matters for counting distinct rules. */
++		for (channel = 0; channel < nschedulers; channel++)
++			if (schedulers[channel] == scheduler &&
++			    by_alloc[channel] == alloc)
++				break;
++		if (channel == nschedulers) {
++			if (nschedulers == ARRAY_SIZE(schedulers)) {
++				dev_warn(priv->dev,
++					 "GPON service preflight exceeds %zu data T-CONTs\n",
++					 ARRAY_SIZE(schedulers));
++				ret = -ENOSPC;
++				goto out;
++			}
++			schedulers[nschedulers] = scheduler;
++			by_alloc[nschedulers++] = alloc;
++		}
++		configs[i] = (struct airoha_xpon_service_cfg){
++			.cookie = service->cookie,
++			.gem_port_id = service->gem_port_id,
++			.vlan_id = service->vlan_id,
++			.tcont = channel + 1,
++			.queue = service->queue,
++			.pcp = service->pcp,
++			.vlan_valid = service->vlan_valid,
++			.pcp_valid = service->pcp_valid,
++			.default_service = service->default_service,
++		};
++	}
++	ret = airoha_eth_xpon_check_services(priv->gdm_dev, configs, count);
++out:
++	kvfree(configs);
++	return ret;
++}
++
+ int airoha_gpon_omci_hw_replace_service(
+ 	void *hw_priv, const struct omci_service_config *service)
+ {
+@@ -2084,8 +2143,14 @@ int airoha_gpon_omci_hw_replace_service(
+ 		ret = gpon_tcont_entity_to_index(priv, service->tcont_entity_id,
+ 						 &tcont_index);
+ 	}
+-	if (ret)
++	if (ret) {
++		if (ret == -ENOSPC)
++			dev_warn(priv->dev,
++				 "GPON T-CONT channels exhausted: entity %#x Alloc-ID %u GEM %u\n",
++				 service->tcont_entity_id, service->alloc_id,
++				 service->gem_port_id);
+ 		return ret;
++	}
+ 	cfg.tcont = tcont_index;
+ 
+ 	ret = airoha_eth_xpon_add_service(priv->gdm_dev, &cfg);
+diff --git a/include/net/xpon/omci.h b/include/net/xpon/omci.h
+--- a/include/net/xpon/omci.h
++++ b/include/net/xpon/omci.h
+@@ -299,6 +299,7 @@ struct omci_ani_topology {
+  * @set_tcont: configure a T-CONT mapping
+  * @set_gem_port: configure a GEM port
+  * @set_uni: enable or disable a UNI
++ * @validate_services: optional read-only validation of the complete desired set
+  * @replace_service: atomically add or replace a normalized upstream service
+  * @delete_service: remove a normalized upstream service by cookie
+  * @get_telemetry: refresh PON FEC and optical telemetry
+@@ -319,6 +320,9 @@ struct omci_device_ops {
+ 			    u16 gem_port_id, u16 tcont_entity_id,
+ 			    u8 direction, bool valid, bool encrypted);
+ 	int (*set_uni)(struct omci_device *odev, u16 entity_id, bool enable);
++	int (*validate_services)(struct omci_device *odev,
++				 const struct omci_service_config *services,
++				 size_t count);
+ 	int (*replace_service)(struct omci_device *odev,
+ 			       const struct omci_service_config *service);
+ 	int (*delete_service)(struct omci_device *odev, u32 cookie);
+diff --git a/net/xpon/Kconfig b/net/xpon/Kconfig
+--- a/net/xpon/Kconfig
++++ b/net/xpon/Kconfig
+@@ -38,6 +38,16 @@ config XPON_OMCI
+ 	  XGS-PON providers. The protocol implementation is owned by the xPON
+ 	  subsystem and is attached to one xPON device.
+ 
++config XPON_OMCI_KUNIT_TEST
++	bool "OMCI service reconciliation tests" if !KUNIT_ALL_TESTS
++	depends on KUNIT=y && XPON_OMCI=y
++	default KUNIT_ALL_TESTS
++	help
++	  Test capacity validation, full-table reprovisioning, recovery after
++	  provider failures and replay after a GPON restart without an OLT.
++	  Use a fake provider with bounded capacity and injected failures.
++	  Optical activation and packet forwarding are not exercised.
++
+ config XPON_OAM
+ 	tristate "xPON IEEE 802.3ah OAM"
+ 	default y
+diff --git a/net/xpon/omci/Makefile b/net/xpon/omci/Makefile
+--- a/net/xpon/omci/Makefile
++++ b/net/xpon/omci/Makefile
+@@ -1,3 +1,4 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ obj-$(CONFIG_XPON_OMCI) += omci.o
+-omci-y := core.o agent.o me.o wire.o identity.o profiles.o sysfs.o
++omci-y := core.o agent.o services.o me.o wire.o identity.o profiles.o sysfs.o
++omci-$(CONFIG_XPON_OMCI_KUNIT_TEST) += services_test.o
+diff --git a/net/xpon/omci/agent.c b/net/xpon/omci/agent.c
+--- a/net/xpon/omci/agent.c
++++ b/net/xpon/omci/agent.c
+@@ -2781,89 +2781,6 @@ static int omci_agent_stage_service(struct xarray *services,
+ 	return 0;
+ }
+ 
+-static int omci_agent_apply_services_locked(struct omci_device *odev,
+-					    struct xarray *desired)
+-{
+-	struct omci_agent *agent = &odev->agent;
+-	struct omci_service_state *state;
+-	struct omci_service_state *old_state;
+-	unsigned long index;
+-	int ret = 0;
+-
+-	if (!xa_empty(desired) && !odev->ops->replace_service)
+-		return -EOPNOTSUPP;
+-
+-	/* Reserve all new cookies before changing hardware state. */
+-	xa_for_each(desired, index, state) {
+-		if (xa_load(&agent->services, index))
+-			continue;
+-		ret = xa_reserve(&agent->services, index, GFP_KERNEL);
+-		if (ret)
+-			goto release_reservations;
+-	}
+-
+-	/* Add or replace all desired rules while the previous set remains live. */
+-	xa_for_each(desired, index, state) {
+-		ret = odev->ops->replace_service(odev, &state->config);
+-		if (ret) {
+-			dev_warn(
+-				odev->parent,
+-				"OMCI install failed for service %#x (UNI %#x GEM %u T-CONT %#x queue %u): %d; rolling back\n",
+-				state->config.cookie,
+-				state->config.uni_entity_id,
+-				state->config.gem_port_id,
+-				state->config.tcont_entity_id,
+-				state->config.queue, ret);
+-			goto rollback_hardware;
+-		}
+-	}
+-
+-	/* Delete rules that are no longer part of the resolved service graph. */
+-	xa_for_each(&agent->services, index, old_state) {
+-		if (xa_load(desired, index))
+-			continue;
+-		if (!odev->ops->delete_service)
+-			continue;
+-		ret = odev->ops->delete_service(odev, old_state->config.cookie);
+-		if (ret && ret != -ENOENT)
+-			goto rollback_hardware;
+-	}
+-
+-	/* Hardware is consistent; replace the software snapshot. */
+-	omci_agent_free_service_array(&agent->services);
+-	xa_for_each(desired, index, state) {
+-		void *entry;
+-
+-		xa_erase(desired, index);
+-		entry = xa_store(&agent->services, index, state, GFP_KERNEL);
+-		if (WARN_ON(xa_is_err(entry))) {
+-			kfree(state);
+-			continue;
+-		}
+-		kfree(entry);
+-	}
+-	return 0;
+-
+-rollback_hardware:
+-	/* Restore every old rule, including rules deleted before a failure. */
+-	if (odev->ops->replace_service)
+-		xa_for_each(&agent->services, index, old_state)
+-			odev->ops->replace_service(odev, &old_state->config);
+-
+-	/* Remove newly introduced cookies that were not in the old snapshot. */
+-	if (odev->ops->delete_service)
+-		xa_for_each(desired, index, state)
+-			if (!xa_load(&agent->services, index))
+-				odev->ops->delete_service(odev,
+-							  state->config.cookie);
+-
+-release_reservations:
+-	xa_for_each(desired, index, state)
+-		if (!xa_load(&agent->services, index))
+-			xa_release(&agent->services, index);
+-	return ret;
+-}
+-
+ static bool omci_agent_uni_enabled(struct omci_agent *agent, u8 tp_type,
+ 				   u16 entity_id)
+ {
+diff --git a/net/xpon/omci/internal.h b/net/xpon/omci/internal.h
+--- a/net/xpon/omci/internal.h
++++ b/net/xpon/omci/internal.h
+@@ -51,6 +51,9 @@ struct omci_service_state {
+ 	struct omci_service_config config;
+ };
+ 
++int omci_agent_apply_services_locked(struct omci_device *odev,
++				     struct xarray *desired);
++
+ struct omci_agent_config {
+ 	u8 serial_number[8];
+ 	u8 vendor_id[4];
+diff --git a/net/xpon/omci/services.c b/net/xpon/omci/services.c
+new file mode 100644
+--- /dev/null
++++ b/net/xpon/omci/services.c
+@@ -0,0 +1,176 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Reconcile normalized OMCI services with a hardware provider. */
++
++#include <linux/errno.h>
++#include <linux/slab.h>
++#include <linux/string.h>
++
++#include "internal.h"
++
++static bool omci_service_equal(const struct omci_service_config *a,
++			       const struct omci_service_config *b)
++{
++	return a->cookie == b->cookie &&
++	       a->uni_entity_id == b->uni_entity_id &&
++	       a->gem_ctp_entity_id == b->gem_ctp_entity_id &&
++	       a->gem_port_id == b->gem_port_id &&
++	       a->tcont_entity_id == b->tcont_entity_id &&
++	       a->alloc_id == b->alloc_id && a->vlan_id == b->vlan_id &&
++	       a->pcp == b->pcp && a->queue == b->queue &&
++	       a->direction == b->direction &&
++	       !memcmp(a->vlan_treatment, b->vlan_treatment,
++		       sizeof(a->vlan_treatment)) &&
++	       a->multicast_ani_entity_id == b->multicast_ani_entity_id &&
++	       a->vlan_valid == b->vlan_valid && a->pcp_valid == b->pcp_valid &&
++	       a->vlan_treatment_valid == b->vlan_treatment_valid &&
++	       a->multicast_ani_valid == b->multicast_ani_valid &&
++	       a->multicast == b->multicast &&
++	       a->default_service == b->default_service;
++}
++
++static bool omci_service_unchanged(struct xarray *services,
++				   const struct omci_service_state *state)
++{
++	struct omci_service_state *other;
++
++	other = xa_load(services, state->config.cookie);
++	return other && omci_service_equal(&other->config, &state->config);
++}
++
++static int omci_agent_validate_services(struct omci_device *odev,
++					struct xarray *desired)
++{
++	struct omci_service_config *configs;
++	struct omci_service_state *state;
++	unsigned long index;
++	size_t count = 0, i = 0;
++	int ret;
++
++	if (!odev->ops->validate_services)
++		return 0;
++	xa_for_each(desired, index, state)
++		count++;
++	configs = kvmalloc_array(count, sizeof(*configs), GFP_KERNEL);
++	if (!configs && count)
++		return -ENOMEM;
++	xa_for_each(desired, index, state)
++		configs[i++] = state->config;
++	ret = odev->ops->validate_services(odev, configs, count);
++	kvfree(configs);
++	if (ret)
++		dev_warn(odev->parent,
++			 "OMCI service preflight failed for %zu rules: %d; active services unchanged\n",
++			 count, ret);
++	return ret;
++}
++
++int omci_agent_apply_services_locked(struct omci_device *odev,
++				     struct xarray *desired)
++{
++	struct omci_agent *agent = &odev->agent;
++	struct omci_service_state *state;
++	struct omci_service_state *old_state;
++	unsigned long index;
++	int ret, err, rollback_error = 0;
++
++	if ((!xa_empty(desired) || !xa_empty(&agent->services)) &&
++	    (!odev->ops->replace_service || !odev->ops->delete_service))
++		return -EOPNOTSUPP;
++
++	ret = omci_agent_validate_services(odev, desired);
++	if (ret)
++		return ret;
++
++	/* Reserve all new cookies before changing hardware state. */
++	xa_for_each(desired, index, state) {
++		if (xa_load(&agent->services, index))
++			continue;
++		ret = xa_reserve(&agent->services, index, GFP_KERNEL);
++		if (ret)
++			goto release_reservations;
++	}
++
++	/* Free obsolete and changed rules so only the final set must fit. */
++	xa_for_each(&agent->services, index, old_state) {
++		if (omci_service_unchanged(desired, old_state))
++			continue;
++		ret = odev->ops->delete_service(odev, old_state->config.cookie);
++		if (ret && ret != -ENOENT) {
++			dev_warn(odev->parent,
++				 "OMCI delete failed for service %#x: %d; rolling back\n",
++				 old_state->config.cookie, ret);
++			goto rollback_hardware;
++		}
++	}
++
++	/* Reapply unchanged rules too: a GPON restart may have lost them. */
++	xa_for_each(desired, index, state) {
++		ret = odev->ops->replace_service(odev, &state->config);
++		if (ret) {
++			dev_warn(odev->parent,
++				 "OMCI install failed for service %#x (UNI %#x GEM %u T-CONT %#x queue %u): %d; rolling back\n",
++				 state->config.cookie, state->config.uni_entity_id,
++				 state->config.gem_port_id,
++				 state->config.tcont_entity_id,
++				 state->config.queue, ret);
++			goto rollback_hardware;
++		}
++	}
++
++	/* Keep desired keys and reservations alive throughout the commit. */
++	xa_for_each(&agent->services, index, old_state) {
++		if (xa_load(desired, index))
++			continue;
++		xa_erase(&agent->services, index);
++		kfree(old_state);
++	}
++	xa_for_each(desired, index, state) {
++		void *entry;
++
++		xa_erase(desired, index);
++		entry = xa_store(&agent->services, index, state, GFP_NOWAIT);
++		if (WARN_ON(xa_is_err(entry))) {
++			kfree(state);
++			continue;
++		}
++		kfree(entry);
++	}
++	return 0;
++
++rollback_hardware:
++	/* Remove attempted replacements before restoring the previous set. */
++	if (odev->ops->delete_service)
++		xa_for_each(desired, index, state) {
++			if (omci_service_unchanged(&agent->services, state))
++				continue;
++			err = odev->ops->delete_service(odev, state->config.cookie);
++			if (err && err != -ENOENT) {
++				rollback_error = err;
++				dev_err(odev->parent,
++					"OMCI rollback delete failed for service %#x: %d\n",
++					state->config.cookie, err);
++			}
++		}
++	if (odev->ops->replace_service)
++		xa_for_each(&agent->services, index, old_state) {
++			err = odev->ops->replace_service(odev, &old_state->config);
++			if (err) {
++				rollback_error = err;
++				dev_err(odev->parent,
++					"OMCI rollback restore failed for service %#x GEM %u: %d\n",
++					old_state->config.cookie,
++					old_state->config.gem_port_id, err);
++			}
++		}
++	if (rollback_error) {
++		dev_err(odev->parent,
++			"OMCI service rollback incomplete after error %d\n", ret);
++		ret = -EIO;
++	}
++
++release_reservations:
++	xa_for_each(desired, index, state)
++		if (!xa_load(&agent->services, index))
++			xa_release(&agent->services, index);
++	return ret;
++}
+diff --git a/net/xpon/omci/services_test.c b/net/xpon/omci/services_test.c
+new file mode 100644
+--- /dev/null
++++ b/net/xpon/omci/services_test.c
+@@ -0,0 +1,311 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Service transactions against a capacity-limited, hardware-free provider. */
++
++#include <kunit/test.h>
++
++#include "internal.h"
++
++#define OMCI_TEST_CAPACITY 2
++
++struct omci_services_test_context {
++	struct omci_device odev;
++	struct xarray desired;
++	struct omci_service_config hardware[OMCI_TEST_CAPACITY];
++	bool used[OMCI_TEST_CAPACITY];
++	u16 fail_gem;
++	u16 fail_restore_gem;
++	u32 fail_delete_cookie;
++	unsigned int replace_calls;
++};
++
++static int omci_services_test_validate(struct omci_device *odev,
++				       const struct omci_service_config *services,
++				       size_t count)
++{
++	return count > OMCI_TEST_CAPACITY ? -ENOSPC : 0;
++}
++
++static int omci_services_test_replace(struct omci_device *odev,
++				      const struct omci_service_config *config)
++{
++	struct omci_services_test_context *ctx = odev->priv;
++	int i, slot = -1;
++
++	ctx->replace_calls++;
++	if (config->gem_port_id == ctx->fail_gem) {
++		ctx->fail_gem = 0;
++		return -EINVAL;
++	}
++	if (config->gem_port_id == ctx->fail_restore_gem)
++		return -EAGAIN;
++	for (i = 0; i < OMCI_TEST_CAPACITY; i++) {
++		if (ctx->used[i] && ctx->hardware[i].cookie == config->cookie) {
++			slot = i;
++			break;
++		}
++		if (!ctx->used[i] && slot < 0)
++			slot = i;
++	}
++	if (slot < 0)
++		return -ENOSPC;
++	ctx->hardware[slot] = *config;
++	ctx->used[slot] = true;
++	return 0;
++}
++
++static int omci_services_test_delete(struct omci_device *odev, u32 cookie)
++{
++	struct omci_services_test_context *ctx = odev->priv;
++	int i;
++
++	if (cookie == ctx->fail_delete_cookie) {
++		ctx->fail_delete_cookie = 0;
++		return -EIO;
++	}
++	for (i = 0; i < OMCI_TEST_CAPACITY; i++)
++		if (ctx->used[i] && ctx->hardware[i].cookie == cookie) {
++			ctx->used[i] = false;
++			return 0;
++		}
++	return -ENOENT;
++}
++
++static const struct omci_device_ops omci_services_test_ops = {
++	.validate_services = omci_services_test_validate,
++	.replace_service = omci_services_test_replace,
++	.delete_service = omci_services_test_delete,
++};
++
++static void omci_services_test_free(struct xarray *array)
++{
++	struct omci_service_state *state;
++	unsigned long index;
++
++	xa_for_each(array, index, state) {
++		xa_erase(array, index);
++		kfree(state);
++	}
++	xa_destroy(array);
++}
++
++static int omci_services_test_init(struct kunit *test)
++{
++	struct omci_services_test_context *ctx;
++
++	ctx = kunit_kzalloc(test, sizeof(*ctx), GFP_KERNEL);
++	if (!ctx)
++		return -ENOMEM;
++	ctx->odev.parent = root_device_register("omci-services-kunit");
++	if (IS_ERR(ctx->odev.parent))
++		return PTR_ERR(ctx->odev.parent);
++	ctx->odev.priv = ctx;
++	ctx->odev.ops = &omci_services_test_ops;
++	mutex_init(&ctx->odev.agent.lock);
++	xa_init(&ctx->odev.agent.services);
++	xa_init(&ctx->desired);
++	test->priv = ctx;
++	return 0;
++}
++
++static void omci_services_test_exit(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_free(&ctx->desired);
++	omci_services_test_free(&ctx->odev.agent.services);
++	root_device_unregister(ctx->odev.parent);
++}
++
++static void omci_services_test_add(struct kunit *test, struct xarray *array,
++				   u32 cookie, u16 gem)
++{
++	struct omci_service_state *state;
++
++	state = kzalloc(sizeof(*state), GFP_KERNEL);
++	KUNIT_ASSERT_NOT_NULL(test, state);
++	state->config.cookie = cookie;
++	state->config.gem_port_id = gem;
++	state->config.tcont_entity_id = 0x8000;
++	if (xa_err(xa_store(array, cookie, state, GFP_KERNEL))) {
++		kfree(state);
++		KUNIT_FAIL(test, "could not store service");
++	}
++}
++
++static void omci_services_test_seed(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++	struct omci_service_state *state;
++	unsigned long index;
++
++	omci_services_test_add(test, &ctx->odev.agent.services, 1, 10);
++	omci_services_test_add(test, &ctx->odev.agent.services, 2, 20);
++	xa_for_each(&ctx->odev.agent.services, index, state) {
++		int ret = omci_services_test_replace(&ctx->odev, &state->config);
++
++		KUNIT_ASSERT_EQ(test, ret, 0);
++	}
++	ctx->replace_calls = 0;
++}
++
++static int omci_services_test_apply(struct omci_services_test_context *ctx)
++{
++	int ret;
++
++	mutex_lock(&ctx->odev.agent.lock);
++	ret = omci_agent_apply_services_locked(&ctx->odev, &ctx->desired);
++	mutex_unlock(&ctx->odev.agent.lock);
++	return ret;
++}
++
++static bool omci_services_test_has(struct omci_services_test_context *ctx,
++				   u32 cookie, u16 gem)
++{
++	int i;
++
++	for (i = 0; i < OMCI_TEST_CAPACITY; i++)
++		if (ctx->used[i] && ctx->hardware[i].cookie == cookie &&
++		    ctx->hardware[i].gem_port_id == gem)
++			return true;
++	return false;
++}
++
++static void omci_services_full_reprovision_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 3, 30);
++	omci_services_test_add(test, &ctx->desired, 4, 40);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 3, 30));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 4, 40));
++	KUNIT_EXPECT_PTR_EQ(test, xa_load(&ctx->odev.agent.services, 1), NULL);
++	KUNIT_EXPECT_NOT_NULL(test, xa_load(&ctx->odev.agent.services, 4));
++}
++
++static void omci_services_changed_cookie_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 1, 30);
++	omci_services_test_add(test, &ctx->desired, 2, 20);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 30));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++}
++
++static void omci_services_preflight_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 3, 30);
++	omci_services_test_add(test, &ctx->desired, 4, 40);
++	omci_services_test_add(test, &ctx->desired, 5, 50);
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -ENOSPC);
++	KUNIT_EXPECT_EQ(test, ctx->replace_calls, 0U);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 10));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++}
++
++static void omci_services_rollback_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 3, 30);
++	omci_services_test_add(test, &ctx->desired, 4, 40);
++	ctx->fail_gem = 40;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EINVAL);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 10));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++	KUNIT_EXPECT_PTR_EQ(test, xa_load(&ctx->odev.agent.services, 3), NULL);
++}
++
++static void omci_services_restore_failure_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 3, 30);
++	omci_services_test_add(test, &ctx->desired, 4, 40);
++	ctx->fail_gem = 40;
++	ctx->fail_restore_gem = 10;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EIO);
++	KUNIT_EXPECT_NOT_NULL(test, xa_load(&ctx->odev.agent.services, 1));
++}
++
++static void omci_services_restart_replay_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	memset(ctx->used, 0, sizeof(ctx->used));
++	omci_services_test_add(test, &ctx->desired, 1, 10);
++	omci_services_test_add(test, &ctx->desired, 2, 20);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 10));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++	KUNIT_EXPECT_EQ(test, ctx->replace_calls, 2U);
++}
++
++static void omci_services_changed_rollback_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 1, 30);
++	omci_services_test_add(test, &ctx->desired, 2, 40);
++	ctx->fail_gem = 40;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EINVAL);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 10));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++}
++
++static void omci_services_delete_failure_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	omci_services_test_add(test, &ctx->desired, 3, 30);
++	omci_services_test_add(test, &ctx->desired, 4, 40);
++	ctx->fail_delete_cookie = 2;
++	KUNIT_EXPECT_EQ(test, omci_services_test_apply(ctx), -EIO);
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 1, 10));
++	KUNIT_EXPECT_TRUE(test, omci_services_test_has(ctx, 2, 20));
++}
++
++static void omci_services_clear_test(struct kunit *test)
++{
++	struct omci_services_test_context *ctx = test->priv;
++
++	omci_services_test_seed(test);
++	KUNIT_ASSERT_EQ(test, omci_services_test_apply(ctx), 0);
++	KUNIT_EXPECT_TRUE(test, xa_empty(&ctx->odev.agent.services));
++	KUNIT_EXPECT_FALSE(test, ctx->used[0]);
++	KUNIT_EXPECT_FALSE(test, ctx->used[1]);
++}
++
++static struct kunit_case omci_services_test_cases[] = {
++	KUNIT_CASE(omci_services_full_reprovision_test),
++	KUNIT_CASE(omci_services_changed_cookie_test),
++	KUNIT_CASE(omci_services_preflight_test),
++	KUNIT_CASE(omci_services_rollback_test),
++	KUNIT_CASE(omci_services_restore_failure_test),
++	KUNIT_CASE(omci_services_restart_replay_test),
++	KUNIT_CASE(omci_services_changed_rollback_test),
++	KUNIT_CASE(omci_services_delete_failure_test),
++	KUNIT_CASE(omci_services_clear_test),
++	{}
++};
++
++static struct kunit_suite omci_services_test_suite = {
++	.name = "omci-services",
++	.init = omci_services_test_init,
++	.exit = omci_services_test_exit,
++	.test_cases = omci_services_test_cases,
++};
++
++kunit_test_suite(omci_services_test_suite);
+

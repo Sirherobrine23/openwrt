@@ -1,0 +1,39 @@
+From f72f5f2ab957f8b74f7114c1cecb42c94c8461d1 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Mon, 26 Oct 2026 22:35:50 -0300
+Subject: [PATCH] dt-bindings: net: airoha: describe Frame Engine interrupt
+ names
+
+Allow the ten named interrupts in the EN7581 binding so the optional
+FE error handler can resolve its IRQ without a positional fallback.
+Keep the names optional for existing device trees.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ .../devicetree/bindings/net/airoha,en7581-eth.yaml          | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml b/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
+--- a/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
++++ b/Documentation/devicetree/bindings/net/airoha,en7581-eth.yaml
+@@ -43,6 +43,19 @@ properties:
+       - description: FE error irq
+       - description: PDMA irq
+ 
++  interrupt-names:
++    items:
++      - const: lan0
++      - const: lan1
++      - const: lan2
++      - const: lan3
++      - const: wan0
++      - const: wan1
++      - const: wan2
++      - const: wan3
++      - const: fe-error
++      - const: pdma
++
+   resets:
+     maxItems: 8
+ 
+

@@ -1,0 +1,41 @@
+From f520ecbfd5d027d75eea2eddb5681972bacee72f Mon Sep 17 00:00:00 2001
+From: Cristian Papa <pcristian292@gmail.com>
+Date: Wed, 14 Oct 2026 06:23:15 +0000
+Subject: [PATCH] net: airoha: reject assignments to WHNAT counters
+
+WHNAT exposes five atomic counters through read-only module parameters.
+Their custom operations provide only a get callback. The 0444 permissions
+prevent writes through sysfs, but do not prevent assignments through the
+kernel command line or module arguments. With an explicit value,
+parse_one() calls the missing set callback and dereferences NULL.
+
+Add a setter that rejects assignments with -EPERM. Keep the counter
+readers, arguments and permissions unchanged, along with the writable
+whnat_enable parameter.
+
+Fixes: f90277e22ed1 ("net: airoha: add WHNAT, the EN751221 PPE offload for WiFi without WED")
+Assisted-by: Codex:GPT-6
+Signed-off-by: Cristian Papa <pcristian292@gmail.com>
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_whnat.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_whnat.c b/drivers/net/ethernet/airoha/airoha_whnat.c
+--- a/drivers/net/ethernet/airoha/airoha_whnat.c
++++ b/drivers/net/ethernet/airoha/airoha_whnat.c
+@@ -52,7 +52,13 @@ static int counter_get(char *buf, const struct kernel_param *kp)
+ 	return sysfs_emit(buf, "%u\n", (unsigned int)atomic_read(kp->arg));
+ }
+ 
++static int counter_set(const char *val, const struct kernel_param *kp)
++{
++	return -EPERM;
++}
++
+ static const struct kernel_param_ops counter_ops = {
++	.set = counter_set,
+ 	.get = counter_get,
+ };
+ 
+

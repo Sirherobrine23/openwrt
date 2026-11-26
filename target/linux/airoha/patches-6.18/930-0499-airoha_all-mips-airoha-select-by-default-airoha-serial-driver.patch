@@ -1,0 +1,33 @@
+From 9e18a137554621a1b2dd5b903de91339ce35133b Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 18 Nov 2026 15:41:28 -0300
+Subject: [PATCH] mips: airoha: select by default airoha serial driver
+
+---
+ arch/mips/Kconfig                       | 1 +
+ arch/mips/boot/dts/econet/en751221.dtsi | 1 -
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -401,6 +401,7 @@ config ECONET
+ 	select ECONET_EN751221_TIMER
+ 	select MIPS_EXTERNAL_TIMER
+ 	select SERIAL_8250
++	select SERIAL_8250_AIROHA
+ 	select SERIAL_OF_PLATFORM
+ 	select SYS_SUPPORTS_BIG_ENDIAN
+ 	select SYS_SUPPORTS_LITTLE_ENDIAN
+diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
+--- a/arch/mips/boot/dts/econet/en751221.dtsi
++++ b/arch/mips/boot/dts/econet/en751221.dtsi
+@@ -380,7 +380,6 @@ uart1: serial@1fbf0000 {
+ 			reg = <0x1fbf0000 0x30>;
+ 			reg-io-width = <4>;
+ 			reg-shift = <2>;
+-			native-endian;
+ 			clock-frequency = <20000000>;
+ 	
+ 			interrupts = <0>;
+

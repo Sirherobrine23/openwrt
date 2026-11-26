@@ -1,0 +1,62 @@
+From ec6bd33648dd47ac761b8aa6a565165182cbff59 Mon Sep 17 00:00:00 2001
+From: Cristian Papa <pcristian292@gmail.com>
+Date: Sun, 25 Oct 2026 01:21:19 -0300
+Subject: [PATCH] net: airoha: en751221: raise WAN QDMA congestion thresholds
+
+Upstream FoE flows reach the WAN QDMA from a 1 Gbit/s LAN port, but GPON
+grants drain them only in bursts. With the thresholds captured from the
+shipping firmware (total min 819, channel min 160, queue 24..819), the
+dynamic congestion control drops about 0.9 % of a saturated upload at
+the hardware forwarding ingress (CDMA2_RXHWF_DROP_CNT). The PPE, the
+switches and the GPON MAC lose nothing, so these drops are the whole
+TCP loss. They halve the upload of higher-RTT clients such as WiFi
+stations.
+
+Raise the minimum thresholds so line-rate bursts fit: total min 4096,
+channel min 2048 and queue 2048..4095. The drops and the dynamic
+control stay enabled, so the queue stays within the 4096 descriptor
+pool and a stalled GPON link cannot back-pressure the frame engine.
+
+Measured on a TP-Link Archer XR500v (Movistar GPON) with a saturated
+4-stream upload: HWF ingress drops go from 0.90 % to 0.19 % with the
+same throughput, and the loaded RTT goes from 30 to ~35 ms. A WiFi
+laptop's upload against a single server goes from ~300 to 554 Mbit/s.
+
+Assisted-by: Claude:claude-opus-5-5
+Signed-off-by: Cristian Papa <pcristian292@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c | 19 ++++++++++++++++---
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -1633,11 +1633,24 @@ static void econet_init_en751221_qdma(struct airoha_qdma_mips *qdma)
+ 		queue_max = 204;
+ 	} else if (qdma->fwd_buf_size == 2048 && qdma->qdma->id == 1 &&
+ 		   qdma->num_fwd_descs == 4096) {
+-		total_min = 819;
++		/*
++		 * Upstream FoE flows enter this QDMA from a 1 Gbit/s LAN port
++		 * and leave through GPON grants that drain at the line rate
++		 * only in bursts. With the shipping thresholds (total min 819,
++		 * channel min 160, queue 24..819) the dynamic congestion
++		 * control drops ~0.9 % of a saturated upload at the HWF ingress
++		 * (CDMA2_RXHWF_DROP_CNT), which halves TCP throughput for
++		 * higher-RTT clients. Raise the minimum thresholds so line-rate
++		 * bursts fit, while keeping the queue well inside the 4096
++		 * descriptor pool and the drops enabled, so a stalled GPON
++		 * link cannot back-pressure the frame engine.
++		 */
++		total_min = 4096;
+ 		total_max = 15360;
+-		channel_min = 160;
++		channel_min = 2048;
+ 		channel_max = 15360;
+-		queue_max = 819;
++		queue_min = 2048;
++		queue_max = 4095;
+ 	}
+ 
+ 	airoha_wr((void __iomem *)&qdma->regs->tx_congest_thr, 0,
+

@@ -1,0 +1,83 @@
+From 32aa9ef57766d72f5953b0d22ced987addfd33f6 Mon Sep 17 00:00:00 2001
+From: Cristian Papa <pcristian292@gmail.com>
+Date: Wed, 18 Nov 2026 19:09:16 +0000
+Subject: [PATCH] EN751221: enable flow control on the switch fixed links
+ (#117)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The fixed links between the frame engine and the LAN ports of an EN751221 with the companion MT7530 have no `pause` on the switch side: the CPU port and port 5 of the on-die switch and port 6 of the companion come up with `flow control off`, while `gdm1` already has `pause` and the LAN ports negotiate it. A LAN link partner that sends pause frames is honoured by its port, but the companion cannot push back over the cascade and drops the downstream frames at the ingress of its port 6 (`ethtool -S eth0`, `s01_p06_RxIngressDrop`).
+
+The first commit adds `pause` to those three fixed links. The second only corrects the comment on the global flow-control register: `0x80083020` keeps flow control enabled (bit 31), it does not disable it.
+
+### Test
+
+Archer XR500v, with an AX88179 USB adapter on a LAN port (the only link partner here that sends pause frames), running these three `pause` since 18-nov:
+
+|                                                                         | before                  | after                |
+| ----------------------------------------------------------------------- | ----------------------- | -------------------- |
+| boot log of the three fixed links                                       | `flow control off`      | `flow control rx/tx` |
+| `s01_p06_RxIngressDrop`, 16 TCP streams at ~480 Mbit/s                  | 2.6–3.2 % of the frames | 0                    |
+| same, bursts at 100 and 300 Mbit/s                                      | 0.35–0.5 %              | 0                    |
+| one TCP stream                                                          | 381 Mbit/s, 1.2 % lost  | 468 Mbit/s, 0 %      |
+| ping to the router on another LAN port, with the first one at full load | —                       | 0 lost, max 8.7 ms   |
+
+With `pause` turned off on the LAN port instead, the switch dropped nothing and the adapter lost the same 3 % by itself, so the pause has to reach the SoC.
+
+Not tested on other boards. The OpenWrt copy (`target/linux/airoha/dts/en751221.dtsi` in airoha/openwrt) needs the same three lines at the next sync.
+
+Reviewed-on: https://sirherobrine23.com.br/airoha/kernel/pulls/117
+Co-authored-by: Cristian Papa <pcristian292@gmail.com>
+---
+ arch/mips/boot/dts/econet/en751221.dtsi | 3 +++
+ drivers/net/dsa/mt7530.c                | 9 ++++++---
+ 2 files changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
+--- a/arch/mips/boot/dts/econet/en751221.dtsi
++++ b/arch/mips/boot/dts/econet/en751221.dtsi
+@@ -718,6 +718,7 @@ gport5: port@5 {
+ 					fixed-link {
+ 						speed = <1000>;
+ 						full-duplex;
++						pause;
+ 					};
+ 				};
+ 
+@@ -730,6 +731,7 @@ port@6 {
+ 					fixed-link {
+ 						speed = <1000>;
+ 						full-duplex;
++						pause;
+ 					};
+ 				};
+ 			};
+@@ -935,6 +937,7 @@ mcm_port6: port@6 {
+ 							fixed-link {
+ 								speed = <1000>;
+ 								full-duplex;
++								pause;
+ 							};
+ 						};
+ 					};
+diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -906,9 +906,12 @@ static void en751221_trgmii_pair_setup(struct mt7530_priv *ext,
+ 	mt7530_clear(ondie, MT753X_AGC, EN751221_AGC_L2LEN_CHK);
+ 
+ 	/*
+-	 * The EN7512 vendor SDK disables global switch flow control on both
+-	 * sides of the cascade for throughput operation. Keep this separate
+-	 * from ingress/egress rate-limit accounting, which is not changed here.
++	 * Global flow-control register of both sides of the cascade, with
++	 * the value of the EN7512 vendor SDK. Bit 31 is the global enable
++	 * (the vendor code clears it to close flow control) and it is set:
++	 * flow control stays on, and the pause bits of each MAC control
++	 * register decide per port. Ingress/egress rate-limit accounting is
++	 * not changed here.
+ 	 */
+ 	mt7530_write(ondie, EN751221_GSW_FC_CTL, EN751221_GSW_FC_CTL_VAL);
+ 	mt7530_write(ext, EN751221_GSW_FC_CTL, EN751221_GSW_FC_CTL_VAL);
+

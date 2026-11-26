@@ -1,0 +1,249 @@
+From 886df3c2bc2013e7936fe66273afa21af5515f8b Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 1 Nov 2026 22:13:21 -0300
+Subject: [PATCH] phy: xpon: fix build for en7528 xpon phy
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm64/boot/dts/airoha/an7581.dtsi | 122 +++++++++++++++++++++++++++++----
+ drivers/phy/airoha/xpon/en7528.c       |   1 -
+ 2 files changed, 107 insertions(+), 16 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/airoha/an7581.dtsi b/arch/arm64/boot/dts/airoha/an7581.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7581.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7581.dtsi
+@@ -660,59 +660,92 @@ mux {
+ 					};
+ 				};
+ 
++				pcie0_rst_pins: pcie0-rst-pins {
++					mux {
++						function = "pcie_reset";
++						groups = "pcie_reset0";
++					};
++					conf {
++						pins = "pcie_reset0";
++						drive-open-drain = <1>;
++					};
++				};
++
++				pcie1_rst_pins: pcie1-rst-pins {
++					mux {
++						function = "pcie_reset";
++						groups = "pcie_reset1";
++					};
++					conf {
++						pins = "pcie_reset1";
++						drive-open-drain = <1>;
++					};
++				};
++
++				pcie2_rst_pins: pcie2-rst-pins {
++					mux {
++						function = "pcie_reset";
++						groups = "pcie_reset1";
++					};
++					conf {
++						pins = "pcie_reset1";
++						drive-open-drain = <1>;
++					};
++				};
++
+ 				swp1_led0: switch_port-1-led0 {
+ 					mux {
+ 						function = "phy1_led0";
+-						pins = "gpio22";
++						pins = "gpio33";
+ 					};
+ 				};
+-	
++
+ 				swp1_led1: switch_port-1-led1 {
+ 					mux {
+ 						function = "phy1_led1";
+-						pins = "gpio7";
++						pins = "gpio43";
+ 					};
+ 				};
+-	
++
+ 				swp2_led0: switch_port-2-led0 {
+ 					mux {
+ 						function = "phy2_led0";
+-						pins = "gpio23";
++						pins = "gpio34";
+ 					};
+ 				};
+-	
++
+ 				swp2_led1: switch_port-2-led1 {
+ 					mux {
+ 						function = "phy2_led1";
+-						pins = "gpio6";
++						pins = "gpio44";
+ 					};
+ 				};
+-	
++
+ 				swp3_led0: switch_port-3-led0 {
+ 					mux {
+ 						function = "phy3_led0";
+-						pins = "gpio24";
++						pins = "gpio35";
+ 					};
+ 				};
+-	
++
+ 				swp3_led1: switch_port-3-led1 {
+ 					mux {
+ 						function = "phy3_led1";
+-						pins = "gpio5";
++						pins = "gpio45";
+ 					};
+ 				};
+-	
++
+ 				swp4_led0: switch_port-4-led0 {
+ 					mux {
+ 						function = "phy4_led0";
+-						pins = "gpio25";
++						pins = "gpio42";
+ 					};
+ 				};
+-	
++
+ 				swp4_led1: switch_port-4-led1 {
+ 					mux {
+ 						function = "phy4_led1";
+-						pins = "gpio4";
++						pins = "gpio46";
+ 					};
+ 				};
+ 			};
+@@ -836,6 +869,9 @@ pcie0: pcie@1fc00000 {
+ 
+ 			mediatek,pbus-csr = <&pbus_csr 0x0 0x4>;
+ 
++			pinctrl-names = "default";
++			pinctrl-0 = <&pcie0_rst_pins>;
++
+ 			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+ 			bus-range = <0x00 0xff>;
+ 			#interrupt-cells = <1>;
+@@ -852,6 +888,13 @@ pcie_intc0: interrupt-controller {
+ 				#address-cells = <0>;
+ 				#interrupt-cells = <1>;
+ 			};
++
++			pcie0_slot0: pcie@0,0 {
++				reg = <0x0000 0 0 0 0>;
++				#address-cells = <3>;
++				#size-cells = <2>;
++				ranges;
++			};
+ 		};
+ 
+ 		pcie1: pcie@1fc20000 {
+@@ -877,6 +920,9 @@ pcie1: pcie@1fc20000 {
+ 
+ 			mediatek,pbus-csr = <&pbus_csr 0x8 0xc>;
+ 
++			pinctrl-names = "default";
++			pinctrl-0 = <&pcie1_rst_pins>;
++
+ 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+ 			bus-range = <0x00 0xff>;
+ 			#interrupt-cells = <1>;
+@@ -893,6 +939,13 @@ pcie_intc1: interrupt-controller {
+ 				#address-cells = <0>;
+ 				#interrupt-cells = <1>;
+ 			};
++
++			pcie1_slot1: pcie@1,0 {
++				reg = <0x0800 0 0 0 0>;
++				#address-cells = <3>;
++				#size-cells = <2>;
++				ranges;
++			};
+ 		};
+ 
+ 		pcie2: pcie@1fc40000 {
+@@ -918,6 +971,9 @@ pcie2: pcie@1fc40000 {
+ 
+ 			mediatek,pbus-csr = <&pbus_csr 0x10 0x14>;
+ 
++			pinctrl-names = "default";
++			pinctrl-0 = <&pcie2_rst_pins>;
++
+ 			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+ 			bus-range = <0x00 0xff>;
+ 			#interrupt-cells = <1>;
+@@ -934,6 +990,13 @@ pcie_intc2: interrupt-controller {
+ 				#address-cells = <0>;
+ 				#interrupt-cells = <1>;
+ 			};
++
++			pcie2_slot2: pcie@2,0 {
++				reg = <0x0800 0 0 0 0>;
++				#address-cells = <3>;
++				#size-cells = <2>;
++				ranges;
++			};
+ 		};
+ 
+ 		npu: npu@1e900000 {
+@@ -1011,6 +1074,34 @@ xpon: xmac@1fb60000 {
+ 			status = "disabled";
+ 		};
+ 
++		wed0: wed@1fa02000 {
++			compatible = "airoha,en7523-wed", "syscon";
++			reg = <0x0 0x1fa02000 0x0 0xb00>,
++			      <0x0 0x1fa06000 0x0 0x400>;
++			reg-names = "wed", "wdma";
++
++			interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>,
++			             <GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>,
++			             <GIC_SPI 70 IRQ_TYPE_LEVEL_HIGH>,
++			             <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "wed", "wdma-port0",
++			                  "wdma-port1", "wdma-woe";
++		};
++
++		wed1: wed@1fa03000 {
++			compatible = "airoha,en7523-wed", "syscon";
++			reg = <0x0 0x1fa03000 0x0 0xb00>,
++			      <0x0 0x1fa06400 0x0 0x400>;
++			reg-names = "wed", "wdma";
++
++			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>,
++			             <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>,
++			             <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>,
++			             <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "wed", "wdma-port0",
++			                  "wdma-port1", "wdma-woe";
++		};
++
+ 		eth: ethernet@1fb50000 {
+ 			compatible = "airoha,en7581-eth";
+ 			reg = <0 0x1fb50000 0 0x2600>,
+@@ -1051,6 +1142,7 @@ eth: ethernet@1fb50000 {
+ 			memory-region-names = "qdma0-buf", "qdma1-buf";
+ 
+ 			airoha,npu = <&npu>;
++			airoha,wed = <&wed0>, <&wed1>;
+ 
+ 			status = "disabled";
+ 
+diff --git a/drivers/phy/airoha/xpon/en7528.c b/drivers/phy/airoha/xpon/en7528.c
+--- a/drivers/phy/airoha/xpon/en7528.c
++++ b/drivers/phy/airoha/xpon/en7528.c
+@@ -117,7 +117,6 @@ static int airoha_en7528_xpon_phy_configure(struct airoha_xpon_phy *priv)
+ 
+ 	return 0;
+ }
+-EXPORT_SYMBOL_GPL(airoha_en7528_xpon_phy_configure);
+ 
+ static const struct airoha_xpon_phy_soc_data airoha_en7528_xpon_phy_data = {
+ 	.name = "EN7528",
+

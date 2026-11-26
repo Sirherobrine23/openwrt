@@ -1,0 +1,1301 @@
+From e4fbeb89f3fd1f3439f6db84eef8b7ed81ac7a80 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Mon, 16 Nov 2026 22:37:51 -0300
+Subject: [PATCH] start xpon mac with airoha_eth
+
+Needs fix DEFER on pre start optical device
+---
+ arch/arm/boot/dts/airoha/an7552.dtsi      |   4 +-
+ arch/arm/boot/dts/airoha/en7523.dtsi      |   2 +-
+ arch/arm64/boot/dts/airoha/an7581.dtsi    |   9 +-
+ arch/arm64/boot/dts/airoha/an7583.dtsi    |  11 +-
+ arch/mips/boot/dts/econet/en751221.dtsi   |   7 +-
+ arch/mips/boot/dts/econet/en751627.dtsi   |   6 +-
+ arch/mips/boot/dts/econet/en7528.dtsi     |   7 +-
+ arch/mips/boot/dts/econet/en7580.dtsi     |   8 +-
+ drivers/net/ethernet/airoha/Kconfig       |   8 +-
+ drivers/net/ethernet/airoha/Makefile      |   3 +-
+ drivers/net/ethernet/airoha/airoha_eth.c  | 248 ++++++++-----------
+ drivers/net/ethernet/airoha/airoha_eth.h  |  25 ++
+ drivers/net/ethernet/airoha/airoha_xpon.c | 396 ++++++++++++++++--------------
+ drivers/net/ethernet/airoha/airoha_xpon.h |   2 +
+ net/xpon/core.c                           |   4 +-
+ 15 files changed, 371 insertions(+), 369 deletions(-)
+
+diff --git a/arch/arm/boot/dts/airoha/an7552.dtsi b/arch/arm/boot/dts/airoha/an7552.dtsi
+--- a/arch/arm/boot/dts/airoha/an7552.dtsi
++++ b/arch/arm/boot/dts/airoha/an7552.dtsi
+@@ -653,7 +653,6 @@ xpon: xmac@1fb60000 {
+ 		ethernet = <&gdm2_pon>;
+ 		airoha,scu = <&scuclk>;
+ 
+-		status = "disabled";
+ 	};
+ 
+ 	eth: ethernet@1fb50000 {
+@@ -717,8 +716,9 @@ ethernet@2 {
+ 			#size-cells = <0>;
+ 
+ 			gdm2_pon: ethernet-port@0 {
+-				compatible = "airoha,eth-pon";
++				compatible =  "airoha,eth-pon";
+ 				reg = <0>;
++				airoha,xpon = <&xpon>;
+ 				phy-mode = "internal";
+ 				status = "disabled";
+ 			};
+diff --git a/arch/arm/boot/dts/airoha/en7523.dtsi b/arch/arm/boot/dts/airoha/en7523.dtsi
+--- a/arch/arm/boot/dts/airoha/en7523.dtsi
++++ b/arch/arm/boot/dts/airoha/en7523.dtsi
+@@ -899,7 +899,6 @@ xpon: xmac@1fb60000 {
+ 		ethernet = <&gdm2_pon>;
+ 		airoha,scu = <&scuclk>;
+ 
+-		status = "disabled";
+ 	};
+ 
+ 	pon_pcs: pcs@1fa08000 {
+@@ -1082,6 +1081,7 @@ ethernet@2 {
+ 			gdm2_pon: ethernet-port@0 {
+ 				compatible = "airoha,eth-pon";
+ 				reg = <0>;
++				airoha,xpon = <&xpon>;
+ 				phy-mode = "internal";
+ 				status = "disabled";
+ 			};
+diff --git a/arch/arm64/boot/dts/airoha/an7581.dtsi b/arch/arm64/boot/dts/airoha/an7581.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7581.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7581.dtsi
+@@ -1118,8 +1118,6 @@ xpon: xmac@1fb60000 {
+ 
+ 			ethernet = <&gdm2_pon>;
+ 			airoha,scu = <&scuclk>;
+-
+-			status = "disabled";
+ 		};
+ 
+ 		wed0: wed@1fa02000 {
+@@ -1192,8 +1190,6 @@ eth: ethernet@1fb50000 {
+ 			airoha,npu = <&npu>;
+ 			airoha,wed = <&wed0>, <&wed1>;
+ 
+-			status = "disabled";
+-
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+ 
+@@ -1210,18 +1206,17 @@ fixed-link {
+ 				};
+ 			};
+ 
+-			gdm2: ethernet@2 {
++			ethernet@2 {
+ 				compatible = "airoha,eth-mac";
+ 				reg = <2>;
+ 
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+ 
+-				status = "disabled";
+-
+ 				gdm2_pon: ethernet-port@0 {
+ 					compatible = "airoha,eth-pon";
+ 					reg = <0>;
++					airoha,xpon = <&xpon>;
+ 					phy-mode = "internal";
+ 					status = "disabled";
+ 				};
+diff --git a/arch/arm64/boot/dts/airoha/an7583.dtsi b/arch/arm64/boot/dts/airoha/an7583.dtsi
+--- a/arch/arm64/boot/dts/airoha/an7583.dtsi
++++ b/arch/arm64/boot/dts/airoha/an7583.dtsi
+@@ -764,12 +764,6 @@ xpon: xmac@1fb60000 {
+ 			phy-names = "xpon";
+ 			ethernet = <&gdm2_pon>;
+ 			airoha,scu = <&scuclk>;
+-
+-			/* Add the optical frontend before enabling.
+-			 * Native GPON also requires GDM2 in internal mode, with the
+-			 * competing pon_pcs disabled to release the shared resets.
+-			 */
+-			status = "disabled";
+ 		};
+ 
+ 		wed0: wed@1fa02000 {
+@@ -858,18 +852,17 @@ fixed-link {
+ 				};
+ 			};
+ 
+-			gdm2: ethernet@2 {
++			ethernet@2 {
+ 				compatible = "airoha,eth-mac";
+ 				reg = <2>;
+ 
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
+ 
+-				status = "disabled";
+-
+ 				gdm2_pon: ethernet-port@0 {
+ 					compatible = "airoha,eth-pon";
+ 					reg = <0>;
++					airoha,xpon = <&xpon>;
+ 					phy-mode = "internal";
+ 					status = "disabled";
+ 				};
+diff --git a/arch/mips/boot/dts/econet/en751221.dtsi b/arch/mips/boot/dts/econet/en751221.dtsi
+--- a/arch/mips/boot/dts/econet/en751221.dtsi
++++ b/arch/mips/boot/dts/econet/en751221.dtsi
+@@ -551,8 +551,6 @@ xpon: xmac@1fb60000 {
+ 
+ 			ethernet = <&gdm2_pon>;
+ 			airoha,scu = <&scuclk>;
+-
+-			status = "disabled";
+ 		};
+ 
+ 		xdsl: dsl@1f900000 {
+@@ -599,7 +597,7 @@ eth: ethernet@1fb50000 {
+ 			#size-cells = <0>;
+ 
+ 			gdm1: ethernet@1 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <1>;
+ 				phy-mode = "internal";
+ 				status = "disabled";
+@@ -612,7 +610,7 @@ fixed-link {
+ 			};
+ 
+ 			ethernet@2 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <2>;
+ 
+ 				#address-cells = <1>;
+@@ -621,6 +619,7 @@ ethernet@2 {
+ 				gdm2_pon: ethernet-port@0 {
+ 					compatible = "airoha,eth-pon";
+ 					reg = <0>;
++					airoha,xpon = <&xpon>;
+ 					phy-mode = "internal";
+ 					status = "disabled";
+ 				};
+diff --git a/arch/mips/boot/dts/econet/en751627.dtsi b/arch/mips/boot/dts/econet/en751627.dtsi
+--- a/arch/mips/boot/dts/econet/en751627.dtsi
++++ b/arch/mips/boot/dts/econet/en751627.dtsi
+@@ -527,7 +527,6 @@ xpon: xmac@1fb60000 {
+ 			ethernet = <&gdm2_pon>;
+ 			airoha,scu = <&scuclk>;
+ 
+-			status = "disabled";
+ 		};
+ 
+ 		xdsl: dsl@1f900000 {
+@@ -611,7 +610,7 @@ eth: ethernet@1fb50000 {
+ 			#size-cells = <0>;
+ 
+ 			gdm1: ethernet@1 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <1>;
+ 				phy-mode = "internal";
+ 				status = "disabled";
+@@ -624,7 +623,7 @@ fixed-link {
+ 			};
+ 
+ 			ethernet@2 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <2>;
+ 
+ 				#address-cells = <1>;
+@@ -633,6 +632,7 @@ ethernet@2 {
+ 				gdm2_pon: ethernet-port@0 {
+ 					compatible = "airoha,eth-pon";
+ 					reg = <0>;
++					airoha,xpon = <&xpon>;
+ 					phy-mode = "internal";
+ 					status = "disabled";
+ 				};
+diff --git a/arch/mips/boot/dts/econet/en7528.dtsi b/arch/mips/boot/dts/econet/en7528.dtsi
+--- a/arch/mips/boot/dts/econet/en7528.dtsi
++++ b/arch/mips/boot/dts/econet/en7528.dtsi
+@@ -734,7 +734,6 @@ xpon: xmac@1fb60000 {
+ 			ethernet = <&gdm2>;
+ 			airoha,scu = <&scuclk>;
+ 
+-			status = "disabled";
+ 		};
+ 
+ 		wed0: wed@1fa02000 {
+@@ -799,7 +798,7 @@ eth: ethernet@1fb50000 {
+ 			#size-cells = <0>;
+ 
+ 			gdm1: ethernet@1 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <1>;
+ 				phy-mode = "internal";
+ 				status = "disabled";
+@@ -812,10 +811,10 @@ fixed-link {
+ 			};
+ 
+ 			gdm2_pon: ethernet@2 {
+-				compatible = "airoha,eth-gdm2-pon", "econet,eth-mac";
++				compatible = "airoha,eth-pon", "airoha,eth-mac";
+ 				reg = <2>;
++				airoha,xpon = <&xpon>;
+ 				phy-mode = "internal";
+-
+ 				status = "disabled";
+ 			};
+ 		};
+diff --git a/arch/mips/boot/dts/econet/en7580.dtsi b/arch/mips/boot/dts/econet/en7580.dtsi
+--- a/arch/mips/boot/dts/econet/en7580.dtsi
++++ b/arch/mips/boot/dts/econet/en7580.dtsi
+@@ -910,7 +910,6 @@ xpon: xmac@1fb60000 {
+ 
+ 			airoha,scu = <&scuclk>;
+ 
+-			status = "disabled";
+ 		};
+ 
+ 		wed0: wed@1fa02000 {
+@@ -978,7 +977,7 @@ eth: ethernet@1fb50000 {
+ 			#size-cells = <0>;
+ 
+ 			gdm1: ethernet@1 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <1>;
+ 				phy-mode = "internal";
+ 				status = "disabled";
+@@ -991,7 +990,7 @@ fixed-link {
+ 			};
+ 
+ 			ethernet@2 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <2>;
+ 
+ 				#address-cells = <1>;
+@@ -1000,6 +999,7 @@ ethernet@2 {
+ 				gdm2_pon: ethernet-port@0 {
+ 					compatible = "airoha,eth-pon";
+ 					reg = <0>;
++					airoha,xpon = <&xpon>;
+ 					phy-mode = "internal";
+ 					status = "disabled";
+ 				};
+@@ -1012,7 +1012,7 @@ gdm2_eth: ethernet-port@1 {
+ 			};
+ 
+ 			gdm3: ethernet@3 {
+-				compatible = "econet,eth-mac";
++				compatible = "airoha,eth-mac";
+ 				reg = <3>;
+ 
+ 				pcs-handle = <&xsi_pcs>;
+diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
+--- a/drivers/net/ethernet/airoha/Kconfig
++++ b/drivers/net/ethernet/airoha/Kconfig
+@@ -62,13 +62,13 @@ config NET_AIROHA_SOC_WED
+ 	  If unsure, say N.
+ 
+ config AIROHA_XPON
+-	tristate "Airoha xPON MAC driver"
++	bool "Airoha xPON MAC support"
+ 	depends on ARCH_AIROHA || ECONET || COMPILE_TEST
+-	depends on NET_AIROHA
++	depends on NET_AIROHA != n
+ 	depends on OF
+-	depends on OPTICAL_FRONTEND
++	depends on OPTICAL_FRONTEND != n
+ 	depends on MFD_SYSCON
+-	depends on PTP_1588_CLOCK_OPTIONAL
++	depends on PTP_1588_CLOCK_OPTIONAL != n
+ 	select PHY_AIROHA_XPON
+ 	select XPON
+ 	select XPON_OMCI
+diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
+--- a/drivers/net/ethernet/airoha/Makefile
++++ b/drivers/net/ethernet/airoha/Makefile
+@@ -7,8 +7,7 @@ obj-$(CONFIG_NET_AIROHA) += airoha-eth.o
+ airoha-eth-y := airoha_eth.o airoha_ppe.o airoha_xpon_service.o airoha_whnat.o
+ airoha-eth-$(CONFIG_NET_AIROHA_PPE_DEBUGFS) += airoha_ppe_debugfs.o
+ airoha-eth-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed.o airoha_wed_debugfs.o
++airoha-eth-$(CONFIG_AIROHA_XPON) += airoha_xpon.o airoha_ploam.o airoha_omci.o airoha_xpon_tod.o
+ airoha-eth-$(CONFIG_NET_AIROHA_TSO) += airoha_tso.o
+ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
+-obj-$(CONFIG_AIROHA_XPON) += airoha-xpon.o
+-airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_omci.o airoha_xpon_tod.o
+ obj-$(CONFIG_AIROHA_XDSL) += airoha_xdsl.o
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -3982,7 +3982,8 @@ void airoha_qdma_cleanup(struct airoha_qdma *qdma)
+ 		return;
+ 	}
+ 
+-	if (airoha_is(qdma->eth, econet_en7580, airoha_an7552)) {
++	if (airoha_is(qdma->eth, econet_en7580, airoha_an7552,
++		      airoha_en7523)) {
+ 		airoha_qdma_wr(qdma, REG_QDMA_GLOBAL_CFG, 0);
+ 		if (qdma->irq_banks) {
+ 			for (i = 0; i < qdma->eth->soc->irq_banks; i++) {
+@@ -6020,7 +6021,7 @@ static int airoha_xpon_qdma_channel_close(struct airoha_gdm_dev *dev,
+ 	value = close ? (value | mask) : (value & ~mask);
+ 	dev->xpon_txq_disabled[idx] = value;
+ 	airoha_qdma_wr(qdma, REG_QUEUE_CLOSE_CFG(channel), value);
+-	
++
+ 	spin_unlock_irqrestore(&dev->xpon_txq_lock, flags);
+ 
+ 	return 0;
+@@ -10614,96 +10615,12 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
+ 	return airoha_setup_phylink(netdev);
+ }
+ 
+-/* GDM2 has one hardware MAC and only one active datapath frontend. */
+-static int airoha_gdm2_select_frontend(struct airoha_eth *eth,
+-				       struct device_node *np,
+-				       struct device_node **active,
+-				       enum airoha_gdm_frontend *frontend)
+-{
+-	struct device_node *child;
+-	bool has_children = false;
+-	int ret = 0;
+-
+-	*active = NULL;
+-	*frontend = AIROHA_GDM_FRONTEND_ETHERNET;
+-
+-	/* EN7528 has an unambiguous PON-only GDM2 configuration. */
+-	if (of_device_is_compatible(np, "airoha,eth-gdm2-pon")) {
+-		if (of_get_child_count(np))
+-			return dev_err_probe(eth->dev, -EINVAL,
+-					     "GDM2: PON-only MAC cannot have frontends\n");
+-		*active = of_node_get(np);
+-		*frontend = AIROHA_GDM_FRONTEND_PON;
+-		return 0;
+-	}
+-
+-	for_each_child_of_node(np, child) {
+-		enum airoha_gdm_frontend kind;
+-		u32 reg;
+-
+-		if (!of_node_name_eq(child, "ethernet-port"))
+-			continue;
+-
+-		has_children = true;
+-		if (!of_device_is_available(child))
+-			continue;
+-
+-		if (*active) {
+-			dev_err(eth->dev,
+-				"GDM2: multiple active frontends: %pOF and %pOF\n",
+-				*active, child);
+-			ret = -EINVAL;
+-			goto err_put;
+-		}
+-
+-		if (of_device_is_compatible(child, "airoha,eth-pon")) {
+-			kind = AIROHA_GDM_FRONTEND_PON;
+-		} else if (of_device_is_compatible(child, "airoha,eth-xdsl")) {
+-			kind = AIROHA_GDM_FRONTEND_XDSL;
+-		} else if (of_device_is_compatible(child, "airoha,eth-port")) {
+-			kind = AIROHA_GDM_FRONTEND_ETHERNET;
+-		} else {
+-			dev_err(eth->dev, "GDM2: unknown frontend %pOF\n", child);
+-			ret = -EINVAL;
+-			goto err_put;
+-		}
+-
+-		if (of_property_read_u32(child, "reg", &reg) ||
+-		    (kind == AIROHA_GDM_FRONTEND_PON ? reg != 0 : reg != 1)) {
+-			dev_err(eth->dev, "GDM2: invalid frontend ID in %pOF\n",
+-				child);
+-			ret = -EINVAL;
+-			goto err_put;
+-		}
+-
+-		*active = of_node_get(child);
+-		*frontend = kind;
+-	}
+-
+-	if (!has_children) {
+-		/* Keep existing board DTs without GDM2 frontend children working. */
+-		*active = of_node_get(np);
+-		return 0;
+-	}
+-
+-	if (!*active)
+-		return dev_err_probe(eth->dev, -EINVAL,
+-				     "GDM2: no active frontend\n");
+-
+-	return 0;
+-
+-err_put:
+-	of_node_put(child);
+-	of_node_put(*active);
+-	*active = NULL;
+-	return ret;
+-}
+-
+ static int airoha_alloc_gdm_port(struct airoha_eth *eth,
+ 				 struct device_node *np)
+ {
+ 	struct airoha_gdm_port *port;
+ 	struct device_node *node;
++	enum airoha_gdm_frontend kind = AIROHA_GDM_FRONTEND_ETHERNET;
+ 	bool econet = airoha_is_econet(eth);
+ 	int err, nbq, p, d = 0;
+ 	u32 id, max_ports = eth->soc->max_gdm_ports;
+@@ -10744,21 +10661,41 @@ static int airoha_alloc_gdm_port(struct airoha_eth *eth,
+ 	      airoha_is(eth, airoha_en7581, airoha_en7523) ? 4 : 0;
+ 
+ 	if (id == AIROHA_GDM2_IDX) {
+-		struct device_node *active;
+-		enum airoha_gdm_frontend frontend;
++		int enableds = 0;
++		for_each_child_of_node(np, node) {
++			if (!of_device_is_available(node))
++				continue;
++			if (of_device_is_compatible(node, "airoha,eth-port"))
++				enableds++;
++			else if (of_device_is_compatible(node, "airoha,eth-pon"))
++				enableds++;
++			else if (of_device_is_compatible(node, "airoha,eth-xdsl"))
++				enableds++;
++		}
++		if (enableds >= 2) {
++			dev_err(eth->dev, "more than nodes enabled in gdm2 (enableds %d)", enableds);
++			return -EINVAL;
++		} else if (enableds == 0 && of_device_is_compatible(np, "airoha,eth-pon"))
++			kind = AIROHA_GDM_FRONTEND_PON;
+ 
+-		err = airoha_gdm2_select_frontend(eth, np, &active, &frontend);
+-		if (err)
+-			return err;
++		for_each_child_of_node(np, node) {
++			bool is_pon, is_xdsl;
++			if (!of_device_is_available(node))
++				continue;
++			is_pon = of_device_is_compatible(node, "airoha,eth-pon");
++			is_xdsl = of_device_is_compatible(node, "airoha,eth-xdsl");
+ 
+-		err = airoha_alloc_gdm_device(eth, port, 0, active, frontend);
+-		of_node_put(active);
+-		return err;
+-	}
++			if(is_pon)
++				kind = AIROHA_GDM_FRONTEND_PON;
++			else if(is_xdsl)
++				kind = AIROHA_GDM_FRONTEND_XDSL;
++			else
++				break;
++			return airoha_alloc_gdm_device(eth, port, nbq, node, kind);
++		}
+ 
+-	if (econet)
+-		return airoha_alloc_gdm_device(eth, port, 0, np,
+-					       AIROHA_GDM_FRONTEND_ETHERNET);
++		return airoha_alloc_gdm_device(eth, port, nbq, np, kind);
++	}
+ 
+ 	for_each_child_of_node(np, node) {
+ 		const __be32 *nbq_ptr;
+@@ -10784,37 +10721,36 @@ static int airoha_alloc_gdm_port(struct airoha_eth *eth,
+ 			return err;
+ 		}
+ 
+-		err = airoha_alloc_gdm_device(eth, port, nbq, node,
+-					      AIROHA_GDM_FRONTEND_ETHERNET);
++		err = airoha_alloc_gdm_device(eth, port, nbq, node, kind);
+ 		if (err) {
+ 			of_node_put(node);
+ 			return err;
+ 		}
+ 	}
+ 
+-	return !d ? airoha_alloc_gdm_device(eth, port, nbq, np,
+-					    AIROHA_GDM_FRONTEND_ETHERNET) : 0;
++	return !d ? airoha_alloc_gdm_device(eth, port, nbq, np, kind) : 0;
+ }
+ 
+ static int airoha_register_gdm_devices(struct airoha_eth *eth)
+ {
+-	int i;
++	struct airoha_gdm_port *port;
++	struct airoha_gdm_dev *dev;
++	struct net_device *netdev;
++	struct device_node *np;
++	int i, j, err;
+ 
+ 	for (i = 0; i < eth->soc->max_gdm_ports; i++) {
+-		struct airoha_gdm_port *port = eth->ports[i];
+-		int j;
+-
++		port = eth->ports[i];
+ 		if (!port)
+ 			continue;
+ 
+ 		for (j = 0; j < ARRAY_SIZE(port->devs); j++) {
+-			struct airoha_gdm_dev *dev = port->devs[j];
+-			int err;
+-
++			dev = port->devs[j];
+ 			if (!dev)
+ 				continue;
+ 
+-			err = register_netdev(netdev_from_priv(dev));
++			netdev = netdev_from_priv(dev);
++			err = register_netdev(netdev);
+ 			if (err)
+ 				return err;
+ 
+@@ -10840,7 +10776,45 @@ static int airoha_register_gdm_devices(struct airoha_eth *eth)
+ 
+ 	set_bit(DEV_STATE_REGISTERED, &eth->state);
+ 
+-	return 0;
++	port = eth->ports[AIROHA_GDM2_IDX - 1];
++	if (!port || !port->devs[0])
++		return 0;
++
++	dev = port->devs[0];
++	netdev = netdev_from_priv(dev);
++
++	switch (dev->frontend) {
++	case AIROHA_GDM_FRONTEND_PON:
++		np = of_parse_phandle(netdev->dev.of_node,
++				      "airoha,xpon", 0);
++		if (!np)
++			return dev_err_probe(eth->dev, -EINVAL,
++					     "GDM2: missing xPON phandle\n");
++
++		if (!of_device_is_available(np)) {
++			of_node_put(np);
++			return dev_err_probe(eth->dev, -EINVAL,
++					     "GDM2: xPON hardware disabled\n");
++		}
++
++		err = airoha_xpon_add_hw(eth, np, netdev);
++		of_node_put(np);
++
++		return err;
++
++	case AIROHA_GDM_FRONTEND_XDSL:
++		/*
++		 * xDSL still uses an independent platform driver.
++		 * Its provider registers through the existing link ops.
++		 */
++		return 0;
++
++	case AIROHA_GDM_FRONTEND_ETHERNET:
++		return 0;
++
++	default:
++		return -EINVAL;
++	}
+ }
+ 
+ static struct airoha_npu *airoha_eth_ppe_npu_get(struct airoha_eth *eth)
+@@ -10928,6 +10902,8 @@ static void airoha_eth_cleanup(struct airoha_eth *eth)
+ {
+ 	int i;
+ 
++	/* The xPON services and IRQs must stop before unregistering GDM2. */
++	airoha_xpon_del_hw(eth);
+ 	airoha_fe_irq_cleanup(eth);
+ 	airoha_wed_exit();
+ 	if (test_and_clear_bit(DEV_STATE_NAPI_STARTED, &eth->state)) {
+@@ -11597,9 +11573,6 @@ static const struct airoha_eth_soc_data an7552_soc_data = {
+ 	.max_gdm_ports = 4,
+ 	.pse_fq_cfg = PSE_FQ_CFG,
+ 	.ppe_stats_entries = 0,
+-	/* AN7552 uses 80-byte extended FoE entries with TB_ENTRY_SIZE=0,
+-	 * 512 SRAM entries and a default 16K DRAM table in the vendor SDK.
+-	 */
+ 	.ppe_sram_entries = 512,
+ 	.ppe_dram_entries = 16 * 1024,
+ 	.foe_format = AIROHA_FOE_FORMAT_V2_TUNNEL,
+@@ -11616,7 +11589,6 @@ static int airoha_eth_probe(struct platform_device *pdev)
+ 	struct reset_control_bulk_data *xsi_rsts;
+ 	struct device_node *np;
+ 	struct airoha_eth *eth;
+-	bool econet;
+ 	int i, err;
+ 
+ 	soc = of_device_get_match_data(&pdev->dev);
+@@ -11636,7 +11608,6 @@ static int airoha_eth_probe(struct platform_device *pdev)
+ 	/* fe.c: EN7580 retires the GDM2 channels, every other SoC drops them */
+ 	eth->channel_retire = airoha_is(eth, econet_en7580);
+ 	eth->ppe_host_ops = &airoha_ppe_host_ops;
+-	econet = airoha_is_econet(eth);
+ 	platform_set_drvdata(pdev, eth);
+ 
+ 	err = airoha_eth_set_dma_mask(eth->dev);
+@@ -11712,21 +11683,14 @@ static int airoha_eth_probe(struct platform_device *pdev)
+ 		goto error;
+ 	}
+ 
+-	/* Airoha GDMs are allocated before DMA is started so an nvmem backed
+-	 * MAC address can defer probe safely. EcoNet queue counts are described
+-	 * by the MIPS QDMA profile, therefore those two GDMs are allocated after
+-	 * airoha_hw_init() has instantiated QDMA0/QDMA1.
+-	 */
+-	if (!econet) {
+-		for_each_available_child_of_node(pdev->dev.of_node, np) {
+-			if (!of_device_is_compatible(np, "airoha,eth-mac"))
+-				continue;
++	for_each_available_child_of_node(pdev->dev.of_node, np) {
++		if (!of_device_is_compatible(np, "airoha,eth-mac"))
++			continue;
+ 
+-			err = airoha_alloc_gdm_port(eth, np);
+-			if (err) {
+-				of_node_put(np);
+-				goto error;
+-			}
++		err = airoha_alloc_gdm_port(eth, np);
++		if (err) {
++			of_node_put(np);
++			goto error;
+ 		}
+ 	}
+ 
+@@ -11734,19 +11698,6 @@ static int airoha_eth_probe(struct platform_device *pdev)
+ 	if (err)
+ 		goto error;
+ 
+-	if (econet) {
+-		for_each_available_child_of_node(pdev->dev.of_node, np) {
+-			if (!of_device_is_compatible(np, "econet,eth-mac"))
+-				continue;
+-
+-			err = airoha_alloc_gdm_port(eth, np);
+-			if (err) {
+-				of_node_put(np);
+-				goto error;
+-			}
+-		}
+-	}
+-
+ 	err = airoha_tso_init(eth);
+ 	if (err)
+ 		goto error;
+@@ -11782,6 +11733,14 @@ static int airoha_eth_probe(struct platform_device *pdev)
+ 	return err;
+ }
+ 
++static void airoha_eth_shutdown(struct platform_device *pdev)
++{
++	struct airoha_eth *eth = platform_get_drvdata(pdev);
++
++	if (eth)
++		airoha_xpon_shutdown_hw(eth);
++}
++
+ static void airoha_eth_remove(struct platform_device *pdev)
+ {
+ 	struct airoha_eth *eth = platform_get_drvdata(pdev);
+@@ -12259,6 +12218,7 @@ MODULE_DEVICE_TABLE(of, airoha_eth_of_match);
+ static struct platform_driver airoha_eth_driver = {
+ 	.probe = airoha_eth_probe,
+ 	.remove = airoha_eth_remove,
++	.shutdown = airoha_eth_shutdown,
+ 	.driver = {
+ 		.name = "airoha-eth",
+ 		.of_match_table = airoha_eth_of_match,
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -1469,6 +1469,8 @@ enum airoha_tso_version {
+ 	AIROHA_TSO_V2,
+ };
+ 
++struct xpon_priv;
++
+ struct airoha_eth {
+ 	struct device *dev;
+ 
+@@ -1499,6 +1501,7 @@ struct airoha_eth {
+ 
+ 	struct airoha_qdma qdma[AIROHA_MAX_NUM_QDMA];
+ 	struct airoha_gdm_port **ports;
++	struct xpon_priv *xpon;
+ 
+ 	/* retire_all releases each GDM2 channel instead of dropping */
+ 	bool channel_retire;
+@@ -5303,4 +5306,26 @@ struct airoha_qdma_mips {
+ 		__r.w;                                    \
+ 	})
+ 
++#if IS_ENABLED(CONFIG_AIROHA_XPON)
++int airoha_xpon_add_hw(struct airoha_eth *eth, struct device_node *np,
++		       struct net_device *netdev);
++void airoha_xpon_del_hw(struct airoha_eth *eth);
++void airoha_xpon_shutdown_hw(struct airoha_eth *eth);
++#else
++static inline int airoha_xpon_add_hw(struct airoha_eth *eth,
++				     struct device_node *np,
++				     struct net_device *netdev)
++{
++	return 0;
++}
++
++static inline void airoha_xpon_del_hw(struct airoha_eth *eth)
++{
++}
++
++static inline void airoha_xpon_shutdown_hw(struct airoha_eth *eth)
++{
++}
++#endif
++	
+ #endif /* AIROHA_ETH_H */
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -30,6 +30,7 @@
+ #include <linux/mutex.h>
+ #include <linux/netdevice.h>
+ #include <linux/of.h>
++#include <linux/of_platform.h>
+ #include <linux/of_net.h>
+ #include <linux/platform_device.h>
+ #include <linux/property.h>
+@@ -46,21 +47,14 @@
+ #include <linux/workqueue.h>
+ #include <net/xpon/omci.h>
+ #include <linux/rtnetlink.h>
+-
++#include <net/xpon.h>
++#include <net/xpon/oam.h>
+ #include "airoha_eth.h"
+ #include "airoha_xpon.h"
+ #include "airoha_xpon_tod.h"
+ #include "airoha_omci.h"
+-#include "airoha_regs.h"
+ #include "airoha_ploam.h"
+-
+-/* Linux 6.18 replaced from_timer() with timer_container_of().
+- * Keep the driver buildable on older kernel trees as well.
+- */
+-#ifndef timer_container_of
+-#define timer_container_of(var, callback_timer, timer_fieldname) \
+-	from_timer(var, callback_timer, timer_fieldname)
+-#endif
++#include "airoha_regs.h"
+ 
+ static const u8 airoha_default_vendor_id[4] = { 'M', 'T', 'K', 'G' };
+ 
+@@ -6357,9 +6351,146 @@ static irqreturn_t airoha_xpon_mac_thread(int irq, void *data)
+ 	return airoha_xgspon_mac_irq(irq, data);
+ }
+ 
+-static int airoha_xpon_probe(struct platform_device *pdev)
++static const struct airoha_xpon_match_data en751221_xpon_data = {
++	.version = econet_en751221,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN751221,
++	.gpon_fine_delay = 0x1c,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN751221,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_DEFAULT,
++	.gpon_guard_bits_override = GPON_PHY_GUARD_BIT_NUM_EN751221,
++	.gpon_sn_tx_power_mode = GPON_SN_TX_POWER_MODE_LEGACY,
++	.gpon_adjust_rx_delay = true,
++	.mac_irq_via_eth = true,
++	.gpon_rearm_tx_on_overhead = true,
++	.gpon_runtime_tgen = true,
++	.scu_dying_gasp_status = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON,
++};
++
++/*
++ * EN7528 exposes xPON MAC source numbers in the GIC map, but the vendor
++ * xPON_1g stack registers GPON/EPON MAC callbacks through QDMA_WAN.
++ */
++static const struct airoha_xpon_match_data en7528_xpon_data = {
++	.version = econet_en7528,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN751221,
++	.gpon_fine_delay = 0x1c,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7528,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_DEFAULT,
++	.gpon_sn_tx_power_mode = GPON_SN_TX_POWER_MODE_LEGACY,
++	.gpon_reset_dbg_dly = true,
++	.mac_irq_via_eth = true,
++	.gpon_reset_on_start = true,
++	.gpon_rearm_tx_on_overhead = true,
++	.gpon_runtime_tgen = true,
++	.gpon_has_mpi = true,
++	.scu_dying_gasp_status = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON,
++};
++
++static const struct airoha_xpon_match_data en7580_xpon_data = {
++	.version = econet_en7580,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
++	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
++	.gpon_reset_on_start = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON |
++			  XPON_MODE_XEPON |
++			  XPON_MODE_XGPON |
++			  XPON_MODE_XGSPON,
++};
++
++static const struct airoha_xpon_match_data en7523_xpon_data = {
++	.version = airoha_en7523,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
++	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
++	.gpon_reset_on_start = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON,
++};
++
++/* The AN7552 1G MAC retains the EN7523 activation and table interface.
++ * GPON_IDLE_GEM_THLD is 0x5a in the AN7552 SDK, rather than 0x1a.
++ * Symmetric GPON uses different PHY timing and is not advertised here.
++ */
++static const struct airoha_xpon_match_data an7552_xpon_data = {
++	.version = airoha_an7552,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
++	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_AN7552,
++	.gpon_reset_on_start = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON,
++};
++
++/* AN7581 uses the 1G GPON MAC with its own PCS/PMA PHY backend. */
++static const struct airoha_xpon_match_data an7581_xpon_data = {
++	.version = airoha_en7581,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
++	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
++	/* Bit 15 reports a zero grant on AN7581, not grant calculation done. */
++	.gpon_irq_mask = GPON_INT_DEFAULT_MASK & ~INT_CAL_GNT_SIZE_DONE,
++	.gpon_dbru_48b = true,
++	.gpon_has_del_rx_stop = true,
++	.gpon_reset_on_start = true,
++	.gpon_rearm_tx_on_overhead = true,
++	.scu_dying_gasp_status = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON |
++			  XPON_MODE_XEPON |
++			  XPON_MODE_XGPON |
++			  XPON_MODE_XGSPON,
++};
++
++/* AN7583 asymmetric GPON retains the shared 1G MAC interface. */
++static const struct airoha_xpon_match_data an7583_xpon_data = {
++	.version = airoha_an7583,
++	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
++	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
++	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
++	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
++	/* Leave the unhandled grant-calculation interrupt masked. */
++	.gpon_irq_mask = GPON_INT_DEFAULT_MASK & ~INT_CAL_GNT_SIZE_DONE,
++	.gpon_dbru_48b = true,
++	.gpon_has_del_rx_stop = true,
++	.gpon_reset_on_start = true,
++	.gpon_rearm_tx_on_overhead = true,
++	.scu_dying_gasp_status = true,
++	.xpon_mode_comp = XPON_MODE_GPON |
++			  XPON_MODE_EPON |
++			  XPON_MODE_XEPON |
++			  XPON_MODE_XGPON |
++			  XPON_MODE_XGSPON,
++};
++
++static const struct of_device_id airoha_xpon_of_match[] = {
++	{ .compatible = "econet,en751221-xpon", .data = &en751221_xpon_data },
++	{ .compatible = "airoha,en751627-xpon", .data = &en7528_xpon_data },
++	{ .compatible = "airoha,en7528-xpon", .data = &en7528_xpon_data },
++	{ .compatible = "airoha,en7580-xpon", .data = &en7580_xpon_data },
++	{ .compatible = "airoha,en7523-xpon", .data = &en7523_xpon_data },
++	{ .compatible = "airoha,an7581-xpon", .data = &an7581_xpon_data },
++	{ .compatible = "airoha,an7552-xpon", .data = &an7552_xpon_data },
++	{ .compatible = "airoha,an7583-xpon", .data = &an7583_xpon_data },
++	{}
++};
++
++int airoha_xpon_add_hw(struct airoha_eth *eth, struct device_node *np,
++		       struct net_device *netdev)
+ {
+-	struct device *dev = &pdev->dev;
++	const struct of_device_id *match;
++	struct platform_device *pdev;
++	struct device *dev;
++	void *group;
+ 	const struct airoha_xpon_match_data *data;
+ 	const struct airoha_xpon_link_ops *link_ops;
+ 	struct device_node *eth_node;
+@@ -6367,15 +6498,39 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 	struct resource *res;
+ 	int ret;
+ 
+-	data = device_get_match_data(&pdev->dev);
+-	if (!data)
+-		return -EINVAL;
++	if (eth->xpon)
++		return -EBUSY;
+ 
+-	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
+-	if (!priv)
++	match = of_match_node(airoha_xpon_of_match, np);
++	if (!match)
++		return dev_err_probe(eth->dev, -EINVAL,
++				     "unsupported xPON hardware %pOF\n", np);
++	data = match->data;
++
++	/* Retain the DT platform device for resource, IRQ, PHY and reset
++	 * lookups, but do not bind a second platform driver to it.
++	 */
++	pdev = of_find_device_by_node(np);
++	if (!pdev)
++		return dev_err_probe(eth->dev, -EPROBE_DEFER,
++				     "xPON resource device is not available\n");
++	dev = &pdev->dev;
++
++	group = devres_open_group(dev, NULL, GFP_KERNEL);
++	if (!group) {
++		put_device(dev);
+ 		return -ENOMEM;
++	}
++
++	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
++	if (!priv) {
++		ret = -ENOMEM;
++		goto err_release;
++	}
+ 
+ 	priv->dev = dev;
++	priv->pdev = pdev;
++	priv->devres_group = group;
+ 	priv->match_data = data;
+ 	/* The EN7580 dedicated 10G MAC starts in XGS-PON mode. */
+ 	priv->mode = data->version == econet_en7580 ?
+@@ -6410,31 +6565,27 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 		goto err_put_gdm;
+ 	}
+ 
++	/* The Ethernet core owns and selects GDM2.  Never discover a different
++	 * netdev through the global namespace during xPON initialization.
++	 */
+ 	eth_node = of_parse_phandle(dev->of_node, "ethernet", 0);
+ 	if (eth_node) {
+-		if (!of_device_is_available(eth_node)) {
+-			of_node_put(eth_node);
++		if (!of_device_is_available(eth_node) ||
++		    eth_node != netdev->dev.of_node) {
+ 			ret = dev_err_probe(dev, -EINVAL,
+-					    "xPON GDM frontend is disabled\n");
++					    "xPON ethernet phandle does not select GDM2 PON\n");
++			of_node_put(eth_node);
+ 			goto err_put_gdm;
+ 		}
+-		priv->gdm_dev = of_find_net_device_by_node(eth_node);
+ 		dev_info(dev, "%s datapath phandle: %pOF\n",
+ 			 airoha_xpon_mode_name(priv->mode), eth_node);
+ 		of_node_put(eth_node);
+ 	} else if (airoha_xpon_is_xgspon(priv)) {
+ 		ret = dev_err_probe(dev, -EINVAL, "missing GDM2 phandle\n");
+ 		goto err_put_gdm;
+-	} else {
+-		priv->gdm_dev = airoha_eth_get_xpon_netdev();
+-		dev_info(dev, "%s datapath discovered automatically\n",
+-			 airoha_xpon_mode_name(priv->mode));
+-	}
+-	if (!priv->gdm_dev) {
+-		ret = dev_err_probe(dev, -EPROBE_DEFER,
+-				    "GDM2 netdev is not registered yet\n");
+-		goto err_put_gdm;
+ 	}
++	dev_hold(netdev);
++	priv->gdm_dev = netdev;
+ 	dev_info(dev, "resolved xPON datapath to %s\n", priv->gdm_dev->name);
+ 
+ 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mac");
+@@ -6472,7 +6623,8 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 		ret = devm_request_threaded_irq(dev, priv->mac_irq,
+ 						airoha_xpon_mac_irq,
+ 						airoha_xpon_mac_thread,
+-						IRQF_ONESHOT, "xpon-mac", priv);
++						IRQF_ONESHOT,
++						"xpon-mac", priv);
+ 		if (ret) {
+ 			ret = dev_err_probe(dev, ret, "cannot handle xPON mac irq");
+ 			goto err_put_gdm;
+@@ -6533,6 +6685,8 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 		if (ret)
+ 			goto err_xgspon;
+ 		platform_set_drvdata(pdev, priv);
++		eth->xpon = priv;
++		devres_close_group(dev, group);
+ 		return 0;
+ 	}
+ 
+@@ -6581,6 +6735,8 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 			dev_warn(dev, "failed to add the BIP sysfs group: %d\n",
+ 				 ret);
+ 	}
++	eth->xpon = priv;
++	devres_close_group(dev, group);
+ 	return 0;
+ 
+ err_xgspon:
+@@ -6609,17 +6765,30 @@ static int airoha_xpon_probe(struct platform_device *pdev)
+ 		dev_put(priv->gdm_dev);
+ 		priv->gdm_dev = NULL;
+ 	}
+-	return dev_err_probe(dev, ret, "error on register xPON MAC");
++err_release:
++	ret = dev_err_probe(dev, ret, "error on register xPON MAC");
++	devres_release_group(dev, group);
++	put_device(dev);
++	return ret;
+ }
+ 
+-static void airoha_xpon_remove(struct platform_device *pdev)
++void airoha_xpon_del_hw(struct airoha_eth *eth)
+ {
+ 	const struct airoha_xpon_link_ops *link_ops;
++	struct platform_device *pdev;
+ 	struct xpon_priv *priv;
++	struct device *dev;
++	void *group;
+ 
+-	priv = platform_get_drvdata(pdev);
++	dev_info(eth->dev, "stoping xPON MAC\n");
++	priv = eth->xpon;
+ 	if (!priv)
+ 		return;
++
++	eth->xpon = NULL;
++	pdev = priv->pdev;
++	dev = priv->dev;
++	group = priv->devres_group;
+ 	if (airoha_xpon_is_xgspon(priv)) {
+ 		airoha_xgspon_stop_services(priv);
+ 		airoha_xgspon_stop_hardware(priv);
+@@ -6627,10 +6796,10 @@ static void airoha_xpon_remove(struct platform_device *pdev)
+ 		priv->xpon = NULL;
+ 		dev_put(priv->gdm_dev);
+ 		priv->gdm_dev = NULL;
+-		return;
++		goto release;
+ 	}
+ 
+-	dev_info(priv->dev, "removing xPON mode %s\n",
++	dev_info(eth->dev, "removing xPON mode %s\n",
+ 		 airoha_xpon_mode_name(priv->mode));
+ 
+ 	if (airoha_xpon_is_gpon(priv))
+@@ -6665,11 +6834,16 @@ static void airoha_xpon_remove(struct platform_device *pdev)
+ 	airoha_xpon_cleanup_legacy(priv);
+ 	dev_put(priv->gdm_dev);
+ 	priv->gdm_dev = NULL;
++
++release:
++	platform_set_drvdata(pdev, NULL);
++	devres_release_group(dev, group);
++	put_device(dev);
+ }
+ 
+-static void airoha_xpon_shutdown(struct platform_device *pdev)
++void airoha_xpon_shutdown_hw(struct airoha_eth *eth)
+ {
+-	struct xpon_priv *priv = platform_get_drvdata(pdev);
++	struct xpon_priv *priv = eth->xpon;
+ 
+ 	if (!priv || !airoha_xpon_is_xgspon(priv))
+ 		return;
+@@ -6680,152 +6854,6 @@ static void airoha_xpon_shutdown(struct platform_device *pdev)
+ 	airoha_xgspon_stop_hardware(priv);
+ }
+ 
+-static const struct airoha_xpon_match_data en751221_xpon_data = {
+-	.version = econet_en751221,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN751221,
+-	.gpon_fine_delay = 0x1c,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN751221,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_DEFAULT,
+-	.gpon_guard_bits_override = GPON_PHY_GUARD_BIT_NUM_EN751221,
+-	.gpon_sn_tx_power_mode = GPON_SN_TX_POWER_MODE_LEGACY,
+-	.gpon_adjust_rx_delay = true,
+-	.mac_irq_via_eth = true,
+-	.gpon_rearm_tx_on_overhead = true,
+-	.gpon_runtime_tgen = true,
+-	.scu_dying_gasp_status = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON,
+-};
+-
+-/*
+- * EN7528 exposes xPON MAC source numbers in the GIC map, but the vendor
+- * xPON_1g stack registers GPON/EPON MAC callbacks through QDMA_WAN.
+- */
+-static const struct airoha_xpon_match_data en7528_xpon_data = {
+-	.version = econet_en7528,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN751221,
+-	.gpon_fine_delay = 0x1c,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7528,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_DEFAULT,
+-	.gpon_sn_tx_power_mode = GPON_SN_TX_POWER_MODE_LEGACY,
+-	.gpon_reset_dbg_dly = true,
+-	.mac_irq_via_eth = true,
+-	.gpon_reset_on_start = true,
+-	.gpon_rearm_tx_on_overhead = true,
+-	.gpon_runtime_tgen = true,
+-	.gpon_has_mpi = true,
+-	.scu_dying_gasp_status = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON,
+-};
+-
+-static const struct airoha_xpon_match_data en7580_xpon_data = {
+-	.version = econet_en7580,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
+-	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
+-	.gpon_reset_on_start = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON |
+-			  XPON_MODE_XEPON |
+-			  XPON_MODE_XGPON |
+-			  XPON_MODE_XGSPON,
+-};
+-
+-static const struct airoha_xpon_match_data en7523_xpon_data = {
+-	.version = airoha_en7523,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
+-	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
+-	.gpon_reset_on_start = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON,
+-};
+-
+-/* The AN7552 1G MAC retains the EN7523 activation and table interface.
+- * GPON_IDLE_GEM_THLD is 0x5a in the AN7552 SDK, rather than 0x1a.
+- * Symmetric GPON uses different PHY timing and is not advertised here.
+- */
+-static const struct airoha_xpon_match_data an7552_xpon_data = {
+-	.version = airoha_an7552,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
+-	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_AN7552,
+-	.gpon_reset_on_start = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON,
+-};
+-
+-/* AN7581 uses the 1G GPON MAC with its own PCS/PMA PHY backend. */
+-static const struct airoha_xpon_match_data an7581_xpon_data = {
+-	.version = airoha_en7581,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
+-	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
+-	/* Bit 15 reports a zero grant on AN7581, not grant calculation done. */
+-	.gpon_irq_mask = GPON_INT_DEFAULT_MASK & ~INT_CAL_GNT_SIZE_DONE,
+-	.gpon_dbru_48b = true,
+-	.gpon_has_del_rx_stop = true,
+-	.gpon_reset_on_start = true,
+-	.gpon_rearm_tx_on_overhead = true,
+-	.scu_dying_gasp_status = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON |
+-			  XPON_MODE_XEPON |
+-			  XPON_MODE_XGPON |
+-			  XPON_MODE_XGSPON,
+-};
+-
+-/* AN7583 asymmetric GPON retains the shared 1G MAC interface. */
+-static const struct airoha_xpon_match_data an7583_xpon_data = {
+-	.version = airoha_an7583,
+-	.wan_mode_mask = SCU_WAN_MODE_MASK_EN7580,
+-	.gpon_fine_delay = DBG_DLY_FINE_INT_DEFAULT,
+-	.gpon_rsp_time_activation = GPON_RSP_TIME_ACT_EN7523,
+-	.gpon_idle_gem_threshold = GPON_IDLE_GEM_THLD_EN7523,
+-	/* Leave the unhandled grant-calculation interrupt masked. */
+-	.gpon_irq_mask = GPON_INT_DEFAULT_MASK & ~INT_CAL_GNT_SIZE_DONE,
+-	.gpon_dbru_48b = true,
+-	.gpon_has_del_rx_stop = true,
+-	.gpon_reset_on_start = true,
+-	.gpon_rearm_tx_on_overhead = true,
+-	.scu_dying_gasp_status = true,
+-	.xpon_mode_comp = XPON_MODE_GPON |
+-			  XPON_MODE_EPON |
+-			  XPON_MODE_XEPON |
+-			  XPON_MODE_XGPON |
+-			  XPON_MODE_XGSPON,
+-};
+-
+-static const struct of_device_id airoha_xpon_of_match[] = {
+-	{ .compatible = "econet,en751221-xpon", .data = &en751221_xpon_data },
+-	{ .compatible = "airoha,en751627-xpon", .data = &en7528_xpon_data },
+-	{ .compatible = "airoha,en7528-xpon", .data = &en7528_xpon_data },
+-	{ .compatible = "airoha,en7580-xpon", .data = &en7580_xpon_data },
+-	{ .compatible = "airoha,en7523-xpon", .data = &en7523_xpon_data },
+-	{ .compatible = "airoha,an7581-xpon", .data = &an7581_xpon_data },
+-	{ .compatible = "airoha,an7552-xpon", .data = &an7552_xpon_data },
+-	{ .compatible = "airoha,an7583-xpon", .data = &an7583_xpon_data },
+-	{}
+-};
+-MODULE_DEVICE_TABLE(of, airoha_xpon_of_match);
+-
+-static struct platform_driver airoha_xpon_driver = {
+-	.probe = airoha_xpon_probe,
+-	.remove = airoha_xpon_remove,
+-	.shutdown = airoha_xpon_shutdown,
+-	.driver = {
+-		.name = "airoha-xpon",
+-		.of_match_table = airoha_xpon_of_match,
+-	},
+-};
+-
+-module_platform_driver(airoha_xpon_driver);
+-
+ MODULE_DESCRIPTION("Airoha PON MAC driver");
+ MODULE_AUTHOR("Matheus Sampaio Queiroga <srherobrine20@gmail.com>");
+ MODULE_AUTHOR("Benjamin Larsson <benjamin.larsson@genexis.eu>");
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
+--- a/drivers/net/ethernet/airoha/airoha_xpon.h
++++ b/drivers/net/ethernet/airoha/airoha_xpon.h
+@@ -571,6 +571,8 @@ struct xpon_priv {
+ 	u32 xgspon_reg_sent;
+ 
+ 	struct device *dev;
++	struct platform_device *pdev;
++	void *devres_group;
+ 	struct regmap *scu;
+ 
+ 	const struct airoha_xpon_match_data *match_data;
+diff --git a/net/xpon/core.c b/net/xpon/core.c
+--- a/net/xpon/core.c
++++ b/net/xpon/core.c
+@@ -296,7 +296,9 @@ static int xpon_opticals_init(struct xpon_device *xpon)
+ 
+ 		frontend = devm_optical_frontend_get_optional(dev, name);
+ 		if (IS_ERR(frontend))
+-			return PTR_ERR(frontend);
++			return dev_err_probe(dev, PTR_ERR(frontend),
++					     "failed to get optical frontend %s\n",
++					     name ?: "pon");
+ 		if (!frontend) {
+ 			if (name)
+ 				return dev_err_probe(dev, -EINVAL,
+

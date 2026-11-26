@@ -1,0 +1,1066 @@
+From 15eda48f1aa15b8ddcf311b4c811cfcf6172411f Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Mon, 26 Oct 2026 13:34:54 -0300
+Subject: [PATCH] net: airoha: clean Kconfig and makefile
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/Kconfig                |  83 ++-----
+ drivers/net/ethernet/airoha/Makefile               |  10 +-
+ drivers/net/ethernet/airoha/airoha_gpon_omci.c     | 261 ---------------------
+ drivers/net/ethernet/airoha/airoha_gpon_omci.h     |  66 ------
+ drivers/net/ethernet/airoha/airoha_omci.c          | 261 +++++++++++++++++++++
+ drivers/net/ethernet/airoha/airoha_omci.h          |  66 ++++++
+ drivers/net/ethernet/airoha/airoha_xpon.c          |   2 +-
+ drivers/net/ethernet/airoha/airoha_xpon.h          |   2 +-
+ .../net/ethernet/airoha/airoha_xpon_service_test.c | 189 ---------------
+ 9 files changed, 352 insertions(+), 588 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/Kconfig b/drivers/net/ethernet/airoha/Kconfig
+--- a/drivers/net/ethernet/airoha/Kconfig
++++ b/drivers/net/ethernet/airoha/Kconfig
+@@ -1,10 +1,9 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ config NET_VENDOR_AIROHA
+-	bool "Airoha/EcoNet devices"
++	bool "Airoha devices"
+ 	depends on ARCH_AIROHA || ECONET || COMPILE_TEST
+ 	help
+-	  Enable Ethernet drivers for the Airoha ARM and EcoNet MIPS frame
+-	  engines.
++	  If you have a Airoha or Econet SoC with ethernet, say Y.
+ 
+ if NET_VENDOR_AIROHA
+ 
+@@ -26,22 +25,8 @@ config NET_AIROHA
+ 	select PAGE_POOL
+ 	imply NET_AIROHA_NPU if ARCH_AIROHA
+ 	help
+-	  Support the shared Airoha/EcoNet frame-engine Ethernet datapath,
+-	  including generation-1 EN751221/EN7528 and generation-2
+-	  EN7523/AN7552/AN7563/EN7581/AN7583 SoCs. The hardware generation is selected
+-	  from the device-tree compatible and SoC data at runtime. QDMA, GDM,
+-	  PPE and phylink infrastructure are built as one driver so both
+-	  generations follow the same lifecycle and common interfaces.
+-
+-config NET_AIROHA_KUNIT_TEST
+-	bool "Airoha xPON service table tests" if !KUNIT_ALL_TESTS
+-	depends on KUNIT=y && NET_AIROHA=y
+-	default KUNIT_ALL_TESTS
+-	help
+-	  Test shared classifier rules, cookie lifetime, full-table updates
+-	  and failed replacements without Ethernet or optical hardware.
+-	  Include cookie bucket compaction after fragmented deletions.
+-	  These tests do not validate QDMA descriptors or PON activation.
++	  This driver supports the gigabit ethernet MACs in the
++	  Airoha and Econet SoC family.
+ 
+ config NET_AIROHA_PPE_DEBUGFS
+ 	bool
+@@ -59,74 +44,48 @@ config NET_AIROHA_FLOW_STATS
+ 	  Enable Airoha flowtable statistic counters.
+ 
+ config NET_AIROHA_SOC_WED
+-	bool "Airoha WED v1 support"
+-	depends on NET_AIROHA && PCI
++	bool "Airoha WED support"
++	depends on NET_AIROHA && !NET_AIROHA_WHNAT && PCI
+ 	select NET_MEDIATEK_WED_COMMON
+ 	help
+-	  Enable WiFi Ethernet Datapath (WED) hardware offload for the
+-	  EN751221, EN7528 and EN7523 SoCs. When enabled, mt76 WiFi drivers can
+-	  offload wireless transmit processing through the WED engine rather
+-	  than taking the CPU path.
++	  Enable WiFi Ethernet Datapath (WED) hardware offload.
++	  When enabled, mt76 WiFi drivers can offload wireless
++	  transmit processing through the WED engine rather than
++	  taking the slow path through the CPU.
+ 
+ 	  If unsure, say N.
+ 
+ config NET_AIROHA_WHNAT
+-	bool "EcoNet EN751221 WHNAT (PPE offload for WiFi without WED)"
+-	depends on NET_AIROHA && (ECONET || COMPILE_TEST)
++	bool "EcoNet PPE WHNAT"
++	depends on NET_AIROHA && (SOC_ECONET_EN751221 || COMPILE_TEST)
+ 	select CFG80211_HEADERS
+ 	help
+-	  Let the EN751221 PPE forward NAT flows from and to WiFi netdevs
+-	  whose radios have no WED support (MT7603, MT76x2), like the vendor
+-	  WHNAT driver: mt76 hands received frames to the PPE through the LAN
+-	  QDMA, and the PPE returns frames of flows bound towards a WiFi
+-	  interface to the CPU, which queues them straight to that interface.
+-	  Netdevice events give the WiFi interfaces their slots, so mt76 only
+-	  offers received frames through en75_whnat_upstream_early(). Setting
+-	  the whnat_auto_vifs module parameter to 0 makes the slots come from
+-	  en75_whnat_register_vif() calls instead. The offload is on whenever
+-	  a PPE is active; clearing whnat_enable stops offering new frames.
++	  Let PPE forward NAT flows from and to WiFi netdevs
++	  whose radios have no WED support.
+ 
+ 	  If unsure, say N.
+ 
+-config AIROHA_XPON_V1
+-	tristate "Airoha/EcoNet xPON MAC driver"
++config AIROHA_XPON
++	tristate "Airoha xPON MAC driver"
+ 	depends on ARCH_AIROHA || ECONET || COMPILE_TEST
+ 	depends on NET_AIROHA
+ 	depends on OF
+ 	depends on SFP
+-	depends on OPTICAL_FRONTEND || OPTICAL_FRONTEND=n
++	depends on OPTICAL_FRONTEND
+ 	depends on MFD_SYSCON
+ 	select PHY_AIROHA_XPON
+ 	select XPON
+ 	select XPON_OMCI
+ 	select XPON_OAM
+ 	help
+-	  Driver for the shared xPON MAC complex found in Airoha/EcoNet SoCs.
+-	  GPON and EPON are implemented by one platform driver and exposed
+-	  through the generic xPON subsystem. GPON includes ITU-T G.984.3
+-	  activation/PLOAM and uses the in-kernel OMCI agent; EPON includes
+-	  IEEE 802.3 MPCP LLID registration and security support.
+-
+-	  EN7580 XGS-PON support currently prepares the 10G MAC in O1 and
+-	  exposes its register status through debugfs. PHY/PMA initialization,
+-	  authenticated PLOAM activation and the 10G datapath are not implemented
+-	  yet; the driver keeps automatic upstream replies and MAC interrupts
+-	  disabled and does not register an OMCI transport for this mode.
++	  Enable support for PON on ethernet driver for SoC familys support
+ 
+ config AIROHA_XDSL
+-	tristate "EcoNet EN7512/EN7516 xDSL/PTM frontend"
+-	depends on ECONET || COMPILE_TEST
++	tristate "EcoNet xDSL frontend"
++	depends on SOC_ECONET_EN751221 || SOC_ECONET_EN751627 || COMPILE_TEST
+ 	depends on NET_AIROHA
+ 	depends on OF
+ 	help
+-	  Build the initial xDSL frontend for the EcoNet EN751221 (EN7512)
+-	  and EN751627 (EN7516) SoC families. The driver owns the DMT and PTM-TC
+-	  resources and connects their reset, interrupt and netdev
+-	  lifecycle to the GDM2 Ethernet datapath.
+-
+-	  The proprietary legacy module embeds the complete G.hs/ADSL/VDSL
+-	  training and DSP implementation. Until a clean-room line engine is
+-	  implemented, this driver keeps the DMT interrupts masked and carrier
+-	  down after preparing the PTM datapath.
++	  Add support for xDSL Ethernet support on SoC Family have xDSL controllers
+ 
+ endif # NET_VENDOR_AIROHA
+diff --git a/drivers/net/ethernet/airoha/Makefile b/drivers/net/ethernet/airoha/Makefile
+--- a/drivers/net/ethernet/airoha/Makefile
++++ b/drivers/net/ethernet/airoha/Makefile
+@@ -5,16 +5,10 @@
+ 
+ obj-$(CONFIG_NET_AIROHA) += airoha-eth.o
+ airoha-eth-y := airoha_eth.o airoha_ppe.o airoha_xpon_service.o
+-airoha-eth-$(CONFIG_NET_AIROHA_KUNIT_TEST) += airoha_xpon_service_test.o
+ airoha-eth-$(CONFIG_NET_AIROHA_PPE_DEBUGFS) += airoha_ppe_debugfs.o
+ airoha-eth-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed.o airoha_wed_debugfs.o
+ airoha-eth-$(CONFIG_NET_AIROHA_WHNAT) += airoha_whnat.o
+-
+ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
+-
+-# Airoha/EcoNet shared GPON, EPON and XGS-PON MAC complex.
+-obj-$(CONFIG_AIROHA_XPON_V1) += airoha-xpon.o
+-airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_gpon_omci.o
+-
+-# EcoNet EN7512/EN7516 DMT/PTM frontend. The line engine is added separately.
++obj-$(CONFIG_AIROHA_XPON) += airoha-xpon.o
++airoha-xpon-y := airoha_xpon.o airoha_ploam.o airoha_omci.o
+ obj-$(CONFIG_AIROHA_XDSL) += airoha_xdsl.o
+diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.c b/drivers/net/ethernet/airoha/airoha_gpon_omci.c
+deleted file mode 100644
+--- a/drivers/net/ethernet/airoha/airoha_gpon_omci.c
++++ /dev/null
+@@ -1,261 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-only
+-/*
+- * Airoha EN7523 GPON OMCI transport backend
+- */
+-
+-#include <linux/err.h>
+-#include <linux/netdevice.h>
+-#include <linux/skbuff.h>
+-#include <net/xpon.h>
+-#include <net/xpon/omci.h>
+-
+-#include "airoha_eth.h"
+-#include "airoha_gpon_omci.h"
+-
+-static int airoha_gpon_omci_start_transport(struct omci_device *odev)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-	int ret;
+-
+-	ret = airoha_eth_xpon_control_start(omci->gdm_dev);
+-	if (ret)
+-		return ret;
+-
+-	ret = airoha_gpon_omci_hw_start(omci->hw_priv);
+-	if (ret)
+-		airoha_eth_xpon_control_stop(omci->gdm_dev);
+-
+-	return ret;
+-}
+-
+-static void airoha_gpon_omci_stop_transport(struct omci_device *odev)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	airoha_gpon_omci_hw_stop(omci->hw_priv);
+-	airoha_eth_xpon_control_stop(omci->gdm_dev);
+-}
+-
+-static int airoha_gpon_omci_xmit(struct omci_device *odev,
+-				 struct sk_buff *skb, u16 gem_port_id)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_eth_xmit_xpon_oam(omci->gdm_dev, skb, 0, gem_port_id);
+-}
+-
+-static int
+-airoha_gpon_omci_get_ani_topology(struct omci_device *odev,
+-				  struct omci_ani_topology *topology)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_get_ani_topology(omci->hw_priv, topology);
+-}
+-
+-static int airoha_gpon_omci_set_tcont(struct omci_device *odev,
+-				      u16 entity_id, u16 alloc_id,
+-				       bool valid)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_set_tcont(omci->hw_priv, entity_id,
+-					     alloc_id, valid);
+-}
+-
+-static int airoha_gpon_omci_set_gem_port(struct omci_device *odev,
+-					 u16 entity_id,
+-					 u16 gem_port_id,
+-					 u16 tcont_entity_id,
+-					 u8 direction,
+-					 bool valid,
+-					 bool encrypted)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_set_gem_port(omci->hw_priv, entity_id,
+-						gem_port_id, tcont_entity_id,
+-						direction, valid, encrypted);
+-}
+-
+-static int airoha_gpon_omci_set_uni(struct omci_device *odev,
+-				    u16 entity_id, bool enable)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_set_uni(omci->hw_priv, entity_id, enable);
+-}
+-
+-static int
+-airoha_gpon_omci_validate_services(struct omci_device *odev,
+-				   const struct omci_service_config *services,
+-				   size_t count)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_validate_services(omci->hw_priv, services, count);
+-}
+-
+-static int
+-airoha_gpon_omci_replace_service(struct omci_device *odev,
+-				 const struct omci_service_config *service)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_replace_service(omci->hw_priv, service);
+-}
+-
+-static int airoha_gpon_omci_delete_service(struct omci_device *odev,
+-					   u32 cookie)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_delete_service(omci->hw_priv, cookie);
+-}
+-
+-static int airoha_gpon_omci_get_telemetry(struct omci_device *odev,
+-					  struct omci_telemetry *telemetry)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_get_telemetry(omci->hw_priv, telemetry);
+-}
+-
+-static int
+-airoha_gpon_omci_set_olt_profile(struct omci_device *odev,
+-				 const struct omci_olt_profile_state *state)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	return airoha_gpon_omci_hw_set_olt_profile(omci->hw_priv, state);
+-}
+-
+-static void airoha_gpon_omci_set_operational(struct omci_device *odev,
+-					     bool operational)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	airoha_gpon_omci_hw_set_operational(omci->hw_priv, operational);
+-}
+-
+-static void
+-airoha_gpon_omci_config_changed(struct omci_device *odev, u16 key,
+-				const struct omci_identity *identity)
+-{
+-	struct airoha_gpon_omci *omci = omci_device_priv(odev);
+-
+-	airoha_gpon_omci_hw_config_changed(omci->hw_priv, key, identity);
+-}
+-
+-static const struct omci_device_ops airoha_gpon_omci_ops = {
+-	.start = airoha_gpon_omci_start_transport,
+-	.stop = airoha_gpon_omci_stop_transport,
+-	.xmit = airoha_gpon_omci_xmit,
+-	.get_ani_topology = airoha_gpon_omci_get_ani_topology,
+-	.set_tcont = airoha_gpon_omci_set_tcont,
+-	.set_gem_port = airoha_gpon_omci_set_gem_port,
+-	.set_uni = airoha_gpon_omci_set_uni,
+-	.validate_services = airoha_gpon_omci_validate_services,
+-	.replace_service = airoha_gpon_omci_replace_service,
+-	.delete_service = airoha_gpon_omci_delete_service,
+-	.get_telemetry = airoha_gpon_omci_get_telemetry,
+-	.set_olt_profile = airoha_gpon_omci_set_olt_profile,
+-	.set_operational = airoha_gpon_omci_set_operational,
+-	.config_changed = airoha_gpon_omci_config_changed,
+-};
+-
+-int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
+-			      struct xpon_device *xpon,
+-			      struct net_device *gdm_dev,
+-			      void *hw_priv,
+-			      const struct omci_identity *identity)
+-{
+-	int ret;
+-
+-	omci->gdm_dev = gdm_dev;
+-	omci->hw_priv = hw_priv;
+-	omci->odev = omci_device_register(xpon,
+-					  OMCI_CAP_HW_MIC | OMCI_CAP_TELEMETRY,
+-					  &airoha_gpon_omci_ops, omci);
+-	if (IS_ERR(omci->odev))
+-		return PTR_ERR(omci->odev);
+-
+-	omci_device_set_identity_info(omci->odev, identity);
+-	ret = omci_device_set_dying_gasp_enabled(omci->odev, true,
+-						 OMCI_CONFIG_SOURCE_DRIVER);
+-	if (ret) {
+-		omci_device_unregister(omci->odev);
+-		omci->odev = NULL;
+-	}
+-
+-	return ret;
+-}
+-
+-int airoha_gpon_omci_start(struct airoha_gpon_omci *omci)
+-{
+-	return omci_device_start(omci->odev);
+-}
+-
+-void airoha_gpon_omci_stop(struct airoha_gpon_omci *omci)
+-{
+-	omci_device_stop(omci->odev);
+-}
+-
+-void airoha_gpon_omci_unregister(struct airoha_gpon_omci *omci)
+-{
+-	omci_device_unregister(omci->odev);
+-	omci->odev = NULL;
+-	omci->gdm_dev = NULL;
+-	omci->hw_priv = NULL;
+-}
+-
+-void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id)
+-{
+-	omci_device_set_onu_id(omci->odev, onu_id);
+-}
+-
+-void airoha_gpon_omci_set_channel(struct airoha_gpon_omci *omci,
+-				  u16 gem_port_id, bool valid)
+-{
+-	omci_device_set_channel(omci->odev, gem_port_id, valid);
+-}
+-
+-void airoha_gpon_omci_set_state(struct airoha_gpon_omci *omci, u8 state)
+-{
+-	omci_device_set_state(omci->odev, state);
+-}
+-
+-void airoha_gpon_omci_reconcile_services(struct airoha_gpon_omci *omci)
+-{
+-	if (omci && omci->odev)
+-		omci_device_reconcile_services(omci->odev);
+-}
+-
+-void airoha_gpon_omci_reset_session(struct airoha_gpon_omci *omci)
+-{
+-	omci_device_reset_session(omci->odev);
+-}
+-
+-int airoha_gpon_omci_send_dying_gasp(struct airoha_gpon_omci *omci)
+-{
+-	return omci_device_send_dying_gasp(omci->odev);
+-}
+-
+-bool airoha_gpon_omci_receive(void *data, struct sk_buff *skb, u8 channel,
+-			      u16 gem_port_id, u32 flags)
+-{
+-	struct airoha_gpon_omci *omci = data;
+-	u32 omci_flags = 0;
+-
+-	(void)channel;
+-
+-	if (flags & AIROHA_XPON_OAM_RX_F_MIC_PRESENT)
+-		omci_flags |= OMCI_F_MIC_PRESENT;
+-	if (flags & AIROHA_XPON_OAM_RX_F_MIC_VALID)
+-		omci_flags |= OMCI_F_MIC_VALID;
+-	if (flags & AIROHA_XPON_OAM_RX_F_CRC_ERROR)
+-		omci_flags |= OMCI_F_CRC_ERROR;
+-
+-	omci_device_receive(omci->odev, skb, gem_port_id, omci_flags);
+-	return true;
+-}
+diff --git a/drivers/net/ethernet/airoha/airoha_gpon_omci.h b/drivers/net/ethernet/airoha/airoha_gpon_omci.h
+deleted file mode 100644
+--- a/drivers/net/ethernet/airoha/airoha_gpon_omci.h
++++ /dev/null
+@@ -1,66 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0-only */
+-#ifndef _AIROHA_GPON_OMCI_H
+-#define _AIROHA_GPON_OMCI_H
+-
+-#include <linux/types.h>
+-
+-struct device;
+-struct net_device;
+-struct omci_device;
+-struct omci_identity;
+-struct omci_ani_topology;
+-struct omci_telemetry;
+-struct omci_olt_profile_state;
+-struct omci_service_config;
+-struct sk_buff;
+-struct xpon_device;
+-
+-struct airoha_gpon_omci {
+-	struct omci_device *odev;
+-	struct net_device *gdm_dev;
+-	void *hw_priv;
+-};
+-
+-int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
+-			      struct xpon_device *xpon,
+-			      struct net_device *gdm_dev,
+-			      void *hw_priv,
+-			      const struct omci_identity *identity);
+-int airoha_gpon_omci_start(struct airoha_gpon_omci *omci);
+-void airoha_gpon_omci_stop(struct airoha_gpon_omci *omci);
+-void airoha_gpon_omci_unregister(struct airoha_gpon_omci *omci);
+-void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id);
+-void airoha_gpon_omci_set_channel(struct airoha_gpon_omci *omci,
+-				  u16 gem_port_id, bool valid);
+-void airoha_gpon_omci_set_state(struct airoha_gpon_omci *omci, u8 state);
+-void airoha_gpon_omci_reconcile_services(struct airoha_gpon_omci *omci);
+-void airoha_gpon_omci_reset_session(struct airoha_gpon_omci *omci);
+-int airoha_gpon_omci_send_dying_gasp(struct airoha_gpon_omci *omci);
+-bool airoha_gpon_omci_receive(void *data, struct sk_buff *skb, u8 channel,
+-			      u16 gem_port_id, u32 flags);
+-
+-int airoha_gpon_omci_hw_get_ani_topology(void *hw_priv,
+-					 struct omci_ani_topology *topology);
+-int airoha_gpon_omci_hw_start(void *hw_priv);
+-void airoha_gpon_omci_hw_stop(void *hw_priv);
+-int airoha_gpon_omci_hw_set_tcont(void *hw_priv, u16 entity_id,
+-				  u16 alloc_id, bool valid);
+-int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,
+-				     u16 gem_port_id, u16 tcont_entity_id,
+-				     u8 direction, bool valid, bool encrypted);
+-int airoha_gpon_omci_hw_set_uni(void *hw_priv, u16 entity_id, bool enable);
+-int airoha_gpon_omci_hw_validate_services(void *hw_priv,
+-					  const struct omci_service_config *services,
+-					  size_t count);
+-int airoha_gpon_omci_hw_replace_service(void *hw_priv,
+-					const struct omci_service_config *service);
+-int airoha_gpon_omci_hw_delete_service(void *hw_priv, u32 cookie);
+-int airoha_gpon_omci_hw_get_telemetry(void *hw_priv,
+-				      struct omci_telemetry *telemetry);
+-int airoha_gpon_omci_hw_set_olt_profile(void *hw_priv,
+-					const struct omci_olt_profile_state *state);
+-void airoha_gpon_omci_hw_set_operational(void *hw_priv, bool operational);
+-void airoha_gpon_omci_hw_config_changed(void *hw_priv, u16 key,
+-					const struct omci_identity *identity);
+-
+-#endif /* _AIROHA_GPON_OMCI_H */
+diff --git a/drivers/net/ethernet/airoha/airoha_omci.c b/drivers/net/ethernet/airoha/airoha_omci.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/airoha/airoha_omci.c
+@@ -0,0 +1,261 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Airoha EN7523 GPON OMCI transport backend
++ */
++
++#include <linux/err.h>
++#include <linux/netdevice.h>
++#include <linux/skbuff.h>
++#include <net/xpon.h>
++#include <net/xpon/omci.h>
++
++#include "airoha_eth.h"
++#include "airoha_omci.h"
++
++static int airoha_gpon_omci_start_transport(struct omci_device *odev)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++	int ret;
++
++	ret = airoha_eth_xpon_control_start(omci->gdm_dev);
++	if (ret)
++		return ret;
++
++	ret = airoha_gpon_omci_hw_start(omci->hw_priv);
++	if (ret)
++		airoha_eth_xpon_control_stop(omci->gdm_dev);
++
++	return ret;
++}
++
++static void airoha_gpon_omci_stop_transport(struct omci_device *odev)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	airoha_gpon_omci_hw_stop(omci->hw_priv);
++	airoha_eth_xpon_control_stop(omci->gdm_dev);
++}
++
++static int airoha_gpon_omci_xmit(struct omci_device *odev,
++				 struct sk_buff *skb, u16 gem_port_id)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_eth_xmit_xpon_oam(omci->gdm_dev, skb, 0, gem_port_id);
++}
++
++static int
++airoha_gpon_omci_get_ani_topology(struct omci_device *odev,
++				  struct omci_ani_topology *topology)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_get_ani_topology(omci->hw_priv, topology);
++}
++
++static int airoha_gpon_omci_set_tcont(struct omci_device *odev,
++				      u16 entity_id, u16 alloc_id,
++				       bool valid)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_set_tcont(omci->hw_priv, entity_id,
++					     alloc_id, valid);
++}
++
++static int airoha_gpon_omci_set_gem_port(struct omci_device *odev,
++					 u16 entity_id,
++					 u16 gem_port_id,
++					 u16 tcont_entity_id,
++					 u8 direction,
++					 bool valid,
++					 bool encrypted)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_set_gem_port(omci->hw_priv, entity_id,
++						gem_port_id, tcont_entity_id,
++						direction, valid, encrypted);
++}
++
++static int airoha_gpon_omci_set_uni(struct omci_device *odev,
++				    u16 entity_id, bool enable)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_set_uni(omci->hw_priv, entity_id, enable);
++}
++
++static int
++airoha_gpon_omci_validate_services(struct omci_device *odev,
++				   const struct omci_service_config *services,
++				   size_t count)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_validate_services(omci->hw_priv, services, count);
++}
++
++static int
++airoha_gpon_omci_replace_service(struct omci_device *odev,
++				 const struct omci_service_config *service)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_replace_service(omci->hw_priv, service);
++}
++
++static int airoha_gpon_omci_delete_service(struct omci_device *odev,
++					   u32 cookie)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_delete_service(omci->hw_priv, cookie);
++}
++
++static int airoha_gpon_omci_get_telemetry(struct omci_device *odev,
++					  struct omci_telemetry *telemetry)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_get_telemetry(omci->hw_priv, telemetry);
++}
++
++static int
++airoha_gpon_omci_set_olt_profile(struct omci_device *odev,
++				 const struct omci_olt_profile_state *state)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	return airoha_gpon_omci_hw_set_olt_profile(omci->hw_priv, state);
++}
++
++static void airoha_gpon_omci_set_operational(struct omci_device *odev,
++					     bool operational)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	airoha_gpon_omci_hw_set_operational(omci->hw_priv, operational);
++}
++
++static void
++airoha_gpon_omci_config_changed(struct omci_device *odev, u16 key,
++				const struct omci_identity *identity)
++{
++	struct airoha_gpon_omci *omci = omci_device_priv(odev);
++
++	airoha_gpon_omci_hw_config_changed(omci->hw_priv, key, identity);
++}
++
++static const struct omci_device_ops airoha_gpon_omci_ops = {
++	.start = airoha_gpon_omci_start_transport,
++	.stop = airoha_gpon_omci_stop_transport,
++	.xmit = airoha_gpon_omci_xmit,
++	.get_ani_topology = airoha_gpon_omci_get_ani_topology,
++	.set_tcont = airoha_gpon_omci_set_tcont,
++	.set_gem_port = airoha_gpon_omci_set_gem_port,
++	.set_uni = airoha_gpon_omci_set_uni,
++	.validate_services = airoha_gpon_omci_validate_services,
++	.replace_service = airoha_gpon_omci_replace_service,
++	.delete_service = airoha_gpon_omci_delete_service,
++	.get_telemetry = airoha_gpon_omci_get_telemetry,
++	.set_olt_profile = airoha_gpon_omci_set_olt_profile,
++	.set_operational = airoha_gpon_omci_set_operational,
++	.config_changed = airoha_gpon_omci_config_changed,
++};
++
++int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
++			      struct xpon_device *xpon,
++			      struct net_device *gdm_dev,
++			      void *hw_priv,
++			      const struct omci_identity *identity)
++{
++	int ret;
++
++	omci->gdm_dev = gdm_dev;
++	omci->hw_priv = hw_priv;
++	omci->odev = omci_device_register(xpon,
++					  OMCI_CAP_HW_MIC | OMCI_CAP_TELEMETRY,
++					  &airoha_gpon_omci_ops, omci);
++	if (IS_ERR(omci->odev))
++		return PTR_ERR(omci->odev);
++
++	omci_device_set_identity_info(omci->odev, identity);
++	ret = omci_device_set_dying_gasp_enabled(omci->odev, true,
++						 OMCI_CONFIG_SOURCE_DRIVER);
++	if (ret) {
++		omci_device_unregister(omci->odev);
++		omci->odev = NULL;
++	}
++
++	return ret;
++}
++
++int airoha_gpon_omci_start(struct airoha_gpon_omci *omci)
++{
++	return omci_device_start(omci->odev);
++}
++
++void airoha_gpon_omci_stop(struct airoha_gpon_omci *omci)
++{
++	omci_device_stop(omci->odev);
++}
++
++void airoha_gpon_omci_unregister(struct airoha_gpon_omci *omci)
++{
++	omci_device_unregister(omci->odev);
++	omci->odev = NULL;
++	omci->gdm_dev = NULL;
++	omci->hw_priv = NULL;
++}
++
++void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id)
++{
++	omci_device_set_onu_id(omci->odev, onu_id);
++}
++
++void airoha_gpon_omci_set_channel(struct airoha_gpon_omci *omci,
++				  u16 gem_port_id, bool valid)
++{
++	omci_device_set_channel(omci->odev, gem_port_id, valid);
++}
++
++void airoha_gpon_omci_set_state(struct airoha_gpon_omci *omci, u8 state)
++{
++	omci_device_set_state(omci->odev, state);
++}
++
++void airoha_gpon_omci_reconcile_services(struct airoha_gpon_omci *omci)
++{
++	if (omci && omci->odev)
++		omci_device_reconcile_services(omci->odev);
++}
++
++void airoha_gpon_omci_reset_session(struct airoha_gpon_omci *omci)
++{
++	omci_device_reset_session(omci->odev);
++}
++
++int airoha_gpon_omci_send_dying_gasp(struct airoha_gpon_omci *omci)
++{
++	return omci_device_send_dying_gasp(omci->odev);
++}
++
++bool airoha_gpon_omci_receive(void *data, struct sk_buff *skb, u8 channel,
++			      u16 gem_port_id, u32 flags)
++{
++	struct airoha_gpon_omci *omci = data;
++	u32 omci_flags = 0;
++
++	(void)channel;
++
++	if (flags & AIROHA_XPON_OAM_RX_F_MIC_PRESENT)
++		omci_flags |= OMCI_F_MIC_PRESENT;
++	if (flags & AIROHA_XPON_OAM_RX_F_MIC_VALID)
++		omci_flags |= OMCI_F_MIC_VALID;
++	if (flags & AIROHA_XPON_OAM_RX_F_CRC_ERROR)
++		omci_flags |= OMCI_F_CRC_ERROR;
++
++	omci_device_receive(omci->odev, skb, gem_port_id, omci_flags);
++	return true;
++}
+diff --git a/drivers/net/ethernet/airoha/airoha_omci.h b/drivers/net/ethernet/airoha/airoha_omci.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/ethernet/airoha/airoha_omci.h
+@@ -0,0 +1,66 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef _AIROHA_GPON_OMCI_H
++#define _AIROHA_GPON_OMCI_H
++
++#include <linux/types.h>
++
++struct device;
++struct net_device;
++struct omci_device;
++struct omci_identity;
++struct omci_ani_topology;
++struct omci_telemetry;
++struct omci_olt_profile_state;
++struct omci_service_config;
++struct sk_buff;
++struct xpon_device;
++
++struct airoha_gpon_omci {
++	struct omci_device *odev;
++	struct net_device *gdm_dev;
++	void *hw_priv;
++};
++
++int airoha_gpon_omci_register(struct airoha_gpon_omci *omci,
++			      struct xpon_device *xpon,
++			      struct net_device *gdm_dev,
++			      void *hw_priv,
++			      const struct omci_identity *identity);
++int airoha_gpon_omci_start(struct airoha_gpon_omci *omci);
++void airoha_gpon_omci_stop(struct airoha_gpon_omci *omci);
++void airoha_gpon_omci_unregister(struct airoha_gpon_omci *omci);
++void airoha_gpon_omci_set_onu_id(struct airoha_gpon_omci *omci, u16 onu_id);
++void airoha_gpon_omci_set_channel(struct airoha_gpon_omci *omci,
++				  u16 gem_port_id, bool valid);
++void airoha_gpon_omci_set_state(struct airoha_gpon_omci *omci, u8 state);
++void airoha_gpon_omci_reconcile_services(struct airoha_gpon_omci *omci);
++void airoha_gpon_omci_reset_session(struct airoha_gpon_omci *omci);
++int airoha_gpon_omci_send_dying_gasp(struct airoha_gpon_omci *omci);
++bool airoha_gpon_omci_receive(void *data, struct sk_buff *skb, u8 channel,
++			      u16 gem_port_id, u32 flags);
++
++int airoha_gpon_omci_hw_get_ani_topology(void *hw_priv,
++					 struct omci_ani_topology *topology);
++int airoha_gpon_omci_hw_start(void *hw_priv);
++void airoha_gpon_omci_hw_stop(void *hw_priv);
++int airoha_gpon_omci_hw_set_tcont(void *hw_priv, u16 entity_id,
++				  u16 alloc_id, bool valid);
++int airoha_gpon_omci_hw_set_gem_port(void *hw_priv, u16 entity_id,
++				     u16 gem_port_id, u16 tcont_entity_id,
++				     u8 direction, bool valid, bool encrypted);
++int airoha_gpon_omci_hw_set_uni(void *hw_priv, u16 entity_id, bool enable);
++int airoha_gpon_omci_hw_validate_services(void *hw_priv,
++					  const struct omci_service_config *services,
++					  size_t count);
++int airoha_gpon_omci_hw_replace_service(void *hw_priv,
++					const struct omci_service_config *service);
++int airoha_gpon_omci_hw_delete_service(void *hw_priv, u32 cookie);
++int airoha_gpon_omci_hw_get_telemetry(void *hw_priv,
++				      struct omci_telemetry *telemetry);
++int airoha_gpon_omci_hw_set_olt_profile(void *hw_priv,
++					const struct omci_olt_profile_state *state);
++void airoha_gpon_omci_hw_set_operational(void *hw_priv, bool operational);
++void airoha_gpon_omci_hw_config_changed(void *hw_priv, u16 key,
++					const struct omci_identity *identity);
++
++#endif /* _AIROHA_GPON_OMCI_H */
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.c b/drivers/net/ethernet/airoha/airoha_xpon.c
+--- a/drivers/net/ethernet/airoha/airoha_xpon.c
++++ b/drivers/net/ethernet/airoha/airoha_xpon.c
+@@ -50,7 +50,7 @@
+ 
+ #include "airoha_eth.h"
+ #include "airoha_xpon.h"
+-#include "airoha_gpon_omci.h"
++#include "airoha_omci.h"
+ #include "airoha_regs.h"
+ #include "airoha_ploam.h"
+ 
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon.h b/drivers/net/ethernet/airoha/airoha_xpon.h
+--- a/drivers/net/ethernet/airoha/airoha_xpon.h
++++ b/drivers/net/ethernet/airoha/airoha_xpon.h
+@@ -15,7 +15,7 @@
+ #include <net/xpon/oam.h>
+ 
+ #include "airoha_eth.h"
+-#include "airoha_gpon_omci.h"
++#include "airoha_omci.h"
+ #include "airoha_ploam.h"
+ 
+ #define V1_XPON_REGION_SIZE		0x00010000
+diff --git a/drivers/net/ethernet/airoha/airoha_xpon_service_test.c b/drivers/net/ethernet/airoha/airoha_xpon_service_test.c
+deleted file mode 100644
+--- a/drivers/net/ethernet/airoha/airoha_xpon_service_test.c
++++ /dev/null
+@@ -1,189 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-only
+-/* Cookie sharing and capacity regressions without frame-engine hardware. */
+-
+-#include <kunit/test.h>
+-
+-#include "airoha_eth.h"
+-
+-static struct airoha_xpon_service_cfg airoha_service_cfg(u32 cookie, u16 gem)
+-{
+-	return (struct airoha_xpon_service_cfg){
+-		.cookie = cookie,
+-		.gem_port_id = gem,
+-		.tcont = 1,
+-		.queue = 0,
+-		.vlan_id = 100,
+-		.vlan_valid = true,
+-	};
+-}
+-
+-static unsigned int airoha_service_count(struct airoha_xpon_service_table *table)
+-{
+-	unsigned int count = 0;
+-	int i;
+-
+-	for (i = 0; i < AIROHA_XPON_MAX_SERVICES; i++)
+-		count += table->rules[i].valid;
+-	return count;
+-}
+-
+-static int airoha_service_test_init(struct kunit *test)
+-{
+-	test->priv = kunit_kzalloc(test, sizeof(struct airoha_xpon_service_table),
+-				   GFP_KERNEL);
+-	return test->priv ? 0 : -ENOMEM;
+-}
+-
+-static void airoha_service_share_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg = airoha_service_cfg(1, 257);
+-	int slot;
+-
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	cfg.cookie = 2;
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 1U);
+-	airoha_xpon_forget_cookie(table, 1);
+-	slot = airoha_xpon_find_cookie(table, 2);
+-	KUNIT_ASSERT_GE(test, slot, 0);
+-	KUNIT_EXPECT_EQ(test, table->rules[slot].gem_port_id, (u16)257);
+-	airoha_xpon_forget_cookie(table, 2);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 0U);
+-}
+-
+-static void airoha_service_bucket_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg = airoha_service_cfg(1, 257);
+-	unsigned int cookie;
+-
+-	for (cookie = 1; cookie <= AIROHA_XPON_SVC_MAX_COOKIES; cookie++) {
+-		cfg.cookie = cookie;
+-		KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	}
+-	/* Replaying an existing cookie in a full bucket must not spill. */
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 1U);
+-	cfg.cookie++;
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 2U);
+-	for (cookie = 1; cookie <= cfg.cookie; cookie++)
+-		airoha_xpon_forget_cookie(table, cookie);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 0U);
+-}
+-
+-static void airoha_service_full_replace_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg;
+-	unsigned int i;
+-	int slot;
+-
+-	for (i = 1; i <= AIROHA_XPON_MAX_SERVICES; i++) {
+-		cfg = airoha_service_cfg(i, i);
+-		KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	}
+-	cfg = airoha_service_cfg(1, 1000);
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	slot = airoha_xpon_find_cookie(table, 1);
+-	KUNIT_ASSERT_GE(test, slot, 0);
+-	KUNIT_EXPECT_EQ(test, table->rules[slot].gem_port_id, (u16)1000);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table),
+-			AIROHA_XPON_MAX_SERVICES);
+-}
+-
+-static void airoha_service_failed_replace_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg;
+-	unsigned int i;
+-	int slot;
+-
+-	for (i = 1; i <= AIROHA_XPON_MAX_SERVICES; i++) {
+-		cfg = airoha_service_cfg(i, i);
+-		cfg.default_service = i == 1;
+-		KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	}
+-	cfg = airoha_service_cfg(1000, 1);
+-	cfg.default_service = true;
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	/* Cookie 1 cannot reuse its old slot while cookie 1000 references it. */
+-	cfg = airoha_service_cfg(1, 1000);
+-	KUNIT_EXPECT_EQ(test, airoha_xpon_store_service(table, &cfg), -ENOSPC);
+-	slot = airoha_xpon_find_cookie(table, 1);
+-	KUNIT_ASSERT_GE(test, slot, 0);
+-	KUNIT_EXPECT_EQ(test, table->rules[slot].gem_port_id, (u16)1);
+-	KUNIT_EXPECT_TRUE(test, table->rules[slot].default_service);
+-	KUNIT_EXPECT_EQ(test, airoha_xpon_find_cookie(table, 1000), slot);
+-}
+-
+-static void airoha_service_compact_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg;
+-	unsigned int i;
+-
+-	for (i = 1; i <= AIROHA_XPON_SVC_MAX_COOKIES + 1; i++) {
+-		cfg = airoha_service_cfg(i, 1000);
+-		KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	}
+-	for (i = 1; i <= AIROHA_XPON_MAX_SERVICES - 2; i++) {
+-		cfg = airoha_service_cfg(100 + i, i);
+-		KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	}
+-	airoha_xpon_forget_cookie(table, 1);
+-	cfg = airoha_service_cfg(10000, 2000);
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	for (i = 2; i <= AIROHA_XPON_SVC_MAX_COOKIES + 1; i++) {
+-		int slot = airoha_xpon_find_cookie(table, i);
+-
+-		KUNIT_ASSERT_GE(test, slot, 0);
+-		KUNIT_EXPECT_EQ(test, table->rules[slot].gem_port_id, (u16)1000);
+-	}
+-}
+-
+-static void airoha_service_distinct_queue_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg = airoha_service_cfg(1, 257);
+-
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	cfg.cookie = 2;
+-	cfg.queue = 1;
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 2U);
+-}
+-
+-static void airoha_service_wildcard_test(struct kunit *test)
+-{
+-	struct airoha_xpon_service_table *table = test->priv;
+-	struct airoha_xpon_service_cfg cfg = airoha_service_cfg(1, 257);
+-
+-	cfg.vlan_valid = false;
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	cfg.cookie = 2;
+-	cfg.vlan_id = 200;
+-	cfg.pcp = 7;
+-	KUNIT_ASSERT_EQ(test, airoha_xpon_store_service(table, &cfg), 0);
+-	KUNIT_EXPECT_EQ(test, airoha_service_count(table), 1U);
+-}
+-
+-static struct kunit_case airoha_service_test_cases[] = {
+-	KUNIT_CASE(airoha_service_share_test),
+-	KUNIT_CASE(airoha_service_bucket_test),
+-	KUNIT_CASE(airoha_service_full_replace_test),
+-	KUNIT_CASE(airoha_service_failed_replace_test),
+-	KUNIT_CASE(airoha_service_compact_test),
+-	KUNIT_CASE(airoha_service_distinct_queue_test),
+-	KUNIT_CASE(airoha_service_wildcard_test),
+-	{}
+-};
+-
+-static struct kunit_suite airoha_service_test_suite = {
+-	.name = "airoha-xpon-services",
+-	.init = airoha_service_test_init,
+-	.test_cases = airoha_service_test_cases,
+-};
+-
+-kunit_test_suite(airoha_service_test_suite);
+

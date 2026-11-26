@@ -1,0 +1,35 @@
+From 333436d36490cfe71d97d6d29c85a34f02a19d4d Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sat, 24 Oct 2026 06:19:09 -0300
+Subject: [PATCH] net: airoha: retain AN7552 hardware TC capability for PPE
+ offload
+
+AN7552 clears both NETIF_F_HW_TC and NETIF_F_GRO_HW during netdev
+allocation. However, airoha_dev_setup_tc_block_cb() rejects requests
+when tc_can_offload() is false. That prevents flower rules from reaching
+the PPE flowtable callback and its lazy hardware initialization, even
+when hardware flow offloading is enabled in userspace.
+
+Keep hardware TC advertised and enabled, while still disabling hardware
+GRO on AN7552. This removes a software admission blocker; the hardware
+learning, RX metadata and BIND paths still require runtime validation.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -9660,7 +9660,8 @@ static int airoha_alloc_gdm_device(struct airoha_eth *eth,
+ 		netdev->vlan_features = AIROHA_HW_FEATURES;
+ 	}
+ 	if (airoha_is(eth, airoha_an7552)) {
+-		netdev_features_t unsupported = NETIF_F_HW_TC | NETIF_F_GRO_HW;
++		/* Keep HW_TC available for the PPE flow-offload callback. */
++		netdev_features_t unsupported = NETIF_F_GRO_HW;
+ 
+ 		netdev->hw_features &= ~unsupported;
+ 		netdev->features &= ~unsupported;
+

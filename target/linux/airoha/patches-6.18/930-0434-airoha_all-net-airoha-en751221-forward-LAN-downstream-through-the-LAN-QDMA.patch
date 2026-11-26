@@ -1,0 +1,210 @@
+From 1c0c176c118f067223177ec14a016eb5c6dcf0cd Mon Sep 17 00:00:00 2001
+From: Cristian Papa <pcristian292@gmail.com>
+Date: Sun, 25 Oct 2026 01:21:20 -0300
+Subject: [PATCH] net: airoha: en751221: forward LAN downstream through the LAN
+ QDMA
+
+GPON delivers downstream at line rate in bursts. Sent straight from the
+PPE to GDM1, those bursts reach the external MT7530 faster than its
+1 Gbit/s LAN port can drain them, and its small packet buffer drops
+frames (s01_p06 RxIngressDrop). The losses are small, but they cut TCP
+throughput to higher-RTT clients such as WiFi stations roughly in half.
+
+The MitraStar stock firmware on the same SoC avoids this. Its hw_nat
+binds downstream flows with fport 3 + PSE_QOS, so they go through the
+LAN QDMA hardware forwarding path, whose DRAM buffers absorb the bursts.
+The LAN QDMA then paces channels 0..4 at 970000 kbit/s with a 48500 byte
+burst.
+
+Do the same. Downstream DSA flows to GDM1 use fport 3 + QoS with
+channel and QID 0, and ACTDP still points at GDM1. The LAN QDMA enables
+its per-channel TX rate limiter with the stock parameters.
+
+Measured on a TP-Link Archer XR500v with a Movistar GPON line, WiFi
+laptop, single server: the download goes from 250 to 640 Mbit/s, and
+the MT7530 drops go from ~3000 per 8 s test to 0.
+
+Assisted-by: Claude:claude-opus-5-5
+Signed-off-by: Cristian Papa <pcristian292@gmail.com>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c  | 68 +++++++++++++++++++++++++++++--
+ drivers/net/ethernet/airoha/airoha_eth.h  |  1 +
+ drivers/net/ethernet/airoha/airoha_ppe.c  | 29 +++++++++----
+ drivers/net/ethernet/airoha/airoha_regs.h | 12 ++++++
+ 4 files changed, 98 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.c b/drivers/net/ethernet/airoha/airoha_eth.c
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -1685,6 +1685,63 @@ static void econet_init_en751221_qdma(struct airoha_qdma_mips *qdma)
+ 	econet_wreg(cngst_cfg, &qdma->regs->tx_congest_cfg);
+ }
+ 
++static int econet_en751221_tx_rl_param(struct airoha_qdma_mips *qdma,
++				       u32 chan, u32 type, u32 val)
++{
++	void __iomem *reg = (void __iomem *)&qdma->regs->tx_limit_param;
++	u32 cmd = EN751221_TX_RL_PARAM_RWCMD |
++		  FIELD_PREP(EN751221_TX_RL_PARAM_TYPE, type) |
++		  FIELD_PREP(EN751221_TX_RL_PARAM_CHAN, chan) |
++		  FIELD_PREP(EN751221_TX_RL_PARAM_VALUE, val);
++	u32 v;
++
++	econet_wreg(cmd, &qdma->regs->tx_limit_param);
++	return readl_poll_timeout(reg, v, v & EN751221_TX_RL_PARAM_DONE, 1,
++				  10 * USEC_PER_MSEC);
++}
++
++/*
++ * Pace LAN QDMA channels 0..4 just below the LAN port speed, as the
++ * MitraStar stock firmware does: 970000 kbit/s with a 48500 byte burst
++ * (25 kbit/s unit from a 320 us tick, 2-byte bucket scale).  Downstream
++ * FoE flows to the switch go through this QDMA (fport 3 + QoS), so GPON
++ * line-rate bursts wait in the DRAM HWF buffers instead of overflowing
++ * the small packet buffer of the external MT7530.
++ *
++ * Enabling a channel first runs it with a 1 us tick and the largest PIR
++ * for 100 ms, like qdma_set_tx_ratelimit() in the vendor SDK, so that its
++ * token bucket starts full.
++ */
++static void econet_en751221_lan_tx_ratelimit(struct airoha_qdma_mips *qdma)
++{
++	const u32 unit = 25, rate = 970000, chans = GENMASK(4, 0);
++	const u32 pir = rate / unit, pbs = ((rate >> 1) + (rate >> 3)) / unit;
++	u32 cfg = EN751221_TX_RL_EN |
++		  FIELD_PREP(EN751221_TX_RL_BUCKET_SCALE, 1) |
++		  FIELD_PREP(EN751221_TX_RL_TICKSEL, 8000 / unit);
++	u32 prime = (cfg & ~EN751221_TX_RL_TICKSEL) |
++		    FIELD_PREP(EN751221_TX_RL_TICKSEL, 1);
++	u32 en = econet_rreg(&qdma->regs->ch_lim_en) | chans;
++	int c, err = 0;
++
++	econet_wreg(en, &qdma->regs->ch_lim_en);
++	econet_wreg(prime, &qdma->regs->tx_limit_cfg);
++	for (c = 0; c < 5; c++)
++		err |= econet_en751221_tx_rl_param(qdma, c, EN751221_TX_RL_PIR,
++						   0xffff);
++	msleep(100);
++	econet_wreg(cfg, &qdma->regs->tx_limit_cfg);
++	for (c = 0; c < 5; c++) {
++		err |= econet_en751221_tx_rl_param(qdma, c, EN751221_TX_RL_PIR,
++						   pir);
++		err |= econet_en751221_tx_rl_param(qdma, c, EN751221_TX_RL_PBS,
++						   pbs);
++	}
++	if (err)
++		dev_warn(qdma->qdma->eth->dev,
++			 "LAN QDMA TX rate limit setup timed out\n");
++}
++
+ static int econet_qdma_hw_init(struct airoha_qdma_mips *qdma)
+ {
+ 	struct qregs_qcfg qcfg;
+@@ -1815,11 +1872,14 @@ static int econet_qdma_hw_init(struct airoha_qdma_mips *qdma)
+ 
+ 	/*
+ 	 * The vendor EN751221 LAN driver disables per-channel QDMA TX rate
+-	 * limiting for channels 0..4 when the external MT7530 is used.  The
+-	 * firmware/bootloader may leave these bits enabled, so explicitly clear
+-	 * them instead of inheriting a stale hardware shaper configuration.
++	 * limiting for channels 0..4 of its CPU path when the external MT7530
++	 * is used.  The LAN QDMA now also carries the hardware-forwarded
++	 * downstream, which needs the limiter; any other QDMA gets the bits
++	 * cleared instead of inheriting a stale bootloader configuration.
+ 	 */
+-	{
++	if (qdma->qdma->id == 0 && airoha_is(qdma->qdma->eth, econet_en751221)) {
++		econet_en751221_lan_tx_ratelimit(qdma);
++	} else {
+ 		u32 ch_lim_en = econet_rreg(&qdma->regs->ch_lim_en);
+ 
+ 		ch_lim_en &= ~GENMASK(4, 0);
+diff --git a/drivers/net/ethernet/airoha/airoha_eth.h b/drivers/net/ethernet/airoha/airoha_eth.h
+--- a/drivers/net/ethernet/airoha/airoha_eth.h
++++ b/drivers/net/ethernet/airoha/airoha_eth.h
+@@ -512,6 +512,7 @@ enum {
+ 
+ /* FoE v1: EN751221 and EN7528. */
+ #define AIROHA_FOE_V1_INVALID_HASH 0xffff
++#define AIROHA_FOE_V1_FP_QDMA_LAN 3
+ #define AIROHA_FOE_V1_FP_QDMA_HW 6
+ 
+ #define AIROHA_FOE_V1_IPV4_IB2_WORD 4
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -2827,7 +2827,7 @@ static void airoha_foe_v1_entry_set_pse_port(struct airoha_foe_entry *entry,
+ 
+ 	*ib2 &= ~(AIROHA_FOE_V1_IB2_PSE_PORT | AIROHA_FOE_V1_IB2_PSE_QOS);
+ 	*ib2 |= FIELD_PREP(AIROHA_FOE_V1_IB2_PSE_PORT, port);
+-	if (port == AIROHA_FOE_V1_FP_QDMA_HW)
++	if (port == AIROHA_FOE_V1_FP_QDMA_HW || port == AIROHA_FOE_V1_FP_QDMA_LAN)
+ 		*ib2 |= AIROHA_FOE_V1_IB2_PSE_QOS;
+ }
+ 
+@@ -2938,6 +2938,9 @@ static void airoha_foe_v1_entry_set_bind_metadata(struct airoha_foe_entry *entry
+ 	entry->ib1 |= FIELD_PREP(AIROHA_FOE_V1_IB1_BIND_VLAN_LAYER, 1);
+ 
+ 	*data &= ~AIROHA_FOE_V1_ACTDP;
++	/* The LAN QDMA still delivers to GDM1. */
++	if (port == AIROHA_FOE_V1_FP_QDMA_LAN)
++		port = FE_PSE_PORT_GDM1;
+ 	if (port != AIROHA_FOE_V1_FP_QDMA_HW)
+ 		*data |= FIELD_PREP(AIROHA_FOE_V1_ACTDP, port + 6);
+ }
+@@ -3811,15 +3814,25 @@ static int airoha_ppe_v1_flow_set_output(struct airoha_foe_entry *entry,
+ 		return -EOPNOTSUPP;
+ 
+ 	/*
+-	 * Keep direct GDM egress on the default queue. The EN751221 PPE
+-	 * flow path does not enable PSE_QOS for GDM1/GDM2 destinations,
+-	 * and the previous 3 + DSA-port QID mapping is not part of the
+-	 * vendor DSA special-tag programming.
++	 * Downstream to the LAN switch goes through the LAN QDMA (fport 3 +
++	 * QoS, channel and QID 0), like the vendor hw_nat: the QDMA buffers
++	 * GPON line-rate bursts in DRAM and its per-channel limiter paces
++	 * them below the LAN port speed.  Sent straight to GDM1 they overflow
++	 * the external MT7530, and the losses cut TCP throughput to WiFi
++	 * clients roughly in half.
+ 	 *
+-	 * The DSA destination is still selected by the in-band special tag;
+-	 * leaving QID at its reset/default value isolates queue selection from
+-	 * the hardware forwarding path.
++	 * The DSA destination is still selected by the in-band special tag.
++	 * Other GDM egress keeps the default queue without PSE_QOS.
+ 	 */
++	if (dsa_port >= 0 && gdm->pse_port == FE_PSE_PORT_GDM1) {
++		u32 *data = airoha_foe_v1_data(entry);
++
++		airoha_foe_v1_entry_set_pse_port(entry, AIROHA_FOE_V1_FP_QDMA_LAN);
++		airoha_foe_v1_entry_set_queue(entry, 0);
++		*data &= ~(AIROHA_FOE_V1_SHAPER_ID | AIROHA_FOE_V1_CHANNEL);
++		return 0;
++	}
++
+ 	airoha_foe_v1_entry_set_pse_port(entry, gdm->pse_port);
+ 
+ 	return 0;
+diff --git a/drivers/net/ethernet/airoha/airoha_regs.h b/drivers/net/ethernet/airoha/airoha_regs.h
+--- a/drivers/net/ethernet/airoha/airoha_regs.h
++++ b/drivers/net/ethernet/airoha/airoha_regs.h
+@@ -53,6 +53,18 @@
+ #define EN751221_PSE_BUF_CH_THR_MASK	GENMASK(23, 16)
+ #define EN751221_PSE_BUF_TOTAL_THR_MASK	GENMASK(7, 0)
+ 
++/* QDMA_CSR_EGRESS_RATELIMIT_CFG / RATELIMIT_PARAMETER_CFG (vendor qdma_reg.h) */
++#define EN751221_TX_RL_EN		BIT(31)
++#define EN751221_TX_RL_BUCKET_SCALE	GENMASK(19, 16)
++#define EN751221_TX_RL_TICKSEL		GENMASK(15, 0)
++#define EN751221_TX_RL_PARAM_RWCMD	BIT(31)
++#define EN751221_TX_RL_PARAM_DONE	BIT(30)
++#define EN751221_TX_RL_PARAM_TYPE	GENMASK(29, 28)
++#define EN751221_TX_RL_PARAM_CHAN	GENMASK(20, 16)
++#define EN751221_TX_RL_PARAM_VALUE	GENMASK(15, 0)
++#define EN751221_TX_RL_PIR		2
++#define EN751221_TX_RL_PBS		3
++
+ #define EN751221_TX_RATE_METER_EN	BIT(31)
+ #define EN751221_TX_RATE_METER_DIV_MASK	GENMASK(17, 16)
+ #define EN751221_TX_RATE_METER_SLICE_MASK GENMASK(15, 0)
+

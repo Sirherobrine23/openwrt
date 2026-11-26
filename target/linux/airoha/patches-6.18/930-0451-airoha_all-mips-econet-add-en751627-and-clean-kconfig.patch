@@ -1,0 +1,120 @@
+From deedf56a3eae827c5305c0d6aae85f0431c255e4 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Mon, 26 Oct 2026 13:49:36 -0300
+Subject: [PATCH] mips: econet: add en751627 and clean kconfig
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/mips/Kconfig        |  6 ++++++
+ arch/mips/econet/Kconfig | 42 ++++++++++++++++++++++++------------------
+ 2 files changed, 30 insertions(+), 18 deletions(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -393,6 +393,8 @@ config ECONET
+ 	bool "EcoNet MIPS family"
+ 	select BOOT_RAW
+ 	select CPU_SUPPORTS_CPUFREQ
++	select COMMON_CLK
++	select COMMON_CLK_EN7523
+ 	select DMA_NONCOHERENT
+ 	select DEBUG_ZBOOT if DEBUG_KERNEL
+ 	select EARLY_PRINTK_8250
+@@ -409,6 +411,10 @@ config ECONET
+ 	select SYS_SUPPORTS_MIPS16
+ 	select SYS_SUPPORTS_ZBOOT_UART16550
+ 	select USE_GENERIC_EARLY_PRINTK_8250
++	select HAVE_PCI
++	select IRQ_MIPS_CPU
++	select PCI_DRIVERS_GENERIC
++	select SYS_SUPPORTS_MULTITHREADING
+ 	select USE_OF
+ 	help
+ 	  EcoNet EN75xx MIPS devices are big endian MIPS machines used
+diff --git a/arch/mips/econet/Kconfig b/arch/mips/econet/Kconfig
+--- a/arch/mips/econet/Kconfig
++++ b/arch/mips/econet/Kconfig
+@@ -11,34 +11,46 @@ choice
+ 
+ 	config SOC_ECONET_EN751221
+ 		bool "EN751221 family"
+-		select COMMON_CLK
+ 		select CPU_BIG_ENDIAN
+ 		select ECONET_EN751221_INTC
+-		select HAVE_PCI
+-		select IRQ_MIPS_CPU
+-		select PCI_DRIVERS_GENERIC
+-		select SYS_SUPPORTS_MULTITHREADING
++		select PINCTRL
++		select PINCTRL_AIROHA
++		select PINCTRL_AIROHA_EN751221
+ 		help
+-		  The EN751221 family includes EN7512, RN7513, EN7521, EN7526.
++		  The EN751221 family includes EN7512, EN7513, EN7521, EN7526.
+ 		  They are based on single core MIPS 34Kc processors. To boot
+ 		  this kernel, you will need a device tree such as
+ 		  MIPS_RAW_APPENDED_DTB=y, and a root filesystem.
+ 
++	config SOC_ECONET_EN751627
++		bool "EN751627 family"
++		select CPU_BIG_ENDIAN
++		select MIPS_CPU_SCACHE
++		select MIPS_GIC
++		select PINCTRL
++		select PINCTRL_AIROHA
++		select PINCTRL_AIROHA_EN7528
++		select SMP
++		select SMP_UP
++		select SYS_SUPPORTS_HIGHMEM
++		select SYS_SUPPORTS_MIPS_CPS
++		select SYS_SUPPORTS_SMP
++		help
++		  The EN751627 family with dual-core MIPS 1004Kc.
++		  Requires MIPS_RAW_APPENDED_DTB=y for boot.
++
+ 	config SOC_ECONET_EN7528
+ 		bool "EN7528 family"
+-		select COMMON_CLK
+-		select COMMON_CLK_EN7523
+ 		select CPU_LITTLE_ENDIAN
+-		select HAVE_PCI
+-		select IRQ_MIPS_CPU
+ 		select MIPS_CPU_SCACHE
+ 		select MIPS_GIC
+-		select PCI_DRIVERS_GENERIC
++		select PINCTRL
++		select PINCTRL_AIROHA
++		select PINCTRL_AIROHA_EN7528
+ 		select SMP
+ 		select SMP_UP
+ 		select SYS_SUPPORTS_HIGHMEM
+ 		select SYS_SUPPORTS_MIPS_CPS
+-		select SYS_SUPPORTS_MULTITHREADING
+ 		select SYS_SUPPORTS_SMP
+ 		help
+ 		  The EN7528 family with dual-core MIPS 1004Kc.
+@@ -46,14 +58,9 @@ choice
+ 
+ 	config SOC_ECONET_EN7580
+ 		bool "EN7580 family"
+-		select COMMON_CLK
+-		select COMMON_CLK_EN7523
+ 		select CPU_LITTLE_ENDIAN
+-		select HAVE_PCI
+-		select IRQ_MIPS_CPU
+ 		select MIPS_CPU_SCACHE
+ 		select MIPS_GIC
+-		select PCI_DRIVERS_GENERIC
+ 		select PINCTRL
+ 		select PINCTRL_AIROHA
+ 		select PINCTRL_AIROHA_EN7580
+@@ -61,7 +68,6 @@ choice
+ 		select SMP_UP
+ 		select SYS_SUPPORTS_HIGHMEM
+ 		select SYS_SUPPORTS_MIPS_CPS
+-		select SYS_SUPPORTS_MULTITHREADING
+ 		select SYS_SUPPORTS_SMP
+ 		help
+ 		  The EN7580 family with dual-core MIPS interAptiv.
+
