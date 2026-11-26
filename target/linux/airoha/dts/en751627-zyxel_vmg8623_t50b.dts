@@ -1,0 +1,410 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/dts-v1/;
+
+#include "en751627.dtsi"
+
+/ {
+	model = "Zyxel VMG8623-T50B";
+	compatible = "zyxel,vmg8623-t50b", "econet,en751627";
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x10000000>;
+	};
+
+	chosen {
+		rootdisk = <&firmware>;
+		stdout-path = "/serial@1fbf0000:115200";
+		bootargs = "console=ttyS0,115200 earlycon ubi.block=0,fit root=/dev/fit0 rootwait";
+	};
+
+	aliases {
+		led-boot = &led_power_green;
+		led-failsafe = &led_power_red;
+		led-upgrade = &led_power_red;
+		led-running = &led_power_green;
+	};
+
+	/* Needs check, extracted from leds.conf */
+	keys {
+		compatible = "gpio-keys";
+
+		key-reset {
+			label = "Reset";
+			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+			debounce-interval = <60>;
+		};
+
+		wps {
+			label = "wps";
+			gpios = <&pinctrl 28 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_WPS_BUTTON>;
+			debounce-interval = <60>;
+		};
+
+		key-wlan {
+			label = "wifi";
+			gpios = <&pinctrl 2 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RFKILL>;
+			debounce-interval = <60>;
+		};
+	};
+
+	/* Needs sync with others dts files */
+	leds {
+		compatible = "gpio-leds";
+
+		led_power_green: led-power-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <8>;
+			gpios = <&pinctrl 8 GPIO_ACTIVE_LOW>;
+		};
+
+		led_power_red: led-power-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <6>;
+			gpios = <&pinctrl 6 GPIO_ACTIVE_LOW>;
+		};
+
+		led-internet {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_WAN_ONLINE;
+			function-enumerator = <4>;
+			gpios = <&pinctrl 4 GPIO_ACTIVE_LOW>;
+		};
+
+		led_internet_red: led-internet-red {
+			color = <LED_COLOR_ID_RED>;
+			function = LED_FUNCTION_WAN_ONLINE;
+			function-enumerator = <3>;
+			gpios = <&pinctrl 3 GPIO_ACTIVE_LOW>;
+		};
+
+		led_dsl: led-dsl {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <5>;
+			gpios = <&pinctrl 5 GPIO_ACTIVE_LOW>;
+		};
+
+		led_voip_green: led-voip-green {
+			color = <LED_COLOR_ID_GREEN>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <9>;
+			gpios = <&pinctrl 9 GPIO_ACTIVE_LOW>;
+		};
+
+		led_voip_amber: led-voip-amber {
+			color = <LED_COLOR_ID_AMBER>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <10>;
+			gpios = <&pinctrl 10 GPIO_ACTIVE_LOW>;
+		};
+
+		led_wlan_2g: led-wlan-2g {
+			color = <LED_COLOR_ID_AMBER>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <21>;
+			gpios = <&pinctrl 21 GPIO_ACTIVE_LOW>;
+		};
+
+		led_wlan_5g: led-wlan-5g {
+			color = <LED_COLOR_ID_AMBER>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <20>;
+			gpios = <&pinctrl 20 GPIO_ACTIVE_LOW>;
+		};
+
+		led_wps_2g: led-wps-2g {
+			color = <LED_COLOR_ID_AMBER>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <23>;
+			gpios = <&pinctrl 23 GPIO_ACTIVE_LOW>;
+		};
+
+		led_wps_5g: led-wps-5g {
+			color = <LED_COLOR_ID_AMBER>;
+			function = LED_FUNCTION_STATUS;
+			function-enumerator = <22>;
+			gpios = <&pinctrl 22 GPIO_ACTIVE_LOW>;
+		};
+
+		// led_lan: led-lan {
+		// 	color = <LED_COLOR_ID_GREEN>;
+		// 	function = LED_FUNCTION_STATUS;
+		// 	function-enumerator = <0>;
+		// 	gpios = <&pinctrl 38 GPIO_ACTIVE_HIGH>;
+		// };
+
+		// led_wan: led-wan {
+		// 	color = <LED_COLOR_ID_GREEN>;
+		// 	function = LED_FUNCTION_STATUS;
+		// 	function-enumerator = <0>;
+		// 	gpios = <&pinctrl 39 GPIO_ACTIVE_HIGH>;
+		// };
+	};
+
+	// <&pinctrl 24> USB overcurrent flag
+	// <&pinctrl 25> USB overcurrent enable
+	// usb_vbus_regulator: regulator-usb-vbus {
+	// 	compatible = "regulator-fixed";
+	// 	regulator-name = "usb_vbus";
+	// 	regulator-min-microvolt = <5000000>;
+	// 	regulator-max-microvolt = <5000000>;
+	// 	gpios = <&pinctrl 24 GPIO_ACTIVE_LOW>, <&pinctrl 25 GPIO_ACTIVE_LOW>;
+	// 	regulator-boot-on;
+	// };
+};
+
+/*
+0x00000000-0x00040000 : "bootloader" (mac: 0x0000FF48, serial: 0x0000FFAF, wifi pass: 0x0000FFE0)
+0x00040000-0x00080000 : "romfile"
+0x00080000-0x02880000 : "tclinux"
+0x02880000-0x04f20000 : "tclinux_slave"
+0x04f20000-0x05020000 : "wwan"
+0x05020000-0x05420000 : "data"
+0x05420000-0x05520000 : "rom-d"
+0x05520000-0x07520000 : "misc"
+0x07520000-0x075e0000 : "reservearea" => art (0xC0000)
+
+U-Boot> setexpr
+setexpr - set environment variable as the result of eval expression
+
+Usage:
+setexpr [.b, .w, .l, .s] name [*]value1 <op> [*]value2
+    - set environment variable 'name' to the result of the evaluated
+      expression specified by <op>.  <op> can be &, |, ^, +, -, *, /, %
+      (for strings only + is supported)
+      size argument is only meaningful if value1 and/or value2 are
+      memory addresses (*)
+setexpr[.b, .w, .l] name [*]value
+    - load a value into a variable
+setexpr name gsub r s [t]
+    - For each substring matching the regular expression <r> in the
+      string <t>, substitute the string <s>.  The result is
+      assigned to <name>.  If <t> is not supplied, use the old
+      value of <name>. If no substring matching <r> is found in <t>,
+      assign <t> to <name>.
+setexpr name sub r s [t]
+    - Just like gsub(), but replace only the first matching substring
+U-Boot> mtd read spi-nand0 ${loadaddr} 0x0000F800 0x800
+Reading 2048 byte(s) (1 page(s)) at offset 0x0000f800
+U-Boot> setexpr addr ${loadaddr} + 0x748
+U-Boot> md.b ${addr} 8
+89400748: 48 ed e6 42 98 10 05 00                          H..B....
+U-Boot> md.b ${addr} 6
+89400748: 48 ed e6 42 98 10                                H..B..
+U-Boot>
+*/
+&spi0 {
+	flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <2>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "loader";
+				reg = <0x000000 0x100000>;
+				read-only;
+			};
+
+			partition@100000 {
+				label = "ubi";
+				compatible = "linux,ubi";
+				reg = <0x100000 0x000000>;
+
+				volumes {
+					ubi-volume-ubootenv {
+						volname = "ubootenv";
+						nvmem-layout {
+							compatible = "u-boot,env-redundant-bool";
+							env-size = <0x4000>;
+						};
+					};
+	
+					ubi-volume-ubootenv2 {
+						volname = "ubootenv2";
+						nvmem-layout {
+							compatible = "u-boot,env-redundant-bool";
+							env-size = <0x4000>;
+	
+							macaddr: ethaddr {
+								#nvmem-cell-cells = <1>;
+							};
+						};
+					};
+				
+					ubi-volume-reserver {
+						volname = "art";
+						read-only;
+
+						nvmem-layout {
+							compatible = "fixed-layout";
+							#address-cells = <1>;
+							#size-cells = <1>;
+
+							eeprom: eeprom@20000 {
+								reg = <0x20000 0x400>;
+							};
+
+							precal_data: precal@21000 {
+								reg = <0x21000 0x9000>;
+							};
+						};
+					};
+					
+					firmware: ubi-volume-firmware {
+						volname = "fit";
+						compatible = "denx,uimage";
+					};
+				};
+			};
+		};
+	};
+};
+
+&usb0 {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	status = "okay";
+};
+
+&pcie0_slot0 {
+	mt7615e@0,0 {
+		compatible = "mediatek,mt76";
+		reg = <0x0000 0 0 0 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		nvmem-cells = <&eeprom>, <&precal_data>;
+		nvmem-cell-names = "eeprom", "precal";
+
+		// 2.4 GHz
+		band@0 {
+			reg = <0>;
+			nvmem-cells = <&macaddr 0>;
+			nvmem-cell-names = "mac-address";
+		};
+
+		// 5 GHz
+		band@1 {
+			reg = <1>;
+			nvmem-cells = <&macaddr 2>;
+			nvmem-cell-names = "mac-address";
+		};
+	};
+};
+
+&eth {
+	status = "okay";
+};
+
+&gdm1 {
+	status = "okay";
+
+	nvmem-cells = <&macaddr 0>;
+	nvmem-cell-names = "mac-address";
+};
+
+&xdsl {
+	// status = "okay";
+
+	nvmem-cells = <&macaddr 0>;
+	nvmem-cell-names = "mac-address";
+};
+
+&switch {
+	status = "okay";
+};
+
+&gsw_port0 {
+	status = "okay";
+};
+
+&gsw_port1 {
+	status = "okay";
+};
+
+&gsw_port2 {
+	status = "okay";
+};
+
+&gsw_port3 {
+	status = "okay";
+};
+
+&gsw_port4 {
+	status = "okay";
+
+	label = "wan";
+};
+
+&gsw_phy0 {
+	status = "okay";
+};
+
+&gsw_phy1 {
+	status = "okay";
+};
+
+&gsw_phy2 {
+	status = "okay";
+};
+
+&gsw_phy3 {
+	status = "okay";
+};
+
+&gsw_phy4 {
+	status = "okay";
+};
+
+&gsw_phy0_led0 {
+	status = "okay";
+	pinctrl-0 = <&swp1_led0>;
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+};
+
+&gsw_phy1_led0 {
+	status = "okay";
+	pinctrl-0 = <&swp2_led0>;
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+};
+
+&gsw_phy2_led0 {
+	status = "okay";
+	pinctrl-0 = <&swp3_led0>;
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+};
+
+&gsw_phy3_led0 {
+	status = "okay";
+	pinctrl-0 = <&swp4_led0>;
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_LAN;
+};
+
+&gsw_phy4_led0 {
+	status = "okay";
+	pinctrl-0 = <&swp5_led0>;
+	color = <LED_COLOR_ID_GREEN>;
+	function = LED_FUNCTION_WAN;
+};

@@ -197,6 +197,15 @@ define U-Boot/en7528_tplink_xc220-g3v
 endef
 UBOOT_TARGETS += en7528_tplink_xc220-g3v
 
+define U-Boot/en751627_zyxel_vmg8623-t50b
+  NAME:=Zyxel VMG8623-T50B
+  UBOOT_IMAGE:=u-boot.bin
+  UBOOT_CONFIG:=en751627_zyxel-vmg8623-t50b
+  BUILD_SUBTARGET:=en751627
+  BUILD_DEVICES:=zyxel_vmg8623-t50b
+endef
+UBOOT_TARGETS += en751627_zyxel_vmg8623-t50b
+
 UBOOT_CUSTOMIZE_CONFIG := \
 	--disable TOOLS_KWBIMAGE \
 	--disable TOOLS_LIBCRYPTO \
