@@ -226,6 +226,20 @@
 					groups = "gpio11";
 				};
 			};
+
+			pcm1_pins: pcm1-pins {
+				mux {
+					function = "pcm";
+					groups = "pcm1";
+				};
+			};
+
+			pcm2_pins: pcm2-pins {
+				mux {
+					function = "pcm";
+					groups = "pcm2";
+				};
+			};
 		};
 
 		pwm: pwm {
@@ -260,6 +274,60 @@
 		compatible = "inside-secure,safexcel-eip93ies";
 		reg = <0x1fb70000 0x1000>;
 		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	pcm0: pcm@1fbd0000 {
+		compatible = "airoha,en7523-pcm";
+		reg = <0x1fbd0000 0x1000>;
+		reg-names = "pcm";
+
+		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+
+		resets = <&scuclk EN7523_PCM1_RST>;
+		reset-names = "pcm";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pcm1_pins>;
+
+		airoha,pcm-interface-control = <0xf5071306>;
+		airoha,tx-slot-config = <0x10301020 0x10501040
+					 0x10701060 0x10901080>;
+		airoha,rx-slot-config = <0x10301020 0x10501040
+					 0x10701060 0x10901080>;
+		airoha,dma-channel-mask = <0x0f>;
+
+		status = "disabled";
+	};
+
+	zsi0: zsi@1fbd1000 {
+		compatible = "airoha,en7523-zsi";
+		reg = <0x1fbd1000 0x1000>;
+		reg-names = "zsi";
+		resets = <&scuclk EN7523_PCM1_ZSI_ISI_RST>;
+		reset-names = "zsi";
+		clocks = <&scuclk EN7523_CLK_SLIC>;
+		clock-names = "slic";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+		airoha,zsi-gap-us = <5000>;
+		status = "disabled";
+	};
+
+	isi0: spi@1fbd1000 {
+		compatible = "airoha,en7523-isi-spi";
+		reg = <0x1fbd1000 0x1000>;
+		reg-names = "isi";
+		resets = <&scuclk EN7523_PCM1_ZSI_ISI_RST>;
+		reset-names = "isi";
+		clocks = <&scuclk EN7523_CLK_SLIC>;
+		clock-names = "slic";
+		airoha,scu = <&scuclk>;
+		airoha,chip-scu = <&chip_scu>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
 	};
 
 	uart1: serial@1fbf0000 {
@@ -668,9 +736,13 @@
 			 <&scuclk EN7523_FE_PDMA_RST>,
 			 <&scuclk EN7523_FE_QDMA_RST>,
 			 <&scuclk EN7523_GDMP_RST>,
-			 <&scuclk EN7523_TDMA_RST>;
+			 <&scuclk EN7523_TDMA_RST>,
+			 <&scuclk EN7523_DUAL_HSI0_MAC_RST>,
+			 <&scuclk EN7523_DUAL_HSI1_MAC_RST>,
+			 <&scuclk EN7523_HSI_MAC_RST>;
 		reset-names = "fe", "pdma", "qdma",
-			      "gdmp", "tdma";
+			      "gdmp", "tdma",
+			      "hsi0-mac", "hsi1-mac", "hsi-mac";
 
 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>,
