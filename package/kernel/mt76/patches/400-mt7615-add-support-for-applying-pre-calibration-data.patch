@@ -1,0 +1,124 @@
+From cbcf1d4ae796265589ceb9ba28c31b3a6f8c4f4d Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 25 Nov 2026 21:19:59 -0300
+Subject: [PATCH] mt76: mt7615: add support for applying pre-calibration data
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ mt7615/eeprom.c   | 37 ++++++++++++++++++++++++++++++++++++-
+ mt7615/main.c     |  6 +++++-
+ mt7615/mcu.c      |  5 ++++-
+ mt7615/pci_init.c |  4 +++-
+ 4 files changed, 48 insertions(+), 4 deletions(-)
+
+diff --git a/mt7615/eeprom.c b/mt7615/eeprom.c
+index d6828e1c..08eac081 100644
+--- a/mt7615/eeprom.c
++++ b/mt7615/eeprom.c
+@@ -71,16 +71,51 @@ static int mt7615_efuse_init(struct mt7615_dev *dev, u32 base)
+ 	return 0;
+ }
+ 
++static int mt7615_eeprom_load_precal(struct mt76_dev *dev)
++{
++	u8 *eeprom = dev->eeprom.data;
++	int len, ret;
++
++	ret = mt76_get_of_data_from_nvmem(dev, eeprom, "eeprom",
++					 MT7615_EEPROM_SIZE);
++	if (ret)
++		return ret;
++
++	if (get_unaligned_le16(eeprom) != 0x7615)
++		return -EINVAL;
++
++	/* The caldata cell starts with RX DCOC, followed by TX DPD. */
++	if (eeprom[MT_EE_CALDATA_FLASH] & MT_EE_CALDATA_FLASH_TX_DPD)
++		len = MT7615_EEPROM_FULL_SIZE - MT7615_EEPROM_DCOC_OFFSET;
++	else if (eeprom[MT_EE_CALDATA_FLASH] & MT_EE_CALDATA_FLASH_RX_CAL)
++		len = MT7615_EEPROM_TXDPD_OFFSET - MT7615_EEPROM_DCOC_OFFSET;
++	else
++		return 0;
++
++	return mt76_get_of_data_from_nvmem(dev, eeprom + MT7615_EEPROM_DCOC_OFFSET,
++					  "precal", len);
++}
++
+ static int mt7615_eeprom_load(struct mt7615_dev *dev, u32 addr)
+ {
++	struct mt76_dev *mdev = &dev->mt76;
+ 	int ret;
+ 
+ 	BUILD_BUG_ON(MT7615_EEPROM_FULL_SIZE < MT7663_EEPROM_SIZE);
+ 
+-	ret = mt76_eeprom_init(&dev->mt76, MT7615_EEPROM_FULL_SIZE);
++	ret = mt76_eeprom_init(mdev, MT7615_EEPROM_FULL_SIZE);
+ 	if (ret < 0)
+ 		return ret;
+ 
++	if (!ret && is_mt7615(mdev) &&
++	    of_property_match_string(mdev->dev->of_node, "nvmem-cell-names",
++				     "precal") >= 0) {
++		ret = mt7615_eeprom_load_precal(mdev);
++		if (ret)
++			return dev_err_probe(mdev->dev, ret,
++					     "failed to load split EEPROM\n");
++	}
++
+ 	return mt7615_efuse_init(dev, addr);
+ }
+ 
+diff --git a/mt7615/main.c b/mt7615/main.c
+index db5f5d6c..576c9f61 100644
+--- a/mt7615/main.c
++++ b/mt7615/main.c
+@@ -32,8 +32,12 @@ static int mt7615_start(struct ieee80211_hw *hw)
+ 	bool running;
+ 	int ret;
+ 
+-	if (!mt7615_wait_for_mcu_init(dev))
++	if (!mt7615_wait_for_mcu_init(dev)) {
++		dev_err(dev->mt76.dev,
++			"Cannot start PHY%u: MCU firmware is not running\n",
++			phy->mt76->band_idx);
+ 		return -EIO;
++	}
+ 
+ 	mt7615_mutex_acquire(dev);
+ 
+diff --git a/mt7615/mcu.c b/mt7615/mcu.c
+index 152b7517..6ce52cf3 100644
+--- a/mt7615/mcu.c
++++ b/mt7615/mcu.c
+@@ -1244,8 +1244,11 @@ static int mt7615_load_patch(struct mt7615_dev *dev, u32 addr, const char *name)
+ 	int len, ret, sem;
+ 
+ 	ret = firmware_request_nowarn(&fw, name, dev->mt76.dev);
+-	if (ret)
++	if (ret) {
++		dev_err(dev->mt76.dev, "Failed to load ROM patch %s: %d\n",
++			name, ret);
+ 		return ret;
++	}
+ 
+ 	if (!fw || !fw->data || fw->size < sizeof(*hdr)) {
+ 		dev_err(dev->mt76.dev, "Invalid firmware\n");
+diff --git a/mt7615/pci_init.c b/mt7615/pci_init.c
+index 17d8bc77..a8a806bb 100644
+--- a/mt7615/pci_init.c
++++ b/mt7615/pci_init.c
+@@ -24,8 +24,10 @@ static void mt7615_pci_init_work(struct work_struct *work)
+ 		ret = mt7615_mcu_init(dev);
+ 	}
+ 
+-	if (ret)
++	if (ret) {
++		dev_err(dev->mt76.dev, "MCU initialization failed: %d\n", ret);
+ 		return;
++	}
+ 
+ 	mt7615_init_work(dev);
+ }
+-- 
+2.56.1
+
