@@ -1,0 +1,65 @@
+From d60515429aee8f42044e42d2a82f9c0c5bd7320a Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Thu, 19 Nov 2026 22:44:26 -0300
+Subject: [PATCH] spi: en751627: fix duplication data read
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/mips/dts/econet,en751627.dtsi |  2 +-
+ drivers/spi/airoha_snfi_spi.c      | 10 +++++++++-
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/arch/mips/dts/econet,en751627.dtsi b/arch/mips/dts/econet,en751627.dtsi
+--- a/arch/mips/dts/econet,en751627.dtsi
++++ b/arch/mips/dts/econet,en751627.dtsi
+@@ -78,7 +78,7 @@
+ 		};
+ 
+ 		spi0: spi@1fa10000 {
+-			compatible = "airoha,en7523-spi";
++			compatible = "airoha,en751627-spi";
+ 			reg = <0x1fa10000 0x140>,
+ 			      <0x1fa11000 0x600>;
+ 
+diff --git a/drivers/spi/airoha_snfi_spi.c b/drivers/spi/airoha_snfi_spi.c
+--- a/drivers/spi/airoha_snfi_spi.c
++++ b/drivers/spi/airoha_snfi_spi.c
+@@ -257,6 +257,7 @@ struct airoha_snand_soc_data {
+ 	bool has_nfi;
+ 	bool has_nfi2spi;
+ 	bool has_boot_trp;
++	bool no_dma_read;
+ 	bool double_cs;
+ 	u8 manual_dummy;
+ };
+@@ -853,7 +854,7 @@ static ssize_t airoha_snand_dirmap_read(struct spi_mem_dirmap_desc *desc,
+ 	size_t bytes;
+ 	int err;
+ 
+-	if (!priv->dma) {
++	if (!priv->dma || priv->soc->no_dma_read) {
+ 		/* simplified version of spi_mem_no_dirmap_read() */
+ 		struct spi_mem_op op = desc->info.op_tmpl;
+ 
+@@ -1371,6 +1372,12 @@ static const struct airoha_snand_soc_data en751221_spi_data = {
+ 	.manual_dummy = 1,
+ };
+ 
++static const struct airoha_snand_soc_data en751627_spi_data = {
++	.has_nfi = true,
++	.has_nfi2spi = true,
++	.no_dma_read = true,
++};
++
+ static const struct airoha_snand_soc_data en7523_spi_data = {
+ 	.has_nfi = true,
+ 	.has_nfi2spi = true,
+@@ -1379,6 +1386,7 @@ static const struct airoha_snand_soc_data en7523_spi_data = {
+ 
+ static const struct udevice_id airoha_snand_ids[] = {
+ 	{ .compatible = "airoha,en751221-spi", .data = (ulong)&en751221_spi_data },
++	{ .compatible = "airoha,en751627-spi", .data = (ulong)&en751627_spi_data },
+ 	{ .compatible = "airoha,en7523-spi", .data = (ulong)&en7523_spi_data },
+ 	{ .compatible = "airoha,en7581-snand", .data = (ulong)&en7523_spi_data },
+ 	{ }
+

@@ -1,0 +1,4130 @@
+From 43cedf8381d02dad6641c2434cad13b58fcbc136 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 26 Aug 2026 21:27:18 -0300
+Subject: [PATCH] airoha: refactor scu map and rename en75xx to econet
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+OpenWrt: omit deletion of the obsolete DDR blob, which is not shipped in
+this patch series. The final U-Boot tree uses external early-boot tooling.
+---
+ arch/arm/include/asm/arch-airoha/scu-regmap.h      |  13 -
+ arch/arm/mach-airoha/an7581/scu-regmap.c           |   2 +-
+ arch/arm/mach-airoha/an7583/scu-regmap.c           |   2 +-
+ arch/arm/mach-airoha/en7523/scu-regmap.c           |   2 +-
+ arch/mips/Kconfig                                  |  10 +-
+ arch/mips/Makefile                                 |   4 +-
+ arch/mips/dts/Makefile                             |   2 +-
+ arch/mips/dts/econet,en7512-reference-u-boot.dtsi  |  58 ---
+ arch/mips/dts/econet,en7512-reference.dts          |  27 --
+ arch/mips/dts/econet,en7512.dtsi                   |  88 ----
+ .../mips/dts/econet,en751221-reference-u-boot.dtsi |  58 +++
+ arch/mips/dts/econet,en751221-reference.dts        |  21 +
+ arch/mips/dts/econet,en751221.dtsi                 | 150 ++++++
+ arch/mips/dts/econet,en7528-reference.dts          |   8 +-
+ arch/mips/dts/econet,en7528-tplink-xc220-g3v.dts   |  10 +-
+ arch/mips/dts/econet,en7528.dtsi                   |  47 +-
+ arch/mips/mach-econet/Kconfig                      |  88 ++++
+ arch/mips/mach-econet/Makefile                     |  14 +
+ arch/mips/mach-econet/README.ddr-blob              |  10 +
+ arch/mips/mach-econet/cpu.c                        |   1 +
+ arch/mips/mach-econet/early_sfc.c                  | 352 ++++++++++++++
+ arch/mips/mach-econet/en751221/Makefile            |   4 +
+ arch/mips/mach-econet/en751221/init.c              |  55 +++
+ arch/mips/mach-econet/en751221/scu-regmap.c        |  30 ++
+ arch/mips/mach-econet/en7528/Makefile              |   4 +
+ arch/mips/mach-econet/en7528/init.c                |  88 ++++
+ arch/mips/mach-econet/en7528/scu-regmap.c          |  30 ++
+ arch/mips/mach-econet/include/mach/en751221.h      |  46 ++
+ arch/mips/mach-econet/spl/Makefile                 |   2 +
+ arch/mips/mach-econet/spl/spl.c                    |  47 ++
+ arch/mips/mach-econet/tpl/Makefile                 |   3 +
+ arch/mips/mach-econet/tpl/start.S                  | 101 ++++
+ arch/mips/mach-econet/tpl/tpl.c                    | 109 +++++
+ arch/mips/mach-en75xx/Kconfig                      |  89 ----
+ arch/mips/mach-en75xx/Makefile                     |  13 -
+ arch/mips/mach-en75xx/README.ddr-blob              |  10 -
+ arch/mips/mach-en75xx/cpu.c                        |  68 ---
+ arch/mips/mach-en75xx/early_sfc.c                  | 352 --------------
+ arch/mips/mach-en75xx/include/mach/en7512.h        |  46 --
+ arch/mips/mach-en75xx/include/mach/scu-regmap.h    |  10 -
+ arch/mips/mach-en75xx/scu-regmap.c                 |  49 --
+ arch/mips/mach-en75xx/spl/Makefile                 |   2 -
+ arch/mips/mach-en75xx/spl/spl.c                    |  47 --
+ arch/mips/mach-en75xx/tpl/Makefile                 |   3 -
+ arch/mips/mach-en75xx/tpl/start.S                  | 101 ----
+ arch/mips/mach-en75xx/tpl/tpl.c                    | 109 -----
+ board/econet/en7512/MAINTAINERS                    |   4 +-
+ board/econet/en7528/MAINTAINERS                    |   2 -
+ configs/en7512_reference_defconfig                 |   6 +-
+ configs/en7523-askey-rtf8225vw_defconfig           |   2 +-
+ configs/en7523-genexis_pixly_r1_defconfig          |   2 +-
+ configs/en7523-mitrastar_gpt_2742gx4x5v6_defconfig |   2 +-
+ configs/en7523-tplink_ex530v_v1_defconfig          |   2 +-
+ configs/en7523-tplink_xx230v_v1_defconfig          |   2 +-
+ configs/en7528_reference_defconfig                 |   2 +-
+ configs/en7528_tplink_xc220_g3v_defconfig          |   2 +-
+ drivers/clk/airoha/Makefile                        |   2 +-
+ drivers/clk/airoha/clk-airoha.c                    |   6 +-
+ drivers/net/Kconfig                                |   2 +-
+ drivers/net/airoha/pcs-airoha-common.c             |   2 +-
+ drivers/net/airoha_eth.c                           |  37 +-
+ drivers/pinctrl/airoha/pinctrl-airoha.c            |   2 +-
+ drivers/reset/Kconfig                              |   2 +-
+ drivers/reset/reset-airoha.c                       |   6 +-
+ drivers/serial/Kconfig                             |   6 +-
+ drivers/serial/Makefile                            |   2 +-
+ drivers/serial/serial_econet.c                     | 137 ++++++
+ drivers/serial/serial_en75xx.c                     | 137 ------
+ drivers/spi/Kconfig                                |   2 +-
+ drivers/spi/airoha_snfi_spi.c                      |   4 +-
+ include/dt-bindings/reset/econet,en751221-scu.h    |  49 ++
+ include/soc/airoha/pkgids.h                        | 535 +++++++++++++++++++++
+ include/soc/airoha/scu-regmap.h                    |  15 +
+ 73 files changed, 2028 insertions(+), 1329 deletions(-)
+
+diff --git a/arch/arm/include/asm/arch-airoha/scu-regmap.h b/arch/arm/include/asm/arch-airoha/scu-regmap.h
+deleted file mode 100644
+--- a/arch/arm/include/asm/arch-airoha/scu-regmap.h
++++ /dev/null
+@@ -1,13 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-/*
+- * Author: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
+- */
+-#ifndef __AIROHA_SCU_REGMAP__
+-#define __AIROHA_SCU_REGMAP__
+-
+-#include <regmap.h>
+-
+-struct regmap *airoha_get_scu_regmap(void);
+-struct regmap *airoha_get_chip_scu_regmap(void);
+-
+-#endif
+diff --git a/arch/arm/mach-airoha/an7581/scu-regmap.c b/arch/arm/mach-airoha/an7581/scu-regmap.c
+--- a/arch/arm/mach-airoha/an7581/scu-regmap.c
++++ b/arch/arm/mach-airoha/an7581/scu-regmap.c
+@@ -5,7 +5,7 @@
+ 
+ #include <syscon.h>
+ #include <linux/err.h>
+-#include <asm/arch/scu-regmap.h>
++#include <soc/airoha/scu-regmap.h>
+ 
+ struct regmap *airoha_get_scu_regmap(void)
+ {
+diff --git a/arch/arm/mach-airoha/an7583/scu-regmap.c b/arch/arm/mach-airoha/an7583/scu-regmap.c
+--- a/arch/arm/mach-airoha/an7583/scu-regmap.c
++++ b/arch/arm/mach-airoha/an7583/scu-regmap.c
+@@ -5,7 +5,7 @@
+ 
+ #include <syscon.h>
+ #include <linux/err.h>
+-#include <asm/arch/scu-regmap.h>
++#include <soc/airoha/scu-regmap.h>
+ 
+ struct regmap *airoha_get_scu_regmap(void)
+ {
+diff --git a/arch/arm/mach-airoha/en7523/scu-regmap.c b/arch/arm/mach-airoha/en7523/scu-regmap.c
+--- a/arch/arm/mach-airoha/en7523/scu-regmap.c
++++ b/arch/arm/mach-airoha/en7523/scu-regmap.c
+@@ -5,7 +5,7 @@
+ 
+ #include <dm/ofnode.h>
+ #include <linux/err.h>
+-#include <asm/arch/scu-regmap.h>
++#include <soc/airoha/scu-regmap.h>
+ 
+ static struct regmap *airoha_scu_node_regmap_by_index(unsigned int index)
+ {
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -63,12 +63,12 @@ config ARCH_BMIPS
+ 	select SYSRESET
+ 	imply CMD_DM
+ 
+-config ARCH_EN75XX
+-	bool "Support EcoNet/Airoha EN75xx MIPS platforms"
++config ARCH_ECONET
++	bool "Support Airoha MIPS platforms"
+ 	select HAS_FIXED_TIMER_FREQUENCY
+ 	select DM
+ 	select DM_SERIAL
+-	select EN75XX_SERIAL
++	select ECONET_SERIAL
+ 	select OF_CONTROL
+ 	select ROM_EXCEPTION_VECTORS
+ 	select SUPPORT_BIG_ENDIAN
+@@ -84,7 +84,7 @@ config ARCH_EN75XX
+ 	select MIPS_SKIP_CP0_COUNT_CLEAR if BOARD_EN7528_TPLINK_XC220_G3V
+ 	select MIPS_SKIP_CP0_COUNT_CLEAR if BOARD_EN7528_REFERENCE
+ 	help
+-	  Support EcoNet/Airoha EN75xx MIPS platforms. EN7512/EN7521 are
++	  Support Airoha MIPS platforms. EN7512/EN7521 are
+ 	  big-endian MIPS34K devices, while EN7528 is a little-endian MIPS1004Kc
+ 	  device. The initial EN7528 target is intended to be chainloaded after
+ 	  the vendor firmware has trained DDR.
+@@ -227,7 +227,7 @@ source "arch/mips/mach-mscc/Kconfig"
+ source "arch/mips/mach-bmips/Kconfig"
+ source "arch/mips/mach-jz47xx/Kconfig"
+ source "arch/mips/mach-pic32/Kconfig"
+-source "arch/mips/mach-en75xx/Kconfig"
++source "arch/mips/mach-econet/Kconfig"
+ source "arch/mips/mach-mtmips/Kconfig"
+ source "arch/mips/mach-octeon/Kconfig"
+ 
+diff --git a/arch/mips/Makefile b/arch/mips/Makefile
+--- a/arch/mips/Makefile
++++ b/arch/mips/Makefile
+@@ -9,7 +9,7 @@ endif
+ 
+ ifeq ($(CONFIG_TPL_BUILD),y)
+ head-$(CONFIG_SOC_MT7621) := arch/mips/mach-mtmips/mt7621/tpl/start.o
+-head-$(CONFIG_ARCH_EN75XX) := arch/mips/mach-en75xx/tpl/start.o
++head-$(CONFIG_ARCH_ECONET) := arch/mips/mach-econet/tpl/start.o
+ endif
+ 
+ libs-y += arch/mips/cpu/
+@@ -17,7 +17,7 @@ libs-y += arch/mips/lib/
+ 
+ machine-$(CONFIG_ARCH_ATH79) += ath79
+ machine-$(CONFIG_ARCH_BMIPS) += bmips
+-machine-$(CONFIG_ARCH_EN75XX) += en75xx
++machine-$(CONFIG_ARCH_ECONET) += econet
+ machine-$(CONFIG_ARCH_JZ47XX) += jz47xx
+ machine-$(CONFIG_MACH_PIC32) += pic32
+ machine-$(CONFIG_ARCH_MTMIPS) += mtmips
+diff --git a/arch/mips/dts/Makefile b/arch/mips/dts/Makefile
+--- a/arch/mips/dts/Makefile
++++ b/arch/mips/dts/Makefile
+@@ -6,7 +6,7 @@ dtb-$(CONFIG_TARGET_AP152) += ap152.dtb
+ dtb-$(CONFIG_TARGET_MALTA) += mti,malta.dtb
+ dtb-$(CONFIG_TARGET_PIC32MZDASK) += pic32mzda_sk.dtb
+ dtb-$(CONFIG_TARGET_XILFPGA) += nexys4ddr.dtb
+-dtb-$(CONFIG_BOARD_EN7512_REFERENCE) += econet,en7512-reference.dtb
++dtb-$(CONFIG_BOARD_EN7512_REFERENCE) += econet,en751221-reference.dtb
+ dtb-$(CONFIG_BOARD_EN7528_TPLINK_XC220_G3V) += econet,en7528-tplink-xc220-g3v.dtb
+ dtb-$(CONFIG_BOARD_EN7528_REFERENCE) += econet,en7528-reference.dtb
+ dtb-$(CONFIG_BOARD_BROADCOM_BCM968380GERG) += brcm,bcm968380gerg.dtb
+diff --git a/arch/mips/dts/econet,en7512-reference-u-boot.dtsi b/arch/mips/dts/econet,en7512-reference-u-boot.dtsi
+deleted file mode 100644
+--- a/arch/mips/dts/econet,en7512-reference-u-boot.dtsi
++++ /dev/null
+@@ -1,58 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-#include <linux/stringify.h>
+-
+-/ {
+-	binman: binman {
+-		multiple-images;
+-	};
+-};
+-
+-&uart0 {
+-	bootph-all;
+-};
+-
+-&binman {
+-	spl-img {
+-		filename = "u-boot-spl.img";
+-
+-		mkimage {
+-			args = "-A", "mips", "-T", "standalone", "-O", "u-boot",
+-			       "-C", "none", "-n", "EN7512 U-Boot SPL",
+-			       "-a", __stringify(CONFIG_SPL_TEXT_BASE),
+-			       "-e", __stringify(CONFIG_SPL_TEXT_BASE);
+-
+-			u-boot-spl {
+-			};
+-		};
+-	};
+-
+-	en7512-uboot {
+-		filename = "u-boot-en7512.bin";
+-		pad-byte = <0xff>;
+-
+-		u-boot-tpl {
+-			offset = <0x00000000>;
+-			size = <0x00008000>;
+-		};
+-
+-		ddr-blob {
+-			type = "blob-ext";
+-			filename = "arch/mips/mach-en75xx/en7512_ddr.bin";
+-			offset = <0x00008000>;
+-			size = <0x00004f70>;
+-		};
+-
+-		spl {
+-			type = "blob";
+-			filename = "u-boot-spl.img";
+-			offset = <0x00010000>;
+-			size = <0x00040000>;
+-		};
+-
+-		u-boot {
+-			type = "blob";
+-			filename = "u-boot.img";
+-			offset = <0x00050000>;
+-		};
+-	};
+-};
+diff --git a/arch/mips/dts/econet,en7512-reference.dts b/arch/mips/dts/econet,en7512-reference.dts
+deleted file mode 100644
+--- a/arch/mips/dts/econet,en7512-reference.dts
++++ /dev/null
+@@ -1,27 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-/dts-v1/;
+-
+-#include "econet,en7512.dtsi"
+-
+-/ {
+-	model = "EcoNet EN7512/EN7521 reference board";
+-	compatible = "econet,en7512-reference", "econet,en751221",
+-		     "econet,en7512";
+-
+-	aliases {
+-		serial0 = &uart0;
+-		ethernet0 = &gmac0;
+-	};
+-
+-	chosen {
+-		stdout-path = "serial0:115200n8";
+-	};
+-};
+-
+-&uart0 {
+-	status = "okay";
+-};
+-
+-&sfc {
+-	status = "okay";
+-};
+diff --git a/arch/mips/dts/econet,en7512.dtsi b/arch/mips/dts/econet,en7512.dtsi
+deleted file mode 100644
+--- a/arch/mips/dts/econet,en7512.dtsi
++++ /dev/null
+@@ -1,88 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-
+-/ {
+-	#address-cells = <1>;
+-	#size-cells = <1>;
+-
+-	cpus {
+-		#address-cells = <1>;
+-		#size-cells = <0>;
+-
+-		cpu@0 {
+-			compatible = "mips,mips34Kc";
+-			device_type = "cpu";
+-			reg = <0>;
+-		};
+-	};
+-
+-	memory@0 {
+-		device_type = "memory";
+-		reg = <0x00000000 0x08000000>;
+-	};
+-
+-	soc {
+-		compatible = "simple-bus";
+-		#address-cells = <1>;
+-		#size-cells = <1>;
+-		ranges;
+-
+-		syscon: syscon@1fb00000 {
+-			compatible = "econet,en7512-syscon", "syscon";
+-			reg = <0x1fb00000 0x1000>;
+-		};
+-
+-		sfc: spi@1fa10000 {
+-			compatible = "airoha,en7523-spi";
+-			reg = <0x1fa10000 0x140>;
+-			#address-cells = <1>;
+-			#size-cells = <0>;
+-			status = "disabled";
+-
+-			spi_nand: nand@0 {
+-				compatible = "spi-nand";
+-				reg = <0>;
+-				spi-max-frequency = <20000000>;
+-				spi-tx-bus-width = <1>;
+-				spi-rx-bus-width = <2>;
+-			};
+-		};
+-
+-		sram@1fa30000 {
+-			compatible = "mmio-sram";
+-			reg = <0x1fa30000 0xc000>;
+-		};
+-
+-		dramc: memory-controller@1fb20000 {
+-			compatible = "econet,en7512-dramc";
+-			reg = <0x1fb20000 0x1000>;
+-		};
+-
+-		ethernet: ethernet@1fb50000 {
+-			compatible = "econet,en751221-eth";
+-			reg = <0x1fb50000 0x4000>,
+-			      <0x1fb54000 0x1000>;
+-			reg-names = "fe", "qdma0";
+-			#address-cells = <1>;
+-			#size-cells = <0>;
+-
+-			gmac0: mac@0 {
+-				compatible = "econet,eth-mac";
+-				reg = <0>;
+-				phy-mode = "trgmii";
+-			};
+-		};
+-
+-		switch0: switch@1fb58000 {
+-			compatible = "mediatek,mt7530";
+-			reg = <0x1fb58000 0x8000>;
+-		};
+-
+-		uart0: serial@1fbf0000 {
+-			compatible = "econet,en7512-uart";
+-			reg = <0x1fbf0000 0x30>;
+-			clock-frequency = <20000000>;
+-			current-speed = <115200>;
+-			status = "disabled";
+-		};
+-	};
+-};
+diff --git a/arch/mips/dts/econet,en751221-reference-u-boot.dtsi b/arch/mips/dts/econet,en751221-reference-u-boot.dtsi
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/dts/econet,en751221-reference-u-boot.dtsi
+@@ -0,0 +1,58 @@
++// SPDX-License-Identifier: GPL-2.0+
++#include <linux/stringify.h>
++
++/ {
++	binman: binman {
++		multiple-images;
++	};
++};
++
++&uart0 {
++	bootph-all;
++};
++
++&binman {
++	spl-img {
++		filename = "u-boot-spl.img";
++
++		mkimage {
++			args = "-A", "mips", "-T", "standalone", "-O", "u-boot",
++			       "-C", "none", "-n", "EN7512 U-Boot SPL",
++			       "-a", __stringify(CONFIG_SPL_TEXT_BASE),
++			       "-e", __stringify(CONFIG_SPL_TEXT_BASE);
++
++			u-boot-spl {
++			};
++		};
++	};
++
++	en7512-uboot {
++		filename = "u-boot-en7512.bin";
++		pad-byte = <0xff>;
++
++		u-boot-tpl {
++			offset = <0x00000000>;
++			size = <0x00008000>;
++		};
++
++		ddr-blob {
++			type = "blob-ext";
++			filename = "arch/mips/mach-econet/en7512_ddr.bin";
++			offset = <0x00008000>;
++			size = <0x00004f70>;
++		};
++
++		spl {
++			type = "blob";
++			filename = "u-boot-spl.img";
++			offset = <0x00010000>;
++			size = <0x00040000>;
++		};
++
++		u-boot {
++			type = "blob";
++			filename = "u-boot.img";
++			offset = <0x00050000>;
++		};
++	};
++};
+diff --git a/arch/mips/dts/econet,en751221-reference.dts b/arch/mips/dts/econet,en751221-reference.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/dts/econet,en751221-reference.dts
+@@ -0,0 +1,21 @@
++// SPDX-License-Identifier: GPL-2.0+
++/dts-v1/;
++
++#include "econet,en751221.dtsi"
++
++/ {
++	model = "Airoha EN751221 reference board";
++	compatible = "econet,en751221-reference", "econet,en751221";
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++};
+diff --git a/arch/mips/dts/econet,en751221.dtsi b/arch/mips/dts/econet,en751221.dtsi
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/dts/econet,en751221.dtsi
+@@ -0,0 +1,150 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <dt-bindings/reset/econet,en751221-scu.h>
++
++/ {
++	compatible = "econet,en751221", "airoha,en751221";
++	#address-cells = <1>;
++	#size-cells = <1>;
++
++	cpus {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		cpu@0 {
++			compatible = "mips,mips34Kc";
++			device_type = "cpu";
++			reg = <0>;
++		};
++	};
++
++	aliases {
++		serial0 = &uart0;
++		ethernet0 = &gdm1;
++	};
++
++	memory@0 {
++		device_type = "memory";
++		reg = <0x00000000 0x08000000>;
++	};
++
++	soc {
++		compatible = "simple-bus";
++		#address-cells = <1>;
++		#size-cells = <1>;
++		ranges;
++
++		chip_scu: syscon@1fa20000 {
++			compatible = "airoha,chip-scu", "airoha,en751221-chip-scu", "syscon";
++			reg = <0x1fa20000 0x400>;
++		};
++
++		scuclk: system-controller@1fb00000 {
++			compatible = "airoha,en751221-scu", "syscon";
++			reg = <0x1fb00000 0x1000>;
++			airoha,chip-scu = <&chip_scu>;
++
++			#clock-cells = <1>;
++			#reset-cells = <1>;
++		};
++
++		system-controller@1fbf0200 {
++			compatible = "syscon", "simple-mfd";
++			reg = <0x1fbf0200 0xc0>;
++
++			pinctrl: pinctrl {
++				compatible = "airoha,en751221-pinctrl", "econet,en751221-pinctrl";
++				airoha,chip-scu = <&chip_scu>;
++
++			gpio-controller;
++				#gpio-cells = <2>;
++				gpio-ranges = <&pinctrl 0 13 29>;
++
++				interrupt-controller;
++				#interrupt-cells = <2>;
++
++				i2c_pins: i2c-pins {
++					mux {
++						function = "pon_i2c";
++						groups = "pon_i2c";
++					};
++				};
++
++				pon_pinctrl: pon {
++					mux {
++						function = "pon";
++						groups = "pon";
++					};
++				};
++			};
++		};
++
++		uart0: serial@1fbf0000 {
++			compatible = "econet,en7512-uart";
++			reg = <0x1fbf0000 0x30>;
++			clock-frequency = <20000000>;
++			current-speed = <115200>;
++			status = "disabled";
++		};
++
++		spi0: spi@1fa10000 {
++			compatible = "airoha,en7523-spi";
++			reg = <0x1fa10000 0x140>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			status = "disabled";
++		};
++
++		eth: ethernet@1fb50000 {
++			compatible = "econet,en751221-eth";
++			status = "disabled";
++			reg = <0x1fb50000 0x2600>,
++			      <0x1fb54000 0x1000>,
++			      <0x1fb55000 0x1000>,
++			      <0x1fbf9000 0x1000>;
++			reg-names = "fe", "qdma0", "qdma1", "gdmp";
++
++			resets = <&scuclk EN751221_FE_RST>,
++			         <&scuclk EN751221_FE_QDMA1_RST>,
++			         <&scuclk EN751221_FE_QDMA2_RST>,
++			         <&scuclk EN751221_GDMA_RST>,
++			         <&scuclk EN751221_FE_UNZIP_RST>,
++			         <&scuclk EN751221_GDMP_RST>;
++			reset-names = "fe", "pdma", "qdma",
++			              "gdma", "fe-unzip", "gdmp";
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			gdm1: ethernet@1 {
++				compatible = "econet,eth-mac";
++				reg = <1>;
++				phy-mode = "internal";
++				status = "disabled";
++
++				fixed-link {
++					speed = <1000>;
++					full-duplex;
++					pause;
++				};
++			};
++		};
++
++		switch0: switch@1fb58000 {
++			compatible = "econet,en751221-switch";
++			reg = <0x1fb58000 0x8000>;
++			resets = <&scuclk EN751221_GSW_RST>;
++
++			status = "disabled";
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++			dsa,member = <0 0>;
++
++			mdio: mdio {
++				#address-cells = <1>;
++				#size-cells = <0>;
++				};
++			};
++		};
++	};
+diff --git a/arch/mips/dts/econet,en7528-reference.dts b/arch/mips/dts/econet,en7528-reference.dts
+--- a/arch/mips/dts/econet,en7528-reference.dts
++++ b/arch/mips/dts/econet,en7528-reference.dts
+@@ -21,12 +21,6 @@
+ 		reg = <0x00000000 0x10000000>;
+ 	};
+ 
+-	aliases {
+-		serial0 = &uart1;
+-		ethernet0 = &gdm1;
+-		spi0 = &spi;
+-	};
+-
+ 	chosen {
+ 		stdout-path = "serial0:115200n8";
+ 	};
+@@ -36,7 +30,7 @@
+ 	status = "okay";
+ };
+ 
+-&spi {
++&spi0 {
+ 	status = "okay";
+ 
+ 	flash@0 {
+diff --git a/arch/mips/dts/econet,en7528-tplink-xc220-g3v.dts b/arch/mips/dts/econet,en7528-tplink-xc220-g3v.dts
+--- a/arch/mips/dts/econet,en7528-tplink-xc220-g3v.dts
++++ b/arch/mips/dts/econet,en7528-tplink-xc220-g3v.dts
+@@ -5,19 +5,13 @@
+ 
+ / {
+ 	model = "TP-Link XC220-G3V";
+-	compatible = "tplink,xc220-g3v", "econet,en7528";
++	compatible = "tplink,xc220-g3v", "econet,en7528", "airoha,en7528";
+ 
+ 	memory@0 {
+ 		device_type = "memory";
+ 		reg = <0x00000000 0x10000000>;
+ 	};
+ 
+-	aliases {
+-		serial0 = &uart1;
+-		ethernet0 = &gdm1;
+-		spi0 = &spi;
+-	};
+-
+ 	chosen {
+ 		stdout-path = "serial0:115200n8";
+ 	};
+@@ -27,7 +21,7 @@
+ 	status = "okay";
+ };
+ 
+-&spi {
++&spi0 {
+ 	status = "okay";
+ 
+ 	flash@0 {
+diff --git a/arch/mips/dts/econet,en7528.dtsi b/arch/mips/dts/econet,en7528.dtsi
+--- a/arch/mips/dts/econet,en7528.dtsi
++++ b/arch/mips/dts/econet,en7528.dtsi
+@@ -3,7 +3,7 @@
+ #include <dt-bindings/reset/airoha,en7523-reset.h>
+ 
+ / {
+-	compatible = "econet,en7528";
++	compatible = "econet,en7528", "airoha,en7528";
+ 	#address-cells = <1>;
+ 	#size-cells = <1>;
+ 
+@@ -18,21 +18,42 @@
+ 		};
+ 	};
+ 
++	aliases {
++		serial0 = &uart1;
++		ethernet0 = &gdm1;
++	};
++
+ 	soc {
+ 		compatible = "simple-bus";
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+ 		ranges;
+ 
+-		scuclk: system-controller@1fa20000 {
+-			compatible = "airoha,en7528-scu";
+-			reg = <0x1fa20000 0x400>,
+-			      <0x1fb00000 0x1000>;
++		chip_scu: syscon@1fa20000 {
++			compatible = "airoha,scuclk", "airoha,en7528-chip-scu", "syscon";
++			reg = <0x1fa20000 0x400>;
++		};
++
++		scuclk: system-controller@1fb00000 {
++			compatible = "airoha,en7528-scu", "syscon";
++			reg = <0x1fb00000 0x1000>;
++
++			airoha,chip-scu = <&chip_scu>;
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 		};
+ 
+-		spi: spi@1fa10000 {
++		uart1: serial@1fbf0000 {
++			compatible = "ns16550";
++			reg = <0x1fbf0000 0x30>;
++			reg-io-width = <4>;
++			reg-shift = <2>;
++			clock-frequency = <1843200>;
++			current-speed = <115200>;
++			status = "disabled";
++		};
++
++		spi0: spi@1fa10000 {
+ 			compatible = "airoha,en7523-spi";
+ 			reg = <0x1fa10000 0x140>,
+ 			      <0x1fa11000 0x600>;
+@@ -60,7 +81,7 @@
+ 				compatible = "econet,eth-mac";
+ 				reg = <1>;
+ 				phy-mode = "internal";
+-	
++
+ 				fixed-link {
+ 					speed = <1000>;
+ 					full-duplex;
+@@ -70,19 +91,9 @@
+ 		};
+ 
+ 		switch: switch@1fb58000 {
+-			compatible = "airoha,en7528-switch", "airoha,en7523-switch";
++			compatible = "airoha,en7528-switch";
+ 			reg = <0x1fb58000 0x8000>;
+ 			status = "disabled";
+ 		};
+-
+-		uart1: serial@1fbf0000 {
+-			compatible = "ns16550";
+-			reg = <0x1fbf0000 0x30>;
+-			reg-io-width = <4>;
+-			reg-shift = <2>;
+-			clock-frequency = <1843200>;
+-			current-speed = <115200>;
+-			status = "disabled";
+-		};
+ 	};
+ };
+diff --git a/arch/mips/mach-econet/Kconfig b/arch/mips/mach-econet/Kconfig
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/Kconfig
+@@ -0,0 +1,88 @@
++menu "Airoha MIPS platforms"
++	depends on ARCH_ECONET
++
++config TARGET_EN751221
++	bool "Airoha EN751221 SoC"
++	select SYSCON
++
++config TARGET_EN7528
++	bool "Airoha EN7528 SoC"
++	select SYSCON
++
++config SYS_VENDOR
++	default "econet"
++
++config SYS_SOC
++	default "en751221" if TARGET_EN751221
++	default "en7528" if TARGET_EN7528
++
++config SYS_BOARD
++	default "en7512" if TARGET_EN751221
++	default "en7528" if TARGET_EN7528
++
++config SYS_CONFIG_NAME
++	default "en7512" if TARGET_EN751221
++	default "en7528" if TARGET_EN7528
++
++config SYS_MALLOC_F_LEN
++	default 0x2000
++
++config SYS_DCACHE_SIZE
++	default 32768
++
++config SYS_DCACHE_LINE_SIZE
++	default 32
++
++config SYS_ICACHE_SIZE
++	default 32768
++
++config SYS_ICACHE_LINE_SIZE
++	default 32
++
++config TEXT_BASE
++	default 0x81000000
++
++config SPL_TEXT_BASE
++	default 0x80010000
++
++config SPL_SIZE_LIMIT
++	default 0x30000
++
++config TPL_TEXT_BASE
++	default 0xbfc00000
++
++config TPL_MAX_SIZE
++	default 0x8000
++
++
++config BUILD_TARGET
++	default "u-boot.img" if TARGET_EN751221
++
++config BOARD_EN7512_REFERENCE
++	bool "EN7512/EN7521 reference board"
++	select TARGET_EN751221
++	select BINMAN
++	select SPL_LOADER_SUPPORT if SPL
++	help
++	  Build a boot image compatible with the EN7512/EN7521 TCBoot flow.
++	  TPL initializes the serial flash controller, executes the legacy DDR
++	  calibration stage from FE SRAM and loads SPL into DDR.
++
++config BOARD_EN7528_TPLINK_XC220_G3V
++	bool "TP-Link XC220-G3V (EN7528, chainloaded)"
++	select TARGET_EN7528
++	help
++	  Build U-Boot proper for the TP-Link XC220-G3V. This target assumes a
++	  previous boot stage has initialized DDR and the integrated switch PHYs.
++	  It intentionally produces a plain u-boot.bin for one-time serial loading,
++	  after which Ethernet/TFTP and the 16 MiB SPI-NOR can be used.
++
++config BOARD_EN7528_REFERENCE
++	bool "EcoNet EN7528 reference board (DASAN H660GM-A)"
++	select TARGET_EN7528
++	help
++	  Build U-Boot proper for the EcoNet EN7528 reference board, as found
++	  on the DASAN H660GM-A.  Like the XC220-G3V it is chainloaded after a
++	  previous stage has trained DDR, but boots from SPI-NAND.
++
++endmenu
+diff --git a/arch/mips/mach-econet/Makefile b/arch/mips/mach-econet/Makefile
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/Makefile
+@@ -0,0 +1,14 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++ifeq ($(CONFIG_TPL_BUILD),y)
++obj-y += early_sfc.o
++obj-y += tpl/
++else
++obj-y += cpu.o
++obj-$(CONFIG_TARGET_EN751221) += en751221/
++obj-$(CONFIG_TARGET_EN7528)   += en7528/
++ifeq ($(CONFIG_SPL_BUILD),y)
++obj-y += early_sfc.o
++obj-y += spl/
++endif
++endif
+diff --git a/arch/mips/mach-econet/README.ddr-blob b/arch/mips/mach-econet/README.ddr-blob
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/README.ddr-blob
+@@ -0,0 +1,10 @@
++The file en7512_ddr.bin is the 20,336-byte FE-SRAM DDR calibration stage
++(spram.bin) from the EN7512/EN7521 vendor Linux 2.6 SDK. It is linked for
++0x9fa32800 and is entered at 0x9fa32800, matching the original boot2 flow. TPL keeps
++KSEG0 in uncached mode until DDR calibration completes.
++
++SHA256:
++792068a4573b20cb8c39cb27df06c45683c11034e6fd07da24ddf7084828faa5
++
++This is a transitional dependency. Replace it with a source implementation
++of the EN7512 DDR2/DDR3 calibration algorithms before upstream submission.
+diff --git a/arch/mips/mach-econet/cpu.c b/arch/mips/mach-econet/cpu.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/cpu.c
+@@ -0,0 +1 @@
++// SPDX-License-Identifier: GPL-2.0
+diff --git a/arch/mips/mach-econet/early_sfc.c b/arch/mips/mach-econet/early_sfc.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/early_sfc.c
+@@ -0,0 +1,352 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Minimal EN7512/EN7521 serial-flash reader used before driver model.
++ * Reconstructed from the vendor TCBoot move_data stage.
++ */
++
++#include <linux/bitops.h>
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/types.h>
++#include <asm/io.h>
++#include <mach/en751221.h>
++
++#define SF_READ_IDLE_EN		0x004
++#define SF_MTX_MODE_TOG		0x014
++#define SF_RDCTL_FSM			0x018
++#define SF_MACMUX_SEL			0x01c
++#define SF_MANUAL_EN			0x020
++#define SF_MANUAL_OPFIFO_EMPTY		0x024
++#define SF_MANUAL_OPFIFO_WDATA		0x028
++#define SF_MANUAL_OPFIFO_FULL		0x02c
++#define SF_MANUAL_OPFIFO_WR		0x030
++#define SF_MANUAL_DFIFO_FULL		0x034
++#define SF_MANUAL_DFIFO_WDATA		0x038
++#define SF_MANUAL_DFIFO_EMPTY		0x03c
++#define SF_MANUAL_DFIFO_RD		0x040
++#define SF_MANUAL_DFIFO_RDATA		0x044
++#define SF_SI_CK_SEL			0x09c
++#define SF_STRAP			0x114
++
++#define SF_STRAP_ADDR_4B		BIT(0)
++#define SF_STRAP_SPI_NAND		BIT(1)
++#define SF_STRAP_DUMMY_APPEND		BIT(2)
++
++#define OP_CSH				0x00
++#define OP_CSL				0x01
++#define OP_CK				0x02
++#define OP_OUTS				0x08
++#define OP_INS				0x0c
++
++#define OP_SHIFT			9
++#define OP_CMD_MASK			0x1f
++#define OP_LEN_MASK			0x1ff
++
++#define SPIN_LIMIT			1000000
++#define NAND_PAGE_SIZE			2048
++#define NOR_READ_CHUNK			1024
++
++static inline void __iomem *sf_reg(u32 reg)
++{
++	return (void __iomem *)(EN7512_SFC_BASE + reg);
++}
++
++static int sf_wait_eq(u32 reg, u32 expected)
++{
++	unsigned int timeout = SPIN_LIMIT;
++
++	while (timeout--) {
++		if (__raw_readl(sf_reg(reg)) == expected)
++			return 0;
++	}
++
++	return -ETIMEDOUT;
++}
++
++static int sf_op(u32 op, u32 len)
++{
++	u32 val = ((op & OP_CMD_MASK) << OP_SHIFT) | (len & OP_LEN_MASK);
++	int ret;
++
++	ret = sf_wait_eq(SF_MANUAL_OPFIFO_FULL, 0);
++	if (ret)
++		return ret;
++
++	__raw_writel(val, sf_reg(SF_MANUAL_OPFIFO_WDATA));
++	__raw_writel(1, sf_reg(SF_MANUAL_OPFIFO_WR));
++
++	return sf_wait_eq(SF_MANUAL_OPFIFO_EMPTY, 1);
++}
++
++static int sf_put_byte(u8 val)
++{
++	int ret = sf_wait_eq(SF_MANUAL_DFIFO_FULL, 0);
++
++	if (ret)
++		return ret;
++
++	__raw_writel(val, sf_reg(SF_MANUAL_DFIFO_WDATA));
++	return 0;
++}
++
++static int sf_put_bytes(const u8 *buf, size_t len)
++{
++	size_t i;
++	int ret;
++
++	for (i = 0; i < len; i++) {
++		ret = sf_put_byte(buf[i]);
++		if (ret)
++			return ret;
++	}
++
++	return 0;
++}
++
++static int sf_get_byte(u8 *val)
++{
++	int ret = sf_wait_eq(SF_MANUAL_DFIFO_EMPTY, 0);
++
++	if (ret)
++		return ret;
++
++	*val = __raw_readl(sf_reg(SF_MANUAL_DFIFO_RDATA)) & 0xff;
++	__raw_writel(1, sf_reg(SF_MANUAL_DFIFO_RD));
++	return 0;
++}
++
++static int sf_finish(void)
++{
++	int ret;
++
++	ret = sf_op(OP_CSH, 1);
++	if (ret)
++		return ret;
++
++	return sf_op(OP_CK, 5);
++}
++
++int en7512_sfc_init(void)
++{
++	int ret;
++
++	__raw_writel(0x9, sf_reg(SF_SI_CK_SEL));
++	__raw_writel(0, sf_reg(SF_READ_IDLE_EN));
++
++	ret = sf_wait_eq(SF_RDCTL_FSM, 0);
++	if (ret)
++		return ret;
++
++	__raw_writel(0x9, sf_reg(SF_MTX_MODE_TOG));
++	__raw_writel(1, sf_reg(SF_MACMUX_SEL));
++	__raw_writel(1, sf_reg(SF_MANUAL_EN));
++
++	return 0;
++}
++
++static int sf_nand_load_page(u32 page)
++{
++	u8 page_addr[] = { page >> 16, page >> 8, page };
++	u8 status;
++	unsigned int timeout = SPIN_LIMIT;
++	int ret;
++
++	ret = sf_op(OP_CSL, 1);
++	if (ret)
++		return ret;
++	ret = sf_op(OP_OUTS, 1);
++	if (ret)
++		return ret;
++	ret = sf_put_byte(0x13);
++	if (ret)
++		return ret;
++	ret = sf_op(OP_OUTS, ARRAY_SIZE(page_addr));
++	if (ret)
++		return ret;
++	ret = sf_put_bytes(page_addr, ARRAY_SIZE(page_addr));
++	if (ret)
++		return ret;
++	ret = sf_finish();
++	if (ret)
++		return ret;
++
++	while (timeout--) {
++		ret = sf_op(OP_CSL, 1);
++		if (ret)
++			return ret;
++		ret = sf_op(OP_OUTS, 1);
++		if (ret)
++			return ret;
++		ret = sf_put_byte(0x0f);
++		if (ret)
++			return ret;
++		ret = sf_op(OP_OUTS, 1);
++		if (ret)
++			return ret;
++		ret = sf_put_byte(0xc0);
++		if (ret)
++			return ret;
++		ret = sf_op(OP_INS, 1);
++		if (ret)
++			return ret;
++		ret = sf_get_byte(&status);
++		if (ret)
++			return ret;
++		ret = sf_finish();
++		if (ret)
++			return ret;
++		if (!(status & BIT(0)))
++			return 0;
++	}
++
++	return -ETIMEDOUT;
++}
++
++static int sf_nand_read_cache(u32 column, u8 *dst, size_t len,
++			      bool dummy_append)
++{
++	u8 address[3];
++	size_t i;
++	int ret;
++
++	if (dummy_append) {
++		address[0] = column >> 8;
++		address[1] = column;
++		address[2] = 0;
++	} else {
++		address[0] = 0;
++		address[1] = column >> 8;
++		address[2] = column;
++	}
++
++	ret = sf_op(OP_CSL, 1);
++	if (ret)
++		return ret;
++	ret = sf_op(OP_OUTS, 1);
++	if (ret)
++		return ret;
++	ret = sf_put_byte(0x03);
++	if (ret)
++		return ret;
++	ret = sf_op(OP_OUTS, ARRAY_SIZE(address));
++	if (ret)
++		return ret;
++	ret = sf_put_bytes(address, ARRAY_SIZE(address));
++	if (ret)
++		return ret;
++
++	for (i = 0; i < len; i++) {
++		ret = sf_op(OP_INS, 1);
++		if (ret)
++			return ret;
++		ret = sf_get_byte(&dst[i]);
++		if (ret)
++			return ret;
++	}
++
++	return sf_finish();
++}
++
++static int sf_nor_read_once(u32 offset, u8 *dst, size_t len, bool addr4b,
++			    bool dummy_append)
++{
++	u8 address[4];
++	size_t addr_len = 0;
++	size_t i;
++	int ret;
++
++	if (addr4b)
++		address[addr_len++] = offset >> 24;
++	if (dummy_append) {
++		address[addr_len++] = offset >> 8;
++		address[addr_len++] = offset;
++		address[addr_len++] = 0;
++	} else {
++		address[addr_len++] = offset >> 16;
++		address[addr_len++] = offset >> 8;
++		address[addr_len++] = offset;
++	}
++
++	ret = sf_op(OP_CSL, 1);
++	if (ret)
++		return ret;
++	ret = sf_op(OP_OUTS, 1);
++	if (ret)
++		return ret;
++	ret = sf_put_byte(0x03);
++	if (ret)
++		return ret;
++
++	ret = sf_op(OP_OUTS, addr_len);
++	if (ret)
++		return ret;
++	ret = sf_put_bytes(address, addr_len);
++	if (ret)
++		return ret;
++
++	for (i = 0; i < len; i++) {
++		ret = sf_op(OP_INS, 1);
++		if (ret)
++			return ret;
++		ret = sf_get_byte(&dst[i]);
++		if (ret)
++			return ret;
++	}
++
++	return sf_finish();
++}
++
++static int sf_nor_read(u32 offset, u8 *dst, size_t len, bool addr4b,
++		       bool dummy_append)
++{
++	while (len) {
++		size_t chunk = NOR_READ_CHUNK - (offset % NOR_READ_CHUNK);
++		int ret;
++
++		if (chunk > len)
++			chunk = len;
++		ret = sf_nor_read_once(offset, dst, chunk, addr4b,
++				       dummy_append);
++		if (ret)
++			return ret;
++		offset += chunk;
++		dst += chunk;
++		len -= chunk;
++	}
++
++	return 0;
++}
++
++int en7512_sfc_read(u32 offset, void *dst, size_t len)
++{
++	u32 strap = __raw_readl(sf_reg(SF_STRAP));
++	u8 *buf = dst;
++	int ret;
++
++	if (!(strap & SF_STRAP_SPI_NAND))
++		return sf_nor_read(offset, buf, len, strap & SF_STRAP_ADDR_4B,
++				   strap & SF_STRAP_DUMMY_APPEND);
++
++	while (len) {
++		u32 page = offset / NAND_PAGE_SIZE;
++		u32 column = offset % NAND_PAGE_SIZE;
++		size_t chunk = NAND_PAGE_SIZE - column;
++
++		if (chunk > len)
++			chunk = len;
++
++		ret = sf_nand_load_page(page);
++		if (ret)
++			return ret;
++		ret = sf_nand_read_cache(column, buf, chunk,
++					 strap & SF_STRAP_DUMMY_APPEND);
++		if (ret)
++			return ret;
++
++		offset += chunk;
++		buf += chunk;
++		len -= chunk;
++	}
++
++	return 0;
++}
+diff --git a/arch/mips/mach-econet/en751221/Makefile b/arch/mips/mach-econet/en751221/Makefile
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/en751221/Makefile
+@@ -0,0 +1,4 @@
++# SPDX-License-Identifier:	GPL-2.0
++
++obj-y += init.o
++obj-$(CONFIG_$(PHASE_)SYSCON) += scu-regmap.o
+diff --git a/arch/mips/mach-econet/en751221/init.c b/arch/mips/mach-econet/en751221/init.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/en751221/init.c
+@@ -0,0 +1,55 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <init.h>
++#include <asm/global_data.h>
++#include <asm/io.h>
++#include <linux/sizes.h>
++#include <mach/en751221.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++int dram_init(void)
++{
++	u32 val = __raw_readl((void __iomem *)EN7512_REG_SAVE_INFO);
++	u32 size_mb = val & EN7512_SAVE_DRAM_MASK;
++
++	if (!size_mb)
++		size_mb = 128;
++
++	gd->ram_size = (phys_size_t)size_mb << 20;
++	return 0;
++}
++
++int print_cpuinfo(void)
++{
++	u32 val = __raw_readl((void __iomem *)EN7512_REG_SAVE_INFO);
++	u32 clk = (val & EN7512_SAVE_CLK_MASK) >> EN7512_SAVE_CLK_SHIFT;
++
++	printf("CPU:   Airoha EN7512/EN7521 MIPS34K\n");
++	if (clk)
++		printf("Clock: %u MHz\n", clk);
++	else
++		printf("Clock: unknown\n");
++
++	return 0;
++}
++
++ulong notrace get_tbclk(void)
++{
++	u32 val = __raw_readl((void __iomem *)EN7512_REG_SAVE_INFO);
++	u32 clk = (val & EN7512_SAVE_CLK_MASK) >> EN7512_SAVE_CLK_SHIFT;
++
++	/* CP0 Count advances at half the system clock on the MIPS34K. */
++	if (clk)
++		return (ulong)clk * 500000;
++
++	return CONFIG_SYS_MIPS_TIMER_FREQ;
++}
++
++void _machine_restart(void)
++{
++	__raw_writel(0x80000000, (void __iomem *)EN7512_RESET_CONTROL);
++
++	for (;;)
++		;
++}
+diff --git a/arch/mips/mach-econet/en751221/scu-regmap.c b/arch/mips/mach-econet/en751221/scu-regmap.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/en751221/scu-regmap.c
+@@ -0,0 +1,30 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Author: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
++ */
++
++#include <syscon.h>
++#include <linux/err.h>
++#include <soc/airoha/scu-regmap.h>
++
++struct regmap *airoha_get_scu_regmap(void)
++{
++	ofnode node;
++
++	node = ofnode_by_compatible(ofnode_null(), "airoha,en751221-scu");
++	if (!ofnode_valid(node))
++		return ERR_PTR(-EINVAL);
++
++	return syscon_node_to_regmap(node);
++}
++
++struct regmap *airoha_get_chip_scu_regmap(void)
++{
++	ofnode node;
++
++	node = ofnode_by_compatible(ofnode_null(), "airoha,en751221-chip-scu");
++	if (!ofnode_valid(node))
++		return ERR_PTR(-EINVAL);
++
++	return syscon_node_to_regmap(node);
++}
+diff --git a/arch/mips/mach-econet/en7528/Makefile b/arch/mips/mach-econet/en7528/Makefile
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/en7528/Makefile
+@@ -0,0 +1,4 @@
++# SPDX-License-Identifier:	GPL-2.0
++
++obj-y += init.o
++obj-$(CONFIG_$(PHASE_)SYSCON) += scu-regmap.o
+diff --git a/arch/mips/mach-econet/en7528/init.c b/arch/mips/mach-econet/en7528/init.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/en7528/init.c
+@@ -0,0 +1,88 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Author: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
++ * Author: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
++ */
++#include <fdt_support.h>
++#include <init.h>
++#include <sysreset.h>
++#include <asm/global_data.h>
++#include <asm/system.h>
++#include <linux/bitops.h>
++#include <linux/errno.h>
++#include <linux/io.h>
++#include <linux/sizes.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#define EN7528_RESET_CONTROL				0xbfb00040UL
++#define EN7528_SYS_GLOBAL_PARM				0xbfb00284UL
++#define EN7528_SYS_GLOBAL_DRAM_SIZE_MASK	GENMASK(31, 20)
++#define EN7528_SYS_GLOBAL_DRAM_SIZE_SHIFT	20
++
++int print_cpuinfo(void)
++{
++	printf("CPU:   Airoha EN7528\n");
++	return 0;
++}
++
++int dram_init(void)
++{
++	u32 value, size_mb;
++
++	/*
++	 * The vendor first stage stores the calibrated DRAM size in MiB in the
++	 * upper 12 bits of SYS_GLOBAL_PARM.  EN751221 uses the lower 12 bits of
++	 * the same register because its boot code is built big-endian, whereas
++	 * EN7528 is little-endian.
++	 */
++	value = readl((void __iomem *)EN7528_SYS_GLOBAL_PARM);
++	size_mb = (value & EN7528_SYS_GLOBAL_DRAM_SIZE_MASK) >>
++		  EN7528_SYS_GLOBAL_DRAM_SIZE_SHIFT;
++
++	debug("EN7528 DRAM: global-param=%08x size=%u MiB\n",
++	      value, size_mb);
++
++	if (size_mb < 32 || size_mb > 512) {
++		printf("Invalid EN7528 calibrated DRAM size: %u MiB\n",
++		       size_mb);
++		return -EINVAL;
++	}
++
++	gd->ram_size = (phys_size_t)size_mb * SZ_1M;
++
++	return 0;
++}
++
++int dram_init_banksize(void)
++{
++	int bank;
++
++	gd->bd->bi_dram[0].start = gd->ram_base;
++	gd->bd->bi_dram[0].size = gd->ram_size;
++
++	for (bank = 1; bank < CONFIG_NR_DRAM_BANKS; bank++) {
++		gd->bd->bi_dram[bank].start = 0;
++		gd->bd->bi_dram[bank].size = 0;
++	}
++
++	return 0;
++}
++
++#ifdef CONFIG_OF_SYSTEM_SETUP
++int ft_system_setup(void *blob, struct bd_info *bd)
++{
++	u64 start[1] = { bd->bi_dram[0].start };
++	u64 size[1] = { bd->bi_dram[0].size };
++
++	return fdt_fixup_memory_banks(blob, start, size, 1);
++}
++#endif
++
++void _machine_restart(void)
++{
++	writel(0x80000000, (void __iomem *)EN7528_RESET_CONTROL);
++	while (1) {
++		/* loop forever */
++	}
++}
+diff --git a/arch/mips/mach-econet/en7528/scu-regmap.c b/arch/mips/mach-econet/en7528/scu-regmap.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/en7528/scu-regmap.c
+@@ -0,0 +1,30 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Author: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
++ */
++
++#include <syscon.h>
++#include <linux/err.h>
++#include <soc/airoha/scu-regmap.h>
++
++struct regmap *airoha_get_scu_regmap(void)
++{
++	ofnode node;
++
++	node = ofnode_by_compatible(ofnode_null(), "airoha,en7528-scu");
++	if (!ofnode_valid(node))
++		return ERR_PTR(-EINVAL);
++
++	return syscon_node_to_regmap(node);
++}
++
++struct regmap *airoha_get_chip_scu_regmap(void)
++{
++	ofnode node;
++
++	node = ofnode_by_compatible(ofnode_null(), "airoha,en7528-chip-scu");
++	if (!ofnode_valid(node))
++		return ERR_PTR(-EINVAL);
++
++	return syscon_node_to_regmap(node);
++}
+diff --git a/arch/mips/mach-econet/include/mach/en751221.h b/arch/mips/mach-econet/include/mach/en751221.h
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/include/mach/en751221.h
+@@ -0,0 +1,46 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef __MACH_EN7512_H__
++#define __MACH_EN7512_H__
++
++#define EN7512_FLASH_BASE		0xbfc00000
++#define EN7512_SFC_BASE			0xbfa10000
++#define EN7512_CHIP_SCU_BASE		0xbfa20000
++#define EN7512_FE_SRAM_BASE		0xbfa30000
++#define EN7512_FE_SRAM_CACHED		0x9fa30000
++#define EN7512_SYSCTL_BASE		0xbfb00000
++#define EN7512_SMC_BASE			0xbfb10000
++#define EN7512_DRAMC_BASE		0xbfb20000
++#define EN7512_INTC_BASE		0xbfb40000
++#define EN7512_UART0_BASE		0xbfbf0000
++#define EN7512_TIMER_BASE		0xbfbf0100
++#define EN7512_GPIO_BASE		0xbfbf0200
++
++#define EN7512_RESET_CONTROL		(EN7512_SYSCTL_BASE + 0x040)
++#define EN7512_FE_SRAM_SEL		(EN7512_SYSCTL_BASE + 0x958)
++#define EN7512_SCREG_WR0		(EN7512_SYSCTL_BASE + 0x280)
++#define EN7512_REG_SAVE_INFO		(EN7512_SYSCTL_BASE + 0x284)
++
++#define EN7512_DDR_BLOB_ADDR		(EN7512_FE_SRAM_CACHED + 0x2800)
++#define EN7512_DDR_BLOB_OFFSET		0x00008000
++#define EN7512_DDR_BLOB_SIZE		0x00004f70
++#define EN7512_SPL_IMAGE_OFFSET		0x00010000
++#define EN7512_UBOOT_IMAGE_OFFSET	0x00050000
++
++#define EN7512_SPL_HEADER_ADDR		(EN7512_FE_SRAM_BASE + 0x40)
++#define EN7512_TPL_STACK_ADDR		(EN7512_FE_SRAM_BASE + 0xbff0)
++#define EN7512_TPL_SAVED_RA		(EN7512_FE_SRAM_BASE + 0x00)
++
++#define EN7512_SAVE_DRAM_MASK		0x00000fff
++#define EN7512_SAVE_CLK_MASK		0x00fff000
++#define EN7512_SAVE_CLK_SHIFT		12
++
++#ifndef __ASSEMBLY__
++#include <stddef.h>
++#include <linux/types.h>
++
++int en7512_sfc_read(u32 offset, void *dst, size_t len);
++int en7512_sfc_init(void);
++void en7512_run_ddr_blob(void);
++#endif
++
++#endif
+diff --git a/arch/mips/mach-econet/spl/Makefile b/arch/mips/mach-econet/spl/Makefile
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/spl/Makefile
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0+
++obj-y += spl.o
+diff --git a/arch/mips/mach-econet/spl/spl.c b/arch/mips/mach-econet/spl/spl.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/spl/spl.c
+@@ -0,0 +1,47 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <errno.h>
++#include <init.h>
++#include <spl.h>
++#include <spl_load.h>
++#include <mach/en751221.h>
++
++void __noreturn board_init_f(ulong dummy)
++{
++	spl_init();
++
++	if (IS_ENABLED(CONFIG_SPL_SERIAL))
++		preloader_console_init();
++
++	board_init_r(NULL, 0);
++}
++
++static ulong en7512_spl_read(struct spl_load_info *load, ulong offset,
++			     ulong count, void *buf)
++{
++	if (en7512_sfc_read(offset, buf, count))
++		return 0;
++
++	return count;
++}
++
++static int en7512_spl_load_image(struct spl_image_info *spl_image,
++				 struct spl_boot_device *bootdev)
++{
++	struct spl_load_info load;
++
++	if (en7512_sfc_init())
++		return -EIO;
++
++	spl_load_init(&load, en7512_spl_read, NULL, 1);
++	return spl_load(spl_image, bootdev, &load, 0,
++			EN7512_UBOOT_IMAGE_OFFSET);
++}
++
++SPL_LOAD_IMAGE_METHOD("EN7512 SFC", 0, BOOT_DEVICE_BOARD,
++		      en7512_spl_load_image);
++
++u32 spl_boot_device(void)
++{
++	return BOOT_DEVICE_BOARD;
++}
+diff --git a/arch/mips/mach-econet/tpl/Makefile b/arch/mips/mach-econet/tpl/Makefile
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/tpl/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++extra-y += start.o
++obj-y += tpl.o
+diff --git a/arch/mips/mach-econet/tpl/start.S b/arch/mips/mach-econet/tpl/start.S
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/tpl/start.S
+@@ -0,0 +1,101 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#include <asm/asm.h>
++#include <asm/regdef.h>
++#include <asm/mipsregs.h>
++#include <mach/en751221.h>
++
++	.set noreorder
++
++ENTRY(_start)
++	b	reset
++	 mtc0	zero, CP0_COUNT
++
++	/*
++	 * TCBoot image descriptor. The magic is byte-reversed in the vendor
++	 * format, while section offsets are stored as big-endian words.
++	 */
++	.org	0x0c
++	.byte	0x36, 0x35, 0x37, 0x38
++	.word	EN7512_DDR_BLOB_OFFSET
++	.word	EN7512_DDR_BLOB_OFFSET + EN7512_DDR_BLOB_SIZE
++	.word	EN7512_SPL_IMAGE_OFFSET
++	.word	EN7512_UBOOT_IMAGE_OFFSET
++
++	/* The vendor reset code begins at offset 0x48. */
++	.org	0x48
++reset:
++	/* Disable interrupts and force KSEG0 uncached before DDR exists. */
++	mfc0	t0, CP0_STATUS
++	li	t1, ~(ST0_IE | ST0_KSU)
++	and	t0, t0, t1
++	li	t1, ST0_BEV | ST0_ERL
++	or	t0, t0, t1
++	mtc0	t0, CP0_STATUS
++	mtc0	zero, CP0_CAUSE
++	mtc0	zero, CP0_COMPARE
++
++	mfc0	t0, CP0_CONFIG
++	li	t1, ~7
++	and	t0, t0, t1
++	ori	t0, t0, 2
++	mtc0	t0, CP0_CONFIG
++	ehb
++
++	/* Arbiter and static-memory mappings copied from TCBoot. */
++	li	t0, EN7512_SYSCTL_BASE
++	li	t1, 0x80071f1e
++	sw	t1, 0x20(t0)
++	li	t1, 0x00071f1f
++	sw	t1, 0x24(t0)
++	li	t1, 0x80050000
++	sw	t1, 0x34(t0)
++
++	li	t0, EN7512_SMC_BASE
++	li	t1, 0x102d1040
++	sw	t1, 0x00(t0)
++	li	t1, 0x200028d0
++	sw	t1, 0x14(t0)
++
++	/* Disable the interrupt controller. */
++	li	t0, EN7512_INTC_BASE
++	sw	zero, 0x00(t0)
++	sw	zero, 0x04(t0)
++
++	/* Enable PBUS access to the 48 KiB FE SRAM. */
++	li	t0, EN7512_FE_SRAM_SEL
++	lw	t1, 0(t0)
++	ori	t1, t1, 1
++	sw	t1, 0(t0)
++	sync
++
++	li	sp, EN7512_TPL_STACK_ADDR
++	li	fp, EN7512_TPL_STACK_ADDR
++
++	la	t9, tpl_main
++	jalr	t9
++	 nop
++
++1:	b	1b
++	 nop
++END(_start)
++
++LEAF(en7512_run_ddr_blob)
++	li	t0, EN7512_TPL_SAVED_RA
++	sw	ra, 0(t0)
++
++	la	t1, 1f
++	li	t0, EN7512_SCREG_WR0
++	sw	t1, 0(t0)
++	sync
++
++	li	t9, EN7512_DDR_BLOB_ADDR
++	jr	t9
++	 nop
++1:
++	li	t0, EN7512_SCREG_WR0
++	sw	zero, 0(t0)
++	li	t0, EN7512_TPL_SAVED_RA
++	lw	ra, 0(t0)
++	jr	ra
++	 nop
++END(en7512_run_ddr_blob)
+diff --git a/arch/mips/mach-econet/tpl/tpl.c b/arch/mips/mach-econet/tpl/tpl.c
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/mach-econet/tpl/tpl.c
+@@ -0,0 +1,109 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <compiler.h>
++#include <linux/byteorder/generic.h>
++#include <linux/types.h>
++#include <asm/io.h>
++#include <mach/en751221.h>
++
++#define IH_MAGIC	0x27051956
++#define IH_HDR_SIZE	64
++
++struct en7512_legacy_header {
++	u32 magic;
++	u32 hcrc;
++	u32 time;
++	u32 size;
++	u32 load;
++	u32 ep;
++	u32 dcrc;
++	u8 os;
++	u8 arch;
++	u8 type;
++	u8 comp;
++	u8 name[32];
++};
++
++static u32 get_be32(u32 val)
++{
++	return be32_to_cpu(val);
++}
++
++static void tpl_putc(u8 ch)
++{
++	void __iomem *thr = (void __iomem *)(EN7512_UART0_BASE + 0x03);
++	void __iomem *lsr = (void __iomem *)(EN7512_UART0_BASE + 0x17);
++
++	while (!(__raw_readb(lsr) & 0x20))
++		;
++	__raw_writeb(ch, thr);
++}
++
++static void tpl_hang(u8 code)
++{
++	tpl_putc(code);
++	tpl_putc('\r');
++	tpl_putc('\n');
++
++	for (;;)
++		;
++}
++
++static void tpl_uart_init(void)
++{
++	void __iomem *base = (void __iomem *)EN7512_UART0_BASE;
++
++	__raw_writeb(0x80, base + 0x0f);
++	__raw_writel(0xea00fde8, base + 0x2c);
++	__raw_writeb(0x01, base + 0x03);
++	__raw_writeb(0x00, base + 0x07);
++	__raw_writeb(0x03, base + 0x0f);
++	__raw_writeb(0x0f, base + 0x0b);
++	__raw_writeb(0x00, base + 0x13);
++	__raw_writeb(0x00, base + 0x27);
++	__raw_writeb(0x00, base + 0x07);
++}
++
++void __noreturn tpl_main(void)
++{
++	struct en7512_legacy_header *hdr =
++		(struct en7512_legacy_header *)EN7512_SPL_HEADER_ADDR;
++	void (*entry)(void);
++	u32 load, size, ep;
++	int ret;
++
++	tpl_uart_init();
++	if (en7512_sfc_init())
++		tpl_hang('I');
++
++	ret = en7512_sfc_read(EN7512_DDR_BLOB_OFFSET,
++			      (void *)EN7512_DDR_BLOB_ADDR,
++			      EN7512_DDR_BLOB_SIZE);
++	if (ret)
++		tpl_hang('F');
++
++	en7512_run_ddr_blob();
++
++	ret = en7512_sfc_read(EN7512_SPL_IMAGE_OFFSET, hdr, IH_HDR_SIZE);
++	if (ret || get_be32(hdr->magic) != IH_MAGIC)
++		tpl_hang('H');
++
++	size = get_be32(hdr->size);
++	load = get_be32(hdr->load);
++	ep = get_be32(hdr->ep);
++
++	if (!size || (load & 0xe0000000) != 0x80000000 ||
++	    (ep & 0xe0000000) != 0x80000000 || load + size < load)
++		tpl_hang('L');
++
++	/* Write through KSEG1 so no dirty cache lines hide the SPL image. */
++	ret = en7512_sfc_read(EN7512_SPL_IMAGE_OFFSET + IH_HDR_SIZE,
++			      (void *)(load | 0x20000000), size);
++	if (ret)
++		tpl_hang('S');
++
++	__asm__ volatile("sync" : : : "memory");
++	entry = (void (*)(void))ep;
++	entry();
++	__builtin_unreachable();
++}
+diff --git a/arch/mips/mach-en75xx/Kconfig b/arch/mips/mach-en75xx/Kconfig
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/Kconfig
++++ /dev/null
+@@ -1,89 +0,0 @@
+-menu "EcoNet/Airoha EN75xx platforms"
+-	depends on ARCH_EN75XX
+-
+-config SYS_VENDOR
+-	default "econet"
+-
+-config SYS_SOC
+-	default "en7528" if BOARD_EN7528_TPLINK_XC220_G3V || BOARD_EN7528_REFERENCE
+-	default "en7512"
+-
+-config SYS_BOARD
+-	default "en7528" if BOARD_EN7528_TPLINK_XC220_G3V || BOARD_EN7528_REFERENCE
+-	default "en7512"
+-
+-config SYS_CONFIG_NAME
+-	default "en7528" if BOARD_EN7528_TPLINK_XC220_G3V || BOARD_EN7528_REFERENCE
+-	default "en7512"
+-
+-config SYS_MALLOC_F_LEN
+-	default 0x2000
+-
+-config EN75XX_SCU
+-	bool "EcoNet/Airoha EN75xx SCU clock/reset controller"
+-	default y if BOARD_EN7528_TPLINK_XC220_G3V || BOARD_EN7528_REFERENCE
+-	select CLK
+-	select DM_RESET
+-	select REGMAP
+-	select RESET_AIROHA
+-	help
+-	  Enable the EN75xx System Control Unit regmap helpers together with
+-	  the Airoha clock and reset-controller drivers.  EN7528 shares the
+-	  EN7523 SCU reset layout.
+-
+-config SYS_DCACHE_SIZE
+-	default 32768
+-
+-config SYS_DCACHE_LINE_SIZE
+-	default 32
+-
+-config SYS_ICACHE_SIZE
+-	default 32768
+-
+-config SYS_ICACHE_LINE_SIZE
+-	default 32
+-
+-config TEXT_BASE
+-	default 0x81000000
+-
+-config SPL_TEXT_BASE
+-	default 0x80010000
+-
+-config SPL_SIZE_LIMIT
+-	default 0x30000
+-
+-config TPL_TEXT_BASE
+-	default 0xbfc00000
+-
+-config TPL_MAX_SIZE
+-	default 0x8000
+-
+-
+-config BUILD_TARGET
+-	default "u-boot.img" if BOARD_EN7512_REFERENCE
+-
+-config BOARD_EN7512_REFERENCE
+-	bool "EN7512/EN7521 reference board"
+-	select BINMAN
+-	select SPL_LOADER_SUPPORT if SPL
+-	help
+-	  Build a boot image compatible with the EN7512/EN7521 TCBoot flow.
+-	  TPL initializes the serial flash controller, executes the legacy DDR
+-	  calibration stage from FE SRAM and loads SPL into DDR.
+-
+-config BOARD_EN7528_TPLINK_XC220_G3V
+-	bool "TP-Link XC220-G3V (EN7528, chainloaded)"
+-	help
+-	  Build U-Boot proper for the TP-Link XC220-G3V. This target assumes a
+-	  previous boot stage has initialized DDR and the integrated switch PHYs.
+-	  It intentionally produces a plain u-boot.bin for one-time serial loading,
+-	  after which Ethernet/TFTP and the 16 MiB SPI-NOR can be used.
+-
+-config BOARD_EN7528_REFERENCE
+-	bool "EcoNet EN7528 reference board (DASAN H660GM-A)"
+-	help
+-	  Build U-Boot proper for the EcoNet EN7528 reference board, as found
+-	  on the DASAN H660GM-A.  Like the XC220-G3V it is chainloaded after a
+-	  previous stage has trained DDR, but boots from SPI-NAND.
+-
+-endmenu
+diff --git a/arch/mips/mach-en75xx/Makefile b/arch/mips/mach-en75xx/Makefile
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/Makefile
++++ /dev/null
+@@ -1,13 +0,0 @@
+-# SPDX-License-Identifier: GPL-2.0+
+-
+-ifeq ($(CONFIG_TPL_BUILD),y)
+-obj-y += early_sfc.o
+-obj-y += tpl/
+-else
+-obj-y += cpu.o
+-obj-$(CONFIG_EN75XX_SCU) += scu-regmap.o
+-ifeq ($(CONFIG_SPL_BUILD),y)
+-obj-y += early_sfc.o
+-obj-y += spl/
+-endif
+-endif
+diff --git a/arch/mips/mach-en75xx/README.ddr-blob b/arch/mips/mach-en75xx/README.ddr-blob
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/README.ddr-blob
++++ /dev/null
+@@ -1,10 +0,0 @@
+-The file en7512_ddr.bin is the 20,336-byte FE-SRAM DDR calibration stage
+-(spram.bin) from the EN7512/EN7521 vendor Linux 2.6 SDK. It is linked for
+-0x9fa32800 and is entered at 0x9fa32800, matching the original boot2 flow. TPL keeps
+-KSEG0 in uncached mode until DDR calibration completes.
+-
+-SHA256:
+-792068a4573b20cb8c39cb27df06c45683c11034e6fd07da24ddf7084828faa5
+-
+-This is a transitional dependency. Replace it with a source implementation
+-of the EN7512 DDR2/DDR3 calibration algorithms before upstream submission.
+diff --git a/arch/mips/mach-en75xx/cpu.c b/arch/mips/mach-en75xx/cpu.c
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/cpu.c
++++ /dev/null
+@@ -1,68 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-
+-#include <init.h>
+-#include <asm/global_data.h>
+-#include <asm/io.h>
+-#include <linux/sizes.h>
+-#include <mach/en7512.h>
+-
+-DECLARE_GLOBAL_DATA_PTR;
+-
+-int dram_init(void)
+-{
+-#ifdef CONFIG_BOARD_EN7528_TPLINK_XC220_G3V
+-	/* DDR is trained by the vendor first stage before this image is entered. */
+-	gd->ram_size = SZ_256M;
+-#else
+-	u32 val = __raw_readl((void __iomem *)EN7512_REG_SAVE_INFO);
+-	u32 size_mb = val & EN7512_SAVE_DRAM_MASK;
+-
+-	if (!size_mb)
+-		size_mb = 128;
+-
+-	gd->ram_size = (phys_size_t)size_mb << 20;
+-#endif
+-	return 0;
+-}
+-
+-int print_cpuinfo(void)
+-{
+-#ifdef CONFIG_BOARD_EN7528_TPLINK_XC220_G3V
+-	printf("CPU:   EcoNet/Airoha EN7528 MIPS1004Kc\n");
+-#else
+-	u32 val = __raw_readl((void __iomem *)EN7512_REG_SAVE_INFO);
+-	u32 clk = (val & EN7512_SAVE_CLK_MASK) >> EN7512_SAVE_CLK_SHIFT;
+-
+-	printf("CPU:   EcoNet/Airoha EN7512/EN7521 MIPS34K\n");
+-	if (clk)
+-		printf("Clock: %u MHz\n", clk);
+-	else
+-		printf("Clock: unknown\n");
+-#endif
+-
+-	return 0;
+-}
+-
+-ulong notrace get_tbclk(void)
+-{
+-#ifdef CONFIG_BOARD_EN7528_TPLINK_XC220_G3V
+-	return CONFIG_SYS_MIPS_TIMER_FREQ;
+-#else
+-	u32 val = __raw_readl((void __iomem *)EN7512_REG_SAVE_INFO);
+-	u32 clk = (val & EN7512_SAVE_CLK_MASK) >> EN7512_SAVE_CLK_SHIFT;
+-
+-	/* CP0 Count advances at half the system clock on the MIPS34K. */
+-	if (clk)
+-		return (ulong)clk * 500000;
+-
+-	return CONFIG_SYS_MIPS_TIMER_FREQ;
+-#endif
+-}
+-
+-void _machine_restart(void)
+-{
+-	__raw_writel(0x80000000, (void __iomem *)EN7512_RESET_CONTROL);
+-
+-	for (;;)
+-		;
+-}
+diff --git a/arch/mips/mach-en75xx/early_sfc.c b/arch/mips/mach-en75xx/early_sfc.c
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/early_sfc.c
++++ /dev/null
+@@ -1,352 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-/*
+- * Minimal EN7512/EN7521 serial-flash reader used before driver model.
+- * Reconstructed from the vendor TCBoot move_data stage.
+- */
+-
+-#include <linux/bitops.h>
+-#include <linux/errno.h>
+-#include <linux/kernel.h>
+-#include <linux/types.h>
+-#include <asm/io.h>
+-#include <mach/en7512.h>
+-
+-#define SF_READ_IDLE_EN		0x004
+-#define SF_MTX_MODE_TOG		0x014
+-#define SF_RDCTL_FSM			0x018
+-#define SF_MACMUX_SEL			0x01c
+-#define SF_MANUAL_EN			0x020
+-#define SF_MANUAL_OPFIFO_EMPTY		0x024
+-#define SF_MANUAL_OPFIFO_WDATA		0x028
+-#define SF_MANUAL_OPFIFO_FULL		0x02c
+-#define SF_MANUAL_OPFIFO_WR		0x030
+-#define SF_MANUAL_DFIFO_FULL		0x034
+-#define SF_MANUAL_DFIFO_WDATA		0x038
+-#define SF_MANUAL_DFIFO_EMPTY		0x03c
+-#define SF_MANUAL_DFIFO_RD		0x040
+-#define SF_MANUAL_DFIFO_RDATA		0x044
+-#define SF_SI_CK_SEL			0x09c
+-#define SF_STRAP			0x114
+-
+-#define SF_STRAP_ADDR_4B		BIT(0)
+-#define SF_STRAP_SPI_NAND		BIT(1)
+-#define SF_STRAP_DUMMY_APPEND		BIT(2)
+-
+-#define OP_CSH				0x00
+-#define OP_CSL				0x01
+-#define OP_CK				0x02
+-#define OP_OUTS				0x08
+-#define OP_INS				0x0c
+-
+-#define OP_SHIFT			9
+-#define OP_CMD_MASK			0x1f
+-#define OP_LEN_MASK			0x1ff
+-
+-#define SPIN_LIMIT			1000000
+-#define NAND_PAGE_SIZE			2048
+-#define NOR_READ_CHUNK			1024
+-
+-static inline void __iomem *sf_reg(u32 reg)
+-{
+-	return (void __iomem *)(EN7512_SFC_BASE + reg);
+-}
+-
+-static int sf_wait_eq(u32 reg, u32 expected)
+-{
+-	unsigned int timeout = SPIN_LIMIT;
+-
+-	while (timeout--) {
+-		if (__raw_readl(sf_reg(reg)) == expected)
+-			return 0;
+-	}
+-
+-	return -ETIMEDOUT;
+-}
+-
+-static int sf_op(u32 op, u32 len)
+-{
+-	u32 val = ((op & OP_CMD_MASK) << OP_SHIFT) | (len & OP_LEN_MASK);
+-	int ret;
+-
+-	ret = sf_wait_eq(SF_MANUAL_OPFIFO_FULL, 0);
+-	if (ret)
+-		return ret;
+-
+-	__raw_writel(val, sf_reg(SF_MANUAL_OPFIFO_WDATA));
+-	__raw_writel(1, sf_reg(SF_MANUAL_OPFIFO_WR));
+-
+-	return sf_wait_eq(SF_MANUAL_OPFIFO_EMPTY, 1);
+-}
+-
+-static int sf_put_byte(u8 val)
+-{
+-	int ret = sf_wait_eq(SF_MANUAL_DFIFO_FULL, 0);
+-
+-	if (ret)
+-		return ret;
+-
+-	__raw_writel(val, sf_reg(SF_MANUAL_DFIFO_WDATA));
+-	return 0;
+-}
+-
+-static int sf_put_bytes(const u8 *buf, size_t len)
+-{
+-	size_t i;
+-	int ret;
+-
+-	for (i = 0; i < len; i++) {
+-		ret = sf_put_byte(buf[i]);
+-		if (ret)
+-			return ret;
+-	}
+-
+-	return 0;
+-}
+-
+-static int sf_get_byte(u8 *val)
+-{
+-	int ret = sf_wait_eq(SF_MANUAL_DFIFO_EMPTY, 0);
+-
+-	if (ret)
+-		return ret;
+-
+-	*val = __raw_readl(sf_reg(SF_MANUAL_DFIFO_RDATA)) & 0xff;
+-	__raw_writel(1, sf_reg(SF_MANUAL_DFIFO_RD));
+-	return 0;
+-}
+-
+-static int sf_finish(void)
+-{
+-	int ret;
+-
+-	ret = sf_op(OP_CSH, 1);
+-	if (ret)
+-		return ret;
+-
+-	return sf_op(OP_CK, 5);
+-}
+-
+-int en7512_sfc_init(void)
+-{
+-	int ret;
+-
+-	__raw_writel(0x9, sf_reg(SF_SI_CK_SEL));
+-	__raw_writel(0, sf_reg(SF_READ_IDLE_EN));
+-
+-	ret = sf_wait_eq(SF_RDCTL_FSM, 0);
+-	if (ret)
+-		return ret;
+-
+-	__raw_writel(0x9, sf_reg(SF_MTX_MODE_TOG));
+-	__raw_writel(1, sf_reg(SF_MACMUX_SEL));
+-	__raw_writel(1, sf_reg(SF_MANUAL_EN));
+-
+-	return 0;
+-}
+-
+-static int sf_nand_load_page(u32 page)
+-{
+-	u8 page_addr[] = { page >> 16, page >> 8, page };
+-	u8 status;
+-	unsigned int timeout = SPIN_LIMIT;
+-	int ret;
+-
+-	ret = sf_op(OP_CSL, 1);
+-	if (ret)
+-		return ret;
+-	ret = sf_op(OP_OUTS, 1);
+-	if (ret)
+-		return ret;
+-	ret = sf_put_byte(0x13);
+-	if (ret)
+-		return ret;
+-	ret = sf_op(OP_OUTS, ARRAY_SIZE(page_addr));
+-	if (ret)
+-		return ret;
+-	ret = sf_put_bytes(page_addr, ARRAY_SIZE(page_addr));
+-	if (ret)
+-		return ret;
+-	ret = sf_finish();
+-	if (ret)
+-		return ret;
+-
+-	while (timeout--) {
+-		ret = sf_op(OP_CSL, 1);
+-		if (ret)
+-			return ret;
+-		ret = sf_op(OP_OUTS, 1);
+-		if (ret)
+-			return ret;
+-		ret = sf_put_byte(0x0f);
+-		if (ret)
+-			return ret;
+-		ret = sf_op(OP_OUTS, 1);
+-		if (ret)
+-			return ret;
+-		ret = sf_put_byte(0xc0);
+-		if (ret)
+-			return ret;
+-		ret = sf_op(OP_INS, 1);
+-		if (ret)
+-			return ret;
+-		ret = sf_get_byte(&status);
+-		if (ret)
+-			return ret;
+-		ret = sf_finish();
+-		if (ret)
+-			return ret;
+-		if (!(status & BIT(0)))
+-			return 0;
+-	}
+-
+-	return -ETIMEDOUT;
+-}
+-
+-static int sf_nand_read_cache(u32 column, u8 *dst, size_t len,
+-			      bool dummy_append)
+-{
+-	u8 address[3];
+-	size_t i;
+-	int ret;
+-
+-	if (dummy_append) {
+-		address[0] = column >> 8;
+-		address[1] = column;
+-		address[2] = 0;
+-	} else {
+-		address[0] = 0;
+-		address[1] = column >> 8;
+-		address[2] = column;
+-	}
+-
+-	ret = sf_op(OP_CSL, 1);
+-	if (ret)
+-		return ret;
+-	ret = sf_op(OP_OUTS, 1);
+-	if (ret)
+-		return ret;
+-	ret = sf_put_byte(0x03);
+-	if (ret)
+-		return ret;
+-	ret = sf_op(OP_OUTS, ARRAY_SIZE(address));
+-	if (ret)
+-		return ret;
+-	ret = sf_put_bytes(address, ARRAY_SIZE(address));
+-	if (ret)
+-		return ret;
+-
+-	for (i = 0; i < len; i++) {
+-		ret = sf_op(OP_INS, 1);
+-		if (ret)
+-			return ret;
+-		ret = sf_get_byte(&dst[i]);
+-		if (ret)
+-			return ret;
+-	}
+-
+-	return sf_finish();
+-}
+-
+-static int sf_nor_read_once(u32 offset, u8 *dst, size_t len, bool addr4b,
+-			    bool dummy_append)
+-{
+-	u8 address[4];
+-	size_t addr_len = 0;
+-	size_t i;
+-	int ret;
+-
+-	if (addr4b)
+-		address[addr_len++] = offset >> 24;
+-	if (dummy_append) {
+-		address[addr_len++] = offset >> 8;
+-		address[addr_len++] = offset;
+-		address[addr_len++] = 0;
+-	} else {
+-		address[addr_len++] = offset >> 16;
+-		address[addr_len++] = offset >> 8;
+-		address[addr_len++] = offset;
+-	}
+-
+-	ret = sf_op(OP_CSL, 1);
+-	if (ret)
+-		return ret;
+-	ret = sf_op(OP_OUTS, 1);
+-	if (ret)
+-		return ret;
+-	ret = sf_put_byte(0x03);
+-	if (ret)
+-		return ret;
+-
+-	ret = sf_op(OP_OUTS, addr_len);
+-	if (ret)
+-		return ret;
+-	ret = sf_put_bytes(address, addr_len);
+-	if (ret)
+-		return ret;
+-
+-	for (i = 0; i < len; i++) {
+-		ret = sf_op(OP_INS, 1);
+-		if (ret)
+-			return ret;
+-		ret = sf_get_byte(&dst[i]);
+-		if (ret)
+-			return ret;
+-	}
+-
+-	return sf_finish();
+-}
+-
+-static int sf_nor_read(u32 offset, u8 *dst, size_t len, bool addr4b,
+-		       bool dummy_append)
+-{
+-	while (len) {
+-		size_t chunk = NOR_READ_CHUNK - (offset % NOR_READ_CHUNK);
+-		int ret;
+-
+-		if (chunk > len)
+-			chunk = len;
+-		ret = sf_nor_read_once(offset, dst, chunk, addr4b,
+-				       dummy_append);
+-		if (ret)
+-			return ret;
+-		offset += chunk;
+-		dst += chunk;
+-		len -= chunk;
+-	}
+-
+-	return 0;
+-}
+-
+-int en7512_sfc_read(u32 offset, void *dst, size_t len)
+-{
+-	u32 strap = __raw_readl(sf_reg(SF_STRAP));
+-	u8 *buf = dst;
+-	int ret;
+-
+-	if (!(strap & SF_STRAP_SPI_NAND))
+-		return sf_nor_read(offset, buf, len, strap & SF_STRAP_ADDR_4B,
+-				   strap & SF_STRAP_DUMMY_APPEND);
+-
+-	while (len) {
+-		u32 page = offset / NAND_PAGE_SIZE;
+-		u32 column = offset % NAND_PAGE_SIZE;
+-		size_t chunk = NAND_PAGE_SIZE - column;
+-
+-		if (chunk > len)
+-			chunk = len;
+-
+-		ret = sf_nand_load_page(page);
+-		if (ret)
+-			return ret;
+-		ret = sf_nand_read_cache(column, buf, chunk,
+-					 strap & SF_STRAP_DUMMY_APPEND);
+-		if (ret)
+-			return ret;
+-
+-		offset += chunk;
+-		buf += chunk;
+-		len -= chunk;
+-	}
+-
+-	return 0;
+-}
+diff --git a/arch/mips/mach-en75xx/include/mach/en7512.h b/arch/mips/mach-en75xx/include/mach/en7512.h
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/include/mach/en7512.h
++++ /dev/null
+@@ -1,46 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-#ifndef __MACH_EN7512_H__
+-#define __MACH_EN7512_H__
+-
+-#define EN7512_FLASH_BASE		0xbfc00000
+-#define EN7512_SFC_BASE			0xbfa10000
+-#define EN7512_CHIP_SCU_BASE		0xbfa20000
+-#define EN7512_FE_SRAM_BASE		0xbfa30000
+-#define EN7512_FE_SRAM_CACHED		0x9fa30000
+-#define EN7512_SYSCTL_BASE		0xbfb00000
+-#define EN7512_SMC_BASE			0xbfb10000
+-#define EN7512_DRAMC_BASE		0xbfb20000
+-#define EN7512_INTC_BASE		0xbfb40000
+-#define EN7512_UART0_BASE		0xbfbf0000
+-#define EN7512_TIMER_BASE		0xbfbf0100
+-#define EN7512_GPIO_BASE		0xbfbf0200
+-
+-#define EN7512_RESET_CONTROL		(EN7512_SYSCTL_BASE + 0x040)
+-#define EN7512_FE_SRAM_SEL		(EN7512_SYSCTL_BASE + 0x958)
+-#define EN7512_SCREG_WR0		(EN7512_SYSCTL_BASE + 0x280)
+-#define EN7512_REG_SAVE_INFO		(EN7512_SYSCTL_BASE + 0x284)
+-
+-#define EN7512_DDR_BLOB_ADDR		(EN7512_FE_SRAM_CACHED + 0x2800)
+-#define EN7512_DDR_BLOB_OFFSET		0x00008000
+-#define EN7512_DDR_BLOB_SIZE		0x00004f70
+-#define EN7512_SPL_IMAGE_OFFSET		0x00010000
+-#define EN7512_UBOOT_IMAGE_OFFSET	0x00050000
+-
+-#define EN7512_SPL_HEADER_ADDR		(EN7512_FE_SRAM_BASE + 0x40)
+-#define EN7512_TPL_STACK_ADDR		(EN7512_FE_SRAM_BASE + 0xbff0)
+-#define EN7512_TPL_SAVED_RA		(EN7512_FE_SRAM_BASE + 0x00)
+-
+-#define EN7512_SAVE_DRAM_MASK		0x00000fff
+-#define EN7512_SAVE_CLK_MASK		0x00fff000
+-#define EN7512_SAVE_CLK_SHIFT		12
+-
+-#ifndef __ASSEMBLY__
+-#include <stddef.h>
+-#include <linux/types.h>
+-
+-int en7512_sfc_read(u32 offset, void *dst, size_t len);
+-int en7512_sfc_init(void);
+-void en7512_run_ddr_blob(void);
+-#endif
+-
+-#endif
+diff --git a/arch/mips/mach-en75xx/include/mach/scu-regmap.h b/arch/mips/mach-en75xx/include/mach/scu-regmap.h
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/include/mach/scu-regmap.h
++++ /dev/null
+@@ -1,10 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-#ifndef __EN75XX_AIROHA_SCU_REGMAP_H__
+-#define __EN75XX_AIROHA_SCU_REGMAP_H__
+-
+-#include <regmap.h>
+-
+-struct regmap *airoha_get_scu_regmap(void);
+-struct regmap *airoha_get_chip_scu_regmap(void);
+-
+-#endif
+diff --git a/arch/mips/mach-en75xx/scu-regmap.c b/arch/mips/mach-en75xx/scu-regmap.c
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/scu-regmap.c
++++ /dev/null
+@@ -1,49 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-/*
+- * EcoNet/Airoha EN75xx SCU regmap helpers.
+- *
+- * EN7528 keeps the same split CHIP_SCU/SCU register layout used by EN7523:
+- *   reg[0] - CHIP_SCU at 0x1fa20000
+- *   reg[1] - SCU      at 0x1fb00000
+- */
+-
+-#include <dm/ofnode.h>
+-#include <linux/err.h>
+-#include <linux/kernel.h>
+-#include <mach/scu-regmap.h>
+-
+-static struct regmap *airoha_scu_node_regmap_by_index(unsigned int index)
+-{
+-	static const char * const compatibles[] = {
+-		"airoha,en7528-scu",
+-		"airoha,en7523-scu",
+-	};
+-	struct regmap *map;
+-	ofnode node = ofnode_null();
+-	int err, i;
+-
+-	for (i = 0; i < ARRAY_SIZE(compatibles); i++) {
+-		node = ofnode_by_compatible(ofnode_null(), compatibles[i]);
+-		if (ofnode_valid(node))
+-			break;
+-	}
+-
+-	if (!ofnode_valid(node))
+-		return ERR_PTR(-EINVAL);
+-
+-	err = regmap_init_mem_index(node, &map, index);
+-	if (err)
+-		return ERR_PTR(err);
+-
+-	return map;
+-}
+-
+-struct regmap *airoha_get_scu_regmap(void)
+-{
+-	return airoha_scu_node_regmap_by_index(1);
+-}
+-
+-struct regmap *airoha_get_chip_scu_regmap(void)
+-{
+-	return airoha_scu_node_regmap_by_index(0);
+-}
+diff --git a/arch/mips/mach-en75xx/spl/Makefile b/arch/mips/mach-en75xx/spl/Makefile
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/spl/Makefile
++++ /dev/null
+@@ -1,2 +0,0 @@
+-# SPDX-License-Identifier: GPL-2.0+
+-obj-y += spl.o
+diff --git a/arch/mips/mach-en75xx/spl/spl.c b/arch/mips/mach-en75xx/spl/spl.c
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/spl/spl.c
++++ /dev/null
+@@ -1,47 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-
+-#include <errno.h>
+-#include <init.h>
+-#include <spl.h>
+-#include <spl_load.h>
+-#include <mach/en7512.h>
+-
+-void __noreturn board_init_f(ulong dummy)
+-{
+-	spl_init();
+-
+-	if (IS_ENABLED(CONFIG_SPL_SERIAL))
+-		preloader_console_init();
+-
+-	board_init_r(NULL, 0);
+-}
+-
+-static ulong en7512_spl_read(struct spl_load_info *load, ulong offset,
+-			     ulong count, void *buf)
+-{
+-	if (en7512_sfc_read(offset, buf, count))
+-		return 0;
+-
+-	return count;
+-}
+-
+-static int en7512_spl_load_image(struct spl_image_info *spl_image,
+-				 struct spl_boot_device *bootdev)
+-{
+-	struct spl_load_info load;
+-
+-	if (en7512_sfc_init())
+-		return -EIO;
+-
+-	spl_load_init(&load, en7512_spl_read, NULL, 1);
+-	return spl_load(spl_image, bootdev, &load, 0,
+-			EN7512_UBOOT_IMAGE_OFFSET);
+-}
+-
+-SPL_LOAD_IMAGE_METHOD("EN7512 SFC", 0, BOOT_DEVICE_BOARD,
+-		      en7512_spl_load_image);
+-
+-u32 spl_boot_device(void)
+-{
+-	return BOOT_DEVICE_BOARD;
+-}
+diff --git a/arch/mips/mach-en75xx/tpl/Makefile b/arch/mips/mach-en75xx/tpl/Makefile
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/tpl/Makefile
++++ /dev/null
+@@ -1,3 +0,0 @@
+-# SPDX-License-Identifier: GPL-2.0+
+-extra-y += start.o
+-obj-y += tpl.o
+diff --git a/arch/mips/mach-en75xx/tpl/start.S b/arch/mips/mach-en75xx/tpl/start.S
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/tpl/start.S
++++ /dev/null
+@@ -1,101 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0+ */
+-#include <asm/asm.h>
+-#include <asm/regdef.h>
+-#include <asm/mipsregs.h>
+-#include <mach/en7512.h>
+-
+-	.set noreorder
+-
+-ENTRY(_start)
+-	b	reset
+-	 mtc0	zero, CP0_COUNT
+-
+-	/*
+-	 * TCBoot image descriptor. The magic is byte-reversed in the vendor
+-	 * format, while section offsets are stored as big-endian words.
+-	 */
+-	.org	0x0c
+-	.byte	0x36, 0x35, 0x37, 0x38
+-	.word	EN7512_DDR_BLOB_OFFSET
+-	.word	EN7512_DDR_BLOB_OFFSET + EN7512_DDR_BLOB_SIZE
+-	.word	EN7512_SPL_IMAGE_OFFSET
+-	.word	EN7512_UBOOT_IMAGE_OFFSET
+-
+-	/* The vendor reset code begins at offset 0x48. */
+-	.org	0x48
+-reset:
+-	/* Disable interrupts and force KSEG0 uncached before DDR exists. */
+-	mfc0	t0, CP0_STATUS
+-	li	t1, ~(ST0_IE | ST0_KSU)
+-	and	t0, t0, t1
+-	li	t1, ST0_BEV | ST0_ERL
+-	or	t0, t0, t1
+-	mtc0	t0, CP0_STATUS
+-	mtc0	zero, CP0_CAUSE
+-	mtc0	zero, CP0_COMPARE
+-
+-	mfc0	t0, CP0_CONFIG
+-	li	t1, ~7
+-	and	t0, t0, t1
+-	ori	t0, t0, 2
+-	mtc0	t0, CP0_CONFIG
+-	ehb
+-
+-	/* Arbiter and static-memory mappings copied from TCBoot. */
+-	li	t0, EN7512_SYSCTL_BASE
+-	li	t1, 0x80071f1e
+-	sw	t1, 0x20(t0)
+-	li	t1, 0x00071f1f
+-	sw	t1, 0x24(t0)
+-	li	t1, 0x80050000
+-	sw	t1, 0x34(t0)
+-
+-	li	t0, EN7512_SMC_BASE
+-	li	t1, 0x102d1040
+-	sw	t1, 0x00(t0)
+-	li	t1, 0x200028d0
+-	sw	t1, 0x14(t0)
+-
+-	/* Disable the interrupt controller. */
+-	li	t0, EN7512_INTC_BASE
+-	sw	zero, 0x00(t0)
+-	sw	zero, 0x04(t0)
+-
+-	/* Enable PBUS access to the 48 KiB FE SRAM. */
+-	li	t0, EN7512_FE_SRAM_SEL
+-	lw	t1, 0(t0)
+-	ori	t1, t1, 1
+-	sw	t1, 0(t0)
+-	sync
+-
+-	li	sp, EN7512_TPL_STACK_ADDR
+-	li	fp, EN7512_TPL_STACK_ADDR
+-
+-	la	t9, tpl_main
+-	jalr	t9
+-	 nop
+-
+-1:	b	1b
+-	 nop
+-END(_start)
+-
+-LEAF(en7512_run_ddr_blob)
+-	li	t0, EN7512_TPL_SAVED_RA
+-	sw	ra, 0(t0)
+-
+-	la	t1, 1f
+-	li	t0, EN7512_SCREG_WR0
+-	sw	t1, 0(t0)
+-	sync
+-
+-	li	t9, EN7512_DDR_BLOB_ADDR
+-	jr	t9
+-	 nop
+-1:
+-	li	t0, EN7512_SCREG_WR0
+-	sw	zero, 0(t0)
+-	li	t0, EN7512_TPL_SAVED_RA
+-	lw	ra, 0(t0)
+-	jr	ra
+-	 nop
+-END(en7512_run_ddr_blob)
+diff --git a/arch/mips/mach-en75xx/tpl/tpl.c b/arch/mips/mach-en75xx/tpl/tpl.c
+deleted file mode 100644
+--- a/arch/mips/mach-en75xx/tpl/tpl.c
++++ /dev/null
+@@ -1,109 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-
+-#include <compiler.h>
+-#include <linux/byteorder/generic.h>
+-#include <linux/types.h>
+-#include <asm/io.h>
+-#include <mach/en7512.h>
+-
+-#define IH_MAGIC	0x27051956
+-#define IH_HDR_SIZE	64
+-
+-struct en7512_legacy_header {
+-	u32 magic;
+-	u32 hcrc;
+-	u32 time;
+-	u32 size;
+-	u32 load;
+-	u32 ep;
+-	u32 dcrc;
+-	u8 os;
+-	u8 arch;
+-	u8 type;
+-	u8 comp;
+-	u8 name[32];
+-};
+-
+-static u32 get_be32(u32 val)
+-{
+-	return be32_to_cpu(val);
+-}
+-
+-static void tpl_putc(u8 ch)
+-{
+-	void __iomem *thr = (void __iomem *)(EN7512_UART0_BASE + 0x03);
+-	void __iomem *lsr = (void __iomem *)(EN7512_UART0_BASE + 0x17);
+-
+-	while (!(__raw_readb(lsr) & 0x20))
+-		;
+-	__raw_writeb(ch, thr);
+-}
+-
+-static void tpl_hang(u8 code)
+-{
+-	tpl_putc(code);
+-	tpl_putc('\r');
+-	tpl_putc('\n');
+-
+-	for (;;)
+-		;
+-}
+-
+-static void tpl_uart_init(void)
+-{
+-	void __iomem *base = (void __iomem *)EN7512_UART0_BASE;
+-
+-	__raw_writeb(0x80, base + 0x0f);
+-	__raw_writel(0xea00fde8, base + 0x2c);
+-	__raw_writeb(0x01, base + 0x03);
+-	__raw_writeb(0x00, base + 0x07);
+-	__raw_writeb(0x03, base + 0x0f);
+-	__raw_writeb(0x0f, base + 0x0b);
+-	__raw_writeb(0x00, base + 0x13);
+-	__raw_writeb(0x00, base + 0x27);
+-	__raw_writeb(0x00, base + 0x07);
+-}
+-
+-void __noreturn tpl_main(void)
+-{
+-	struct en7512_legacy_header *hdr =
+-		(struct en7512_legacy_header *)EN7512_SPL_HEADER_ADDR;
+-	void (*entry)(void);
+-	u32 load, size, ep;
+-	int ret;
+-
+-	tpl_uart_init();
+-	if (en7512_sfc_init())
+-		tpl_hang('I');
+-
+-	ret = en7512_sfc_read(EN7512_DDR_BLOB_OFFSET,
+-			      (void *)EN7512_DDR_BLOB_ADDR,
+-			      EN7512_DDR_BLOB_SIZE);
+-	if (ret)
+-		tpl_hang('F');
+-
+-	en7512_run_ddr_blob();
+-
+-	ret = en7512_sfc_read(EN7512_SPL_IMAGE_OFFSET, hdr, IH_HDR_SIZE);
+-	if (ret || get_be32(hdr->magic) != IH_MAGIC)
+-		tpl_hang('H');
+-
+-	size = get_be32(hdr->size);
+-	load = get_be32(hdr->load);
+-	ep = get_be32(hdr->ep);
+-
+-	if (!size || (load & 0xe0000000) != 0x80000000 ||
+-	    (ep & 0xe0000000) != 0x80000000 || load + size < load)
+-		tpl_hang('L');
+-
+-	/* Write through KSEG1 so no dirty cache lines hide the SPL image. */
+-	ret = en7512_sfc_read(EN7512_SPL_IMAGE_OFFSET + IH_HDR_SIZE,
+-			      (void *)(load | 0x20000000), size);
+-	if (ret)
+-		tpl_hang('S');
+-
+-	__asm__ volatile("sync" : : : "memory");
+-	entry = (void (*)(void))ep;
+-	entry();
+-	__builtin_unreachable();
+-}
+diff --git a/board/econet/en7512/MAINTAINERS b/board/econet/en7512/MAINTAINERS
+--- a/board/econet/en7512/MAINTAINERS
++++ b/board/econet/en7512/MAINTAINERS
+@@ -1,8 +1,8 @@
+ EN7512 REFERENCE BOARD
+ S: Orphan
+-F: arch/mips/mach-en75xx/
++F: arch/mips/mach-econet/
+ F: board/econet/en7512/
+ F: configs/en7512_reference_defconfig
+-F: arch/mips/dts/econet,en7512-reference.dts
++F: arch/mips/dts/econet,en751221-reference.dts
+ F: doc/board/econet/
+ F: tools/en7512_image.py
+diff --git a/board/econet/en7528/MAINTAINERS b/board/econet/en7528/MAINTAINERS
+--- a/board/econet/en7528/MAINTAINERS
++++ b/board/econet/en7528/MAINTAINERS
+@@ -8,5 +8,3 @@ F: arch/mips/dts/econet,en7528-tplink-xc220-g3v.dts
+ F: include/configs/en7528.h
+ F: doc/board/econet/en7528.rst
+ F: tools/build-en7528-xc220-g3v.sh
+-F: arch/mips/mach-en75xx/scu-regmap.c
+-F: arch/mips/mach-en75xx/include/mach/scu-regmap.h
+diff --git a/configs/en7512_reference_defconfig b/configs/en7512_reference_defconfig
+--- a/configs/en7512_reference_defconfig
++++ b/configs/en7512_reference_defconfig
+@@ -6,7 +6,7 @@ CONFIG_SPL_LIBGENERIC_SUPPORT=y
+ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_ENV_SIZE=0x1000
+ CONFIG_DM_GPIO=y
+-CONFIG_DEFAULT_DEVICE_TREE="econet,en7512-reference"
++CONFIG_DEFAULT_DEVICE_TREE="econet,en751221-reference"
+ CONFIG_SPL_SYS_MALLOC_F_LEN=0x10000
+ CONFIG_SPL_SERIAL=y
+ CONFIG_TPL_SYS_MALLOC_F_LEN=0x1000
+@@ -14,7 +14,7 @@ CONFIG_SPL_BSS_START_ADDR=0x80080000
+ CONFIG_SPL_BSS_MAX_SIZE=0x10000
+ CONFIG_SYS_LOAD_ADDR=0x81800000
+ CONFIG_SPL=y
+-CONFIG_ARCH_EN75XX=y
++CONFIG_ARCH_ECONET=y
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_BOARD_EN7512_REFERENCE=y
+ CONFIG_SYS_MIPS_TIMER_FREQ=150000000
+@@ -26,7 +26,7 @@ CONFIG_FIT=y
+ CONFIG_FIT_VERBOSE=y
+ CONFIG_BOOTDELAY=3
+ CONFIG_OF_STDOUT_VIA_ALIAS=y
+-CONFIG_DEFAULT_FDT_FILE="en751221_ref"
++CONFIG_DEFAULT_FDT_FILE="econet,en751221-reference.dtb"
+ CONFIG_SYS_PBSIZE=1049
+ CONFIG_SYS_CONSOLE_IS_IN_ENV=y
+ CONFIG_DISPLAY_CPUINFO=y
+diff --git a/configs/en7523-askey-rtf8225vw_defconfig b/configs/en7523-askey-rtf8225vw_defconfig
+--- a/configs/en7523-askey-rtf8225vw_defconfig
++++ b/configs/en7523-askey-rtf8225vw_defconfig
+@@ -9,7 +9,7 @@ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_ENV_SIZE=0x4000
+ CONFIG_DM_GPIO=y
+ CONFIG_DEFAULT_DEVICE_TREE="airoha/en7523-askey-rtf8225vw"
+-CONFIG_SYS_BOOTM_LEN=0x460000000
++CONFIG_SYS_BOOTM_LEN=0x04600000
+ CONFIG_SYS_LOAD_ADDR=0x81800000
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_FIT=y
+diff --git a/configs/en7523-genexis_pixly_r1_defconfig b/configs/en7523-genexis_pixly_r1_defconfig
+--- a/configs/en7523-genexis_pixly_r1_defconfig
++++ b/configs/en7523-genexis_pixly_r1_defconfig
+@@ -9,7 +9,7 @@ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_ENV_SIZE=0x4000
+ CONFIG_DM_GPIO=y
+ CONFIG_DEFAULT_DEVICE_TREE="airoha/en7523-genexis_pixly_r1"
+-CONFIG_SYS_BOOTM_LEN=0x460000000
++CONFIG_SYS_BOOTM_LEN=0x04600000
+ CONFIG_SYS_LOAD_ADDR=0x81800000
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_FIT=y
+diff --git a/configs/en7523-mitrastar_gpt_2742gx4x5v6_defconfig b/configs/en7523-mitrastar_gpt_2742gx4x5v6_defconfig
+--- a/configs/en7523-mitrastar_gpt_2742gx4x5v6_defconfig
++++ b/configs/en7523-mitrastar_gpt_2742gx4x5v6_defconfig
+@@ -9,7 +9,7 @@ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_ENV_SIZE=0x4000
+ CONFIG_DM_GPIO=y
+ CONFIG_DEFAULT_DEVICE_TREE="airoha/en7523-mitrastar_gpt_2742gx4x5v6"
+-CONFIG_SYS_BOOTM_LEN=0x460000000
++CONFIG_SYS_BOOTM_LEN=0x04600000
+ CONFIG_SYS_LOAD_ADDR=0x81800000
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_FIT=y
+diff --git a/configs/en7523-tplink_ex530v_v1_defconfig b/configs/en7523-tplink_ex530v_v1_defconfig
+--- a/configs/en7523-tplink_ex530v_v1_defconfig
++++ b/configs/en7523-tplink_ex530v_v1_defconfig
+@@ -9,7 +9,7 @@ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_ENV_SIZE=0x4000
+ CONFIG_DM_GPIO=y
+ CONFIG_DEFAULT_DEVICE_TREE="airoha/en7523-tplink-ex530v_v1"
+-CONFIG_SYS_BOOTM_LEN=0x460000000
++CONFIG_SYS_BOOTM_LEN=0x04600000
+ CONFIG_SYS_LOAD_ADDR=0x81800000
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_FIT=y
+diff --git a/configs/en7523-tplink_xx230v_v1_defconfig b/configs/en7523-tplink_xx230v_v1_defconfig
+--- a/configs/en7523-tplink_xx230v_v1_defconfig
++++ b/configs/en7523-tplink_xx230v_v1_defconfig
+@@ -9,7 +9,7 @@ CONFIG_NR_DRAM_BANKS=1
+ CONFIG_ENV_SIZE=0x4000
+ CONFIG_DM_GPIO=y
+ CONFIG_DEFAULT_DEVICE_TREE="airoha/en7523-tplink-xx230v_v1"
+-CONFIG_SYS_BOOTM_LEN=0x460000000
++CONFIG_SYS_BOOTM_LEN=0x04600000
+ CONFIG_SYS_LOAD_ADDR=0x81800000
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_FIT=y
+diff --git a/configs/en7528_reference_defconfig b/configs/en7528_reference_defconfig
+--- a/configs/en7528_reference_defconfig
++++ b/configs/en7528_reference_defconfig
+@@ -7,7 +7,7 @@ CONFIG_ENV_SIZE=0x1000
+ CONFIG_DEFAULT_DEVICE_TREE="econet,en7528-reference"
+ CONFIG_SYS_LOAD_ADDR=0x82000000
+ CONFIG_SYS_BOOTM_LEN=0x08000000
+-CONFIG_ARCH_EN75XX=y
++CONFIG_ARCH_ECONET=y
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_BOARD_EN7528_REFERENCE=y
+ CONFIG_SYS_MIPS_TIMER_FREQ=200000000
+diff --git a/configs/en7528_tplink_xc220_g3v_defconfig b/configs/en7528_tplink_xc220_g3v_defconfig
+--- a/configs/en7528_tplink_xc220_g3v_defconfig
++++ b/configs/en7528_tplink_xc220_g3v_defconfig
+@@ -7,7 +7,7 @@ CONFIG_ENV_SIZE=0x1000
+ CONFIG_DEFAULT_DEVICE_TREE="econet,en7528-tplink-xc220-g3v"
+ CONFIG_SYS_LOAD_ADDR=0x82000000
+ CONFIG_SYS_BOOTM_LEN=0x08000000
+-CONFIG_ARCH_EN75XX=y
++CONFIG_ARCH_ECONET=y
+ CONFIG_BUILD_TARGET="u-boot.bin"
+ CONFIG_BOARD_EN7528_TPLINK_XC220_G3V=y
+ CONFIG_SYS_MIPS_TIMER_FREQ=200000000
+diff --git a/drivers/clk/airoha/Makefile b/drivers/clk/airoha/Makefile
+--- a/drivers/clk/airoha/Makefile
++++ b/drivers/clk/airoha/Makefile
+@@ -1,4 +1,4 @@
+ # SPDX-License-Identifier: GPL-2.0
+ # Core
+ obj-$(CONFIG_ARCH_AIROHA) += clk-airoha.o
+-obj-$(CONFIG_EN75XX_SCU) += clk-airoha.o
++obj-$(CONFIG_ARCH_ECONET) += clk-airoha.o
+diff --git a/drivers/clk/airoha/clk-airoha.c b/drivers/clk/airoha/clk-airoha.c
+--- a/drivers/clk/airoha/clk-airoha.c
++++ b/drivers/clk/airoha/clk-airoha.c
+@@ -16,11 +16,7 @@
+ #include <dm/device_compat.h>
+ #include <dm/lists.h>
+ #include <regmap.h>
+-#if IS_ENABLED(CONFIG_ARCH_AIROHA)
+-#include <asm/arch/scu-regmap.h>
+-#elif IS_ENABLED(CONFIG_ARCH_EN75XX)
+-#include <mach/scu-regmap.h>
+-#endif
++#include <soc/airoha/scu-regmap.h>
+ 
+ #include <dt-bindings/clock/en7523-clk.h>
+ 
+diff --git a/drivers/net/Kconfig b/drivers/net/Kconfig
+--- a/drivers/net/Kconfig
++++ b/drivers/net/Kconfig
+@@ -129,7 +129,7 @@ source "drivers/net/airoha/Kconfig"
+ 
+ config AIROHA_ETH
+ 	bool "Airoha Ethernet QDMA Driver"
+-	depends on ARCH_AIROHA || ARCH_EN75XX
++	depends on ARCH_AIROHA || ARCH_ECONET
+ 	select MISC
+ 	select PHYLIB
+ 	select DEVRES
+diff --git a/drivers/net/airoha/pcs-airoha-common.c b/drivers/net/airoha/pcs-airoha-common.c
+--- a/drivers/net/airoha/pcs-airoha-common.c
++++ b/drivers/net/airoha/pcs-airoha-common.c
+@@ -10,7 +10,7 @@
+ #include <net.h>
+ #include <regmap.h>
+ #include <reset.h>
+-#include <asm/arch/scu-regmap.h>
++#include <soc/airoha/scu-regmap.h>
+ 
+ #include "pcs-airoha.h"
+ 
+diff --git a/drivers/net/airoha_eth.c b/drivers/net/airoha_eth.c
+--- a/drivers/net/airoha_eth.c
++++ b/drivers/net/airoha_eth.c
+@@ -31,18 +31,14 @@
+ #include <linux/mii.h>
+ #include <linux/time.h>
+ #include <asm/system.h>
+-#if IS_ENABLED(CONFIG_ARCH_EN75XX)
++#if IS_ENABLED(CONFIG_ARCH_ECONET)
+ #include <asm/addrspace.h>
+ #define EN7528_RX_UNCACHED(_p) \
+ 	((uchar *)KSEG1ADDR((uintptr_t)(_p)))
+ #else
+ #define EN7528_RX_UNCACHED(_p)	(_p)
+ #endif
+-#if IS_ENABLED(CONFIG_ARCH_AIROHA)
+-#include <asm/arch/scu-regmap.h>
+-#elif IS_ENABLED(CONFIG_ARCH_EN75XX)
+-#include <mach/scu-regmap.h>
+-#endif
++#include <soc/airoha/scu-regmap.h>
+ 
+ #include "airoha/pcs-airoha.h"
+ 
+@@ -685,7 +681,7 @@ static u32 airoha_rmw(void __iomem *base, u32 offset, u32 mask, u32 val)
+ 
+ static bool airoha_dma_is_uncached(const void *vaddr)
+ {
+-#if IS_ENABLED(CONFIG_ARCH_EN75XX)
++#if IS_ENABLED(CONFIG_ARCH_ECONET)
+ 	return KSEGX((uintptr_t)vaddr) == KSEG1;
+ #else
+ 	return false;
+@@ -715,7 +711,7 @@ static inline void dma_unmap_unaligned(dma_addr_t addr, size_t len,
+ {
+ 	uintptr_t start, end;
+ 
+-#if IS_ENABLED(CONFIG_ARCH_EN75XX)
++#if IS_ENABLED(CONFIG_ARCH_ECONET)
+ 	if (KSEGX((uintptr_t)addr) == KSEG1) {
+ 		/* Order DMA writes before the CPU consumes an uncached descriptor. */
+ 		rmb();
+@@ -731,7 +727,7 @@ static inline void dma_unmap_unaligned(dma_addr_t addr, size_t len,
+ static void *airoha_dma_alloc_aligned(size_t size, size_t align,
+ 				      unsigned long *dma_addr)
+ {
+-#if IS_ENABLED(CONFIG_ARCH_EN75XX)
++#if IS_ENABLED(CONFIG_ARCH_ECONET)
+ 	void *buf;
+ 
+ 	align = max_t(size_t, align, ARCH_DMA_MINALIGN);
+@@ -754,7 +750,7 @@ static void *airoha_dma_alloc_coherent(size_t size, unsigned long *dma_addr)
+ 
+ static void *airoha_dma_alloc_uncached(size_t size, unsigned long *dma_addr)
+ {
+-#if IS_ENABLED(CONFIG_ARCH_EN75XX)
++#if IS_ENABLED(CONFIG_ARCH_ECONET)
+ 	void *buf;
+ 	uintptr_t start, end;
+ 
+@@ -829,17 +825,6 @@ static void en7528_qdma_trace(struct airoha_qdma *qdma, const char *tag)
+ {
+ 	if (!eth_traced || qdma->eth->soc->version != 0x7528)
+ 		return;
+-
+-	printf("[airoha] %-16s cfg=%08x txbase=%08x txcpu=%03x txdma=%03x rxbase=%08x rxcpu=%03x rxdma=%03x lmgr=%08x\n",
+-	       tag,
+-	       airoha_qdma_rr(qdma, REG_QDMA_GLOBAL_CFG),
+-	       airoha_qdma_rr(qdma, REG_TX_RING_BASE(0)),
+-	       airoha_qdma_rr(qdma, REG_TX_CPU_IDX(0)) & TX_RING_CPU_IDX_MASK,
+-	       airoha_qdma_rr(qdma, REG_TX_DMA_IDX(0)) & TX_RING_DMA_IDX_MASK,
+-	       airoha_qdma_rr(qdma, REG_RX_RING_BASE(0)),
+-	       airoha_qdma_rr(qdma, REG_RX_CPU_IDX(0)) & RX_RING_CPU_IDX_MASK,
+-	       airoha_qdma_rr(qdma, REG_RX_DMA_IDX(0)) & RX_RING_DMA_IDX_MASK,
+-	       airoha_qdma_rr(qdma, REG_LMGR_INIT_CFG));
+ }
+ 
+ static void en751221_fe_trace(struct airoha_eth *eth, int gdm,
+@@ -889,7 +874,7 @@ static void en751221_packet_trace(const char *dir, const void *packet,
+ 		return;
+ 
+ 	printf("[airoha] %s packet: addr=%08lx len=%zu\n", dir,
+-	       (ulong)virt_to_phys(packet), length);
++	       (ulong)virt_to_phys((void *)packet), length);
+ 	print_hex_dump_bytes("[airoha]   ", DUMP_PREFIX_OFFSET, packet, length);
+ }
+ 
+@@ -1307,7 +1292,7 @@ static int en751221_qdma_init_rx(struct airoha_qdma *qdma)
+ 	}
+ 
+ 	if (q->ndesc > PKTBUFSRX) {
+-		printf("EN75xx QDMA: RX ring needs %d packet buffers, only %d available\n",
++		printf("QDMA: RX ring needs %d packet buffers, only %d available\n",
+ 		       q->ndesc, PKTBUFSRX);
+ 		return -EINVAL;
+ 	}
+@@ -1522,7 +1507,7 @@ static int en751221_qdma_init_hfwd(struct airoha_qdma *qdma)
+ 	 */
+ 	airoha_qdma_wr(qdma, EN751221_REG_INT_STATUS, 0xffffffff);
+ 
+-	printf("EN75xx QDMA LMGR: desc=%08x(cpu=%08lx) buf=%08x cfg=%08x lmgr=%08x free=%08x used=%08x\n",
++	printf("QDMA LMGR: desc=%08x(cpu=%08lx) buf=%08x cfg=%08x lmgr=%08x free=%08x used=%08x\n",
+ 	       airoha_qdma_rr(qdma, EN751221_REG_FWD_DSCP_BASE),
+ 	       (ulong)qdma->hfwd.desc,
+ 	       airoha_qdma_rr(qdma, EN751221_REG_FWD_BUF_BASE),
+@@ -2351,7 +2336,7 @@ static int airoha_eth_probe(struct udevice *dev)
+ 
+ 	eth->soc = data;
+ 	if (!data->direct_reset) {
+-#if IS_ENABLED(CONFIG_ARCH_AIROHA) || IS_ENABLED(CONFIG_ARCH_EN75XX)
++#if IS_ENABLED(CONFIG_ARCH_AIROHA) || IS_ENABLED(CONFIG_ARCH_ECONET)
+ 		struct regmap *scu_regmap;
+ 
+ 		scu_regmap = airoha_get_scu_regmap();
+@@ -2748,7 +2733,7 @@ static int en751221_eth_send(struct udevice *dev, void *packet, int length)
+ 		dma_unmap_single(dma_addr, length, DMA_TO_DEVICE);
+ 	if (qdma->eth->soc->version == 0x7528 ? hw != next :
+ 	    !(ctrl & QDMA_DESC_DONE_MASK)) {
+-		printf("EN75xx QDMA TX timeout: cfg=%08x cpu=%08x hw=%08x int=%08x hwcfg=%08x lmgr=%08x free=%08x used=%08x\n",
++		printf("QDMA TX timeout: cfg=%08x cpu=%08x hw=%08x int=%08x hwcfg=%08x lmgr=%08x free=%08x used=%08x\n",
+ 		       airoha_qdma_rr(qdma, REG_QDMA_GLOBAL_CFG),
+ 		       airoha_qdma_rr(qdma, EN751221_REG_TX_CPU_IDX),
+ 		       airoha_qdma_rr(qdma, EN751221_REG_TX_DMA_IDX),
+diff --git a/drivers/pinctrl/airoha/pinctrl-airoha.c b/drivers/pinctrl/airoha/pinctrl-airoha.c
+--- a/drivers/pinctrl/airoha/pinctrl-airoha.c
++++ b/drivers/pinctrl/airoha/pinctrl-airoha.c
+@@ -11,7 +11,7 @@
+ #include <dm/lists.h>
+ #include <dm/ofnode.h>
+ #include <asm-generic/gpio.h>
+-#include <asm/arch/scu-regmap.h>
++#include <soc/airoha/scu-regmap.h>
+ #include <dt-bindings/pinctrl/mt65xx.h>
+ #include <regmap.h>
+ #include <syscon.h>
+diff --git a/drivers/reset/Kconfig b/drivers/reset/Kconfig
+--- a/drivers/reset/Kconfig
++++ b/drivers/reset/Kconfig
+@@ -45,7 +45,7 @@ config TEGRA186_RESET
+ 
+ config RESET_AIROHA
+ 	bool "Reset controller driver for Airoha SoCs"
+-	depends on DM_RESET && (ARCH_AIROHA || ARCH_EN75XX)
++	depends on DM_RESET && (ARCH_AIROHA || ARCH_ECONET)
+ 	default y
+ 	help
+ 	  Support for reset controller on Airoha SoCs.
+diff --git a/drivers/reset/reset-airoha.c b/drivers/reset/reset-airoha.c
+--- a/drivers/reset/reset-airoha.c
++++ b/drivers/reset/reset-airoha.c
+@@ -11,11 +11,7 @@
+ #include <linux/io.h>
+ #include <reset-uclass.h>
+ #include <regmap.h>
+-#if IS_ENABLED(CONFIG_ARCH_AIROHA)
+-#include <asm/arch/scu-regmap.h>
+-#elif IS_ENABLED(CONFIG_ARCH_EN75XX)
+-#include <mach/scu-regmap.h>
+-#endif
++#include <soc/airoha/scu-regmap.h>
+ 
+ #include <dt-bindings/reset/airoha,en7523-reset.h>
+ #include <dt-bindings/reset/airoha,en7581-reset.h>
+diff --git a/drivers/serial/Kconfig b/drivers/serial/Kconfig
+--- a/drivers/serial/Kconfig
++++ b/drivers/serial/Kconfig
+@@ -1108,9 +1108,9 @@ config MTK_SERIAL
+ 	  The High-speed UART is compatible with the ns16550a UART and have
+ 	  its own high-speed registers.
+ 
+-config EN75XX_SERIAL
+-	bool "EcoNet/Airoha EN75xx serial port support"
+-	depends on ARCH_EN75XX
++config AIROHA_SERIAL
++	bool "Airoha serial port support"
++	depends on ARCH_ECONET
+ 	help
+ 	  Support the byte-lane 16550-like UART used by EN7512/EN7521.
+ 	  The controller also uses a vendor-specific fractional divider.
+diff --git a/drivers/serial/Makefile b/drivers/serial/Makefile
+--- a/drivers/serial/Makefile
++++ b/drivers/serial/Makefile
+@@ -21,6 +21,7 @@ obj-$(CONFIG_BCM6345_SERIAL) += serial_bcm6345.o
+ obj-$(CONFIG_COREBOOT_SERIAL) += serial_coreboot.o
+ obj-$(CONFIG_CORTINA_UART) += serial_cortina.o
+ obj-$(CONFIG_DEBUG_SBI_CONSOLE) += serial_sbi.o
++obj-$(CONFIG_ECONET_SERIAL) += serial_econet.o
+ obj-$(CONFIG_EFI_APP) += serial_efi.o
+ obj-$(CONFIG_MCFUART) += serial_mcf.o
+ obj-$(CONFIG_SYS_NS16550) += ns16550.o
+@@ -55,7 +56,6 @@ obj-$(CONFIG_OWL_SERIAL) += serial_owl.o
+ obj-$(CONFIG_OMAP_SERIAL) += serial_omap.o
+ obj-$(CONFIG_MTK_SERIAL) += serial_mtk.o
+ obj-$(CONFIG_MT7620_SERIAL) += serial_mt7620.o
+-obj-$(CONFIG_EN75XX_SERIAL) += serial_en75xx.o
+ obj-$(CONFIG_HTIF_CONSOLE) += serial_htif.o
+ obj-$(CONFIG_SIFIVE_SERIAL) += serial_sifive.o
+ obj-$(CONFIG_XEN_SERIAL) += serial_xen.o
+diff --git a/drivers/serial/serial_econet.c b/drivers/serial/serial_econet.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/serial/serial_econet.c
+@@ -0,0 +1,137 @@
++// SPDX-License-Identifier: GPL-2.0+
++/* Airoha UART */
++
++#include <dm.h>
++#include <errno.h>
++#include <serial.h>
++#include <asm/io.h>
++#include <linux/kernel.h>
++#include <linux/types.h>
++
++#define UART_RBR	0x03
++#define UART_THR	0x03
++#define UART_IER	0x07
++#define UART_FCR	0x0b
++#define UART_LCR	0x0f
++#define UART_MCR	0x13
++#define UART_LSR	0x17
++#define UART_MISCC	0x27
++#define UART_XYD	0x2c
++
++#define UART_LCR_DLAB	0x80
++#define UART_LCR_8N1	0x03
++#define UART_LSR_DR	0x01
++#define UART_LSR_THRE	0x20
++
++struct en75xx_serial_plat {
++	void __iomem *base;
++};
++
++static void en75xx_serial_hw_init(struct en75xx_serial_plat *plat,
++				  int baudrate)
++{
++	void __iomem *base = plat->base;
++	u32 div_x;
++
++	/*
++	 * EN7512/EN7521 use Y=65000 and X=baud*13/25 with the fixed
++	 * 20 MHz UART source. This reproduces the vendor divider table.
++	 */
++	if (baudrate <= 0)
++		baudrate = CONFIG_BAUDRATE;
++	div_x = DIV_ROUND_CLOSEST((u32)baudrate * 13, 25);
++	if (div_x > 0xffff)
++		div_x = 0xffff;
++
++	writeb(UART_LCR_DLAB, base + UART_LCR);
++	__raw_writel((div_x << 16) | 65000, base + UART_XYD);
++	writeb(1, base + UART_RBR);
++	writeb(0, base + UART_IER);
++	writeb(UART_LCR_8N1, base + UART_LCR);
++	writeb(0x0f, base + UART_FCR);
++	writeb(0, base + UART_MCR);
++	writeb(0, base + UART_MISCC);
++	writeb(0, base + UART_IER);
++}
++
++static int en75xx_serial_putc(struct udevice *dev, const char ch)
++{
++	struct en75xx_serial_plat *plat = dev_get_plat(dev);
++
++	if (!(readb(plat->base + UART_LSR) & UART_LSR_THRE))
++		return -EAGAIN;
++
++	writeb(ch, plat->base + UART_THR);
++	return 0;
++}
++
++static int en75xx_serial_getc(struct udevice *dev)
++{
++	struct en75xx_serial_plat *plat = dev_get_plat(dev);
++
++	if (!(readb(plat->base + UART_LSR) & UART_LSR_DR))
++		return -EAGAIN;
++
++	return readb(plat->base + UART_RBR);
++}
++
++static int en75xx_serial_pending(struct udevice *dev, bool input)
++{
++	struct en75xx_serial_plat *plat = dev_get_plat(dev);
++	u8 lsr = readb(plat->base + UART_LSR);
++
++	if (input)
++		return !!(lsr & UART_LSR_DR);
++
++	return !(lsr & UART_LSR_THRE);
++}
++
++static int en75xx_serial_setbrg(struct udevice *dev, int baudrate)
++{
++	struct en75xx_serial_plat *plat = dev_get_plat(dev);
++
++	en75xx_serial_hw_init(plat, baudrate);
++	return 0;
++}
++
++static int en75xx_serial_of_to_plat(struct udevice *dev)
++{
++	struct en75xx_serial_plat *plat = dev_get_plat(dev);
++
++	plat->base = dev_remap_addr(dev);
++	if (!plat->base)
++		return -EINVAL;
++
++	return 0;
++}
++
++static int en75xx_serial_probe(struct udevice *dev)
++{
++	struct en75xx_serial_plat *plat = dev_get_plat(dev);
++
++	en75xx_serial_hw_init(plat, CONFIG_BAUDRATE);
++	return 0;
++}
++
++static const struct dm_serial_ops en75xx_serial_ops = {
++	.putc = en75xx_serial_putc,
++	.pending = en75xx_serial_pending,
++	.getc = en75xx_serial_getc,
++	.setbrg = en75xx_serial_setbrg,
++};
++
++static const struct udevice_id en75xx_serial_ids[] = {
++	{ .compatible = "econet,en7512-uart" },
++	{ }
++};
++
++U_BOOT_DRIVER(serial_en75xx) = {
++	.name = "serial_en75xx",
++	.id = UCLASS_SERIAL,
++	.of_match = en75xx_serial_ids,
++	.of_to_plat = en75xx_serial_of_to_plat,
++	.plat_auto = sizeof(struct en75xx_serial_plat),
++	.probe = en75xx_serial_probe,
++	.ops = &en75xx_serial_ops,
++	.flags = DM_FLAG_PRE_RELOC,
++};
+diff --git a/drivers/serial/serial_en75xx.c b/drivers/serial/serial_en75xx.c
+deleted file mode 100644
+--- a/drivers/serial/serial_en75xx.c
++++ /dev/null
+@@ -1,137 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0+
+-/* EcoNet/Airoha EN75xx UART */
+-
+-#include <dm.h>
+-#include <errno.h>
+-#include <serial.h>
+-#include <asm/io.h>
+-#include <linux/kernel.h>
+-#include <linux/types.h>
+-
+-#define UART_RBR	0x03
+-#define UART_THR	0x03
+-#define UART_IER	0x07
+-#define UART_FCR	0x0b
+-#define UART_LCR	0x0f
+-#define UART_MCR	0x13
+-#define UART_LSR	0x17
+-#define UART_MISCC	0x27
+-#define UART_XYD	0x2c
+-
+-#define UART_LCR_DLAB	0x80
+-#define UART_LCR_8N1	0x03
+-#define UART_LSR_DR	0x01
+-#define UART_LSR_THRE	0x20
+-
+-struct en75xx_serial_plat {
+-	void __iomem *base;
+-};
+-
+-static void en75xx_serial_hw_init(struct en75xx_serial_plat *plat,
+-				  int baudrate)
+-{
+-	void __iomem *base = plat->base;
+-	u32 div_x;
+-
+-	/*
+-	 * EN7512/EN7521 use Y=65000 and X=baud*13/25 with the fixed
+-	 * 20 MHz UART source. This reproduces the vendor divider table.
+-	 */
+-	if (baudrate <= 0)
+-		baudrate = CONFIG_BAUDRATE;
+-	div_x = DIV_ROUND_CLOSEST((u32)baudrate * 13, 25);
+-	if (div_x > 0xffff)
+-		div_x = 0xffff;
+-
+-	writeb(UART_LCR_DLAB, base + UART_LCR);
+-	__raw_writel((div_x << 16) | 65000, base + UART_XYD);
+-	writeb(1, base + UART_RBR);
+-	writeb(0, base + UART_IER);
+-	writeb(UART_LCR_8N1, base + UART_LCR);
+-	writeb(0x0f, base + UART_FCR);
+-	writeb(0, base + UART_MCR);
+-	writeb(0, base + UART_MISCC);
+-	writeb(0, base + UART_IER);
+-}
+-
+-static int en75xx_serial_putc(struct udevice *dev, const char ch)
+-{
+-	struct en75xx_serial_plat *plat = dev_get_plat(dev);
+-
+-	if (!(readb(plat->base + UART_LSR) & UART_LSR_THRE))
+-		return -EAGAIN;
+-
+-	writeb(ch, plat->base + UART_THR);
+-	return 0;
+-}
+-
+-static int en75xx_serial_getc(struct udevice *dev)
+-{
+-	struct en75xx_serial_plat *plat = dev_get_plat(dev);
+-
+-	if (!(readb(plat->base + UART_LSR) & UART_LSR_DR))
+-		return -EAGAIN;
+-
+-	return readb(plat->base + UART_RBR);
+-}
+-
+-static int en75xx_serial_pending(struct udevice *dev, bool input)
+-{
+-	struct en75xx_serial_plat *plat = dev_get_plat(dev);
+-	u8 lsr = readb(plat->base + UART_LSR);
+-
+-	if (input)
+-		return !!(lsr & UART_LSR_DR);
+-
+-	return !(lsr & UART_LSR_THRE);
+-}
+-
+-static int en75xx_serial_setbrg(struct udevice *dev, int baudrate)
+-{
+-	struct en75xx_serial_plat *plat = dev_get_plat(dev);
+-
+-	en75xx_serial_hw_init(plat, baudrate);
+-	return 0;
+-}
+-
+-static int en75xx_serial_of_to_plat(struct udevice *dev)
+-{
+-	struct en75xx_serial_plat *plat = dev_get_plat(dev);
+-
+-	plat->base = dev_remap_addr(dev);
+-	if (!plat->base)
+-		return -EINVAL;
+-
+-	return 0;
+-}
+-
+-static int en75xx_serial_probe(struct udevice *dev)
+-{
+-	struct en75xx_serial_plat *plat = dev_get_plat(dev);
+-
+-	en75xx_serial_hw_init(plat, CONFIG_BAUDRATE);
+-	return 0;
+-}
+-
+-static const struct dm_serial_ops en75xx_serial_ops = {
+-	.putc = en75xx_serial_putc,
+-	.pending = en75xx_serial_pending,
+-	.getc = en75xx_serial_getc,
+-	.setbrg = en75xx_serial_setbrg,
+-};
+-
+-static const struct udevice_id en75xx_serial_ids[] = {
+-	{ .compatible = "econet,en7512-uart" },
+-	{ }
+-};
+-
+-U_BOOT_DRIVER(serial_en75xx) = {
+-	.name = "serial_en75xx",
+-	.id = UCLASS_SERIAL,
+-	.of_match = en75xx_serial_ids,
+-	.of_to_plat = en75xx_serial_of_to_plat,
+-	.plat_auto = sizeof(struct en75xx_serial_plat),
+-	.probe = en75xx_serial_probe,
+-	.ops = &en75xx_serial_ops,
+-	.flags = DM_FLAG_PRE_RELOC,
+-};
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -62,7 +62,7 @@ config ADI_SPI3
+ 
+ config AIROHA_SNFI_SPI
+ 	bool "Airoha SPI memory controller driver"
+-	depends on ARCH_AIROHA || ARCH_EN75XX
++	depends on ARCH_AIROHA || ARCH_ECONET
+ 	select REGMAP
+ 	select SPI_MEM
+ 	help
+diff --git a/drivers/spi/airoha_snfi_spi.c b/drivers/spi/airoha_snfi_spi.c
+--- a/drivers/spi/airoha_snfi_spi.c
++++ b/drivers/spi/airoha_snfi_spi.c
+@@ -9,9 +9,7 @@
+  */
+ 
+ #include <asm/unaligned.h>
+-#if IS_ENABLED(CONFIG_ARCH_AIROHA)
+-#include <asm/arch/scu-regmap.h>
+-#endif
++#include <soc/airoha/scu-regmap.h>
+ #include <clk.h>
+ #include <dm.h>
+ #include <dm/device_compat.h>
+diff --git a/include/dt-bindings/reset/econet,en751221-scu.h b/include/dt-bindings/reset/econet,en751221-scu.h
+new file mode 100644
+--- /dev/null
++++ b/include/dt-bindings/reset/econet,en751221-scu.h
+@@ -0,0 +1,49 @@
++/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
++
++#ifndef __DT_BINDINGS_RESET_CONTROLLER_ECONET_EN751221_H_
++#define __DT_BINDINGS_RESET_CONTROLLER_ECONET_EN751221_H_
++
++#define EN751221_XPON_PHY_RST		 0
++#define EN751221_PCM1_ZSI_ISI_RST	 1
++#define EN751221_FE_QDMA1_RST		 2
++#define EN751221_FE_QDMA2_RST		 3
++#define EN751221_FE_UNZIP_RST		 4
++#define EN751221_PCM2_RST		 5
++#define EN751221_PTM_MAC_RST		 6
++#define EN751221_CRYPTO_RST		 7
++#define EN751221_SAR_RST		 8
++#define EN751221_TIMER_RST		 9
++#define EN751221_INTC_RST		10
++#define EN751221_BONDING_RST		11
++#define EN751221_PCM1_RST		12
++#define EN751221_UART_RST		13
++#define EN751221_GPIO_RST		14
++#define EN751221_GDMA_RST		15
++#define EN751221_I2C_MASTER_RST		16
++#define EN751221_PCM2_ZSI_ISI_RST	17
++#define EN751221_SFC_RST		18
++#define EN751221_UART2_RST		19
++#define EN751221_GDMP_RST		20
++#define EN751221_FE_RST			21
++#define EN751221_USB_HOST_P0_RST	22
++#define EN751221_GSW_RST		23
++#define EN751221_SFC2_PCM_RST		24
++#define EN751221_PCIE0_RST		25
++#define EN751221_PCIE1_RST		26
++#define EN751221_CPU_TIMER_RST		27
++#define EN751221_PCIE_HB_RST		28
++#define EN751221_SIMIF_RST		29
++#define EN751221_XPON_MAC_RST		30
++#define EN751221_GFAST_RST		31
++#define EN751221_CPU_TIMER2_RST		32
++#define EN751221_UART3_RST		33
++#define EN751221_UART4_RST		34
++#define EN751221_UART5_RST		35
++#define EN751221_I2C2_RST		36
++#define EN751221_XSI_MAC_RST		37
++#define EN751221_XSI_PHY_RST		38
++#define EN751221_DMT_RST		39
++#define EN751221_USB_PHY_P0_RST		40
++#define EN751221_USB_PHY_P1_RST		41
++
++#endif /* __DT_BINDINGS_RESET_CONTROLLER_ECONET_EN751221_H_ */
+diff --git a/include/soc/airoha/pkgids.h b/include/soc/airoha/pkgids.h
+new file mode 100644
+--- /dev/null
++++ b/include/soc/airoha/pkgids.h
+@@ -0,0 +1,535 @@
++// SPDX-License-Identifier: GPL-2.0
++
++#ifndef __AIROHA_CHIP_ID_H_
++#define __AIROHA_CHIP_ID_H_
++
++#include <linux/bitfield.h>
++#include <linux/io.h>
++#include <linux/kernel.h>
++#include <linux/regmap.h>
++#include <linux/types.h>
++#include <soc/airoha/pkgids.h>
++
++#define AIROHA_PKG_ID_NAME(_id) [(_id)] = #_id
++
++#define AIROHA_NP_SCU_PDIDR		0x05c
++#define AIROHA_NP_SCU_HIR		0x064
++#define AIROHA_NP_SCU_SCREG_WR1	0x284
++
++#define AIROHA_NP_SCU_HIR_MASK		GENMASK(31, 16)
++#define AIROHA_NP_SCU_PDIDR_MASK	GENMASK(15, 0)
++#define AIROHA_NP_SCU_PACKAGE_ID_MASK	GENMASK(3, 0)
++#define AIROHA_NP_SCU_PACKAGE_ID_EXT	BIT(7)
++
++enum airoha_pkg {
++	/* AN7583 */
++	AN7583_PKG = 0x10,
++
++	/* AM7552 */
++	AN7552_PKG = 0xf,
++
++	/* EN7581 */
++	EN7581_PKG = 0xe,
++
++	/* EN7523 */
++	EN7523_PKG = 0xc,
++
++	/* EN7528 */
++	EN7528_PKG = 0xb,
++
++	/* EN7580 */
++	EN7580_PKG = 0xa,
++
++	/* EN7516, EN7527 */
++	EN751627_PKG = 0x9,
++
++	/* EN7526c, EN7522 */
++	EN7526C_PKG = 0x8,
++
++	/* EN7512, EN7521 */
++	EN751221_PKG = 0x7,
++
++	/* MT7505 */
++	MT7505_PKG = 0x6,
++
++	/* MT7510, MT7520 */
++	MT751020_PKG = 0x5,
++};
++
++enum airoha_pkg_ids {
++	/*EN7523*/
++	EN7529DU,
++	EN7529DT,
++	EN7529CU,
++	EN7562DU,
++	EN7562DT,
++	EN7562CU,
++	EN7523GU,
++	EN7523DU,
++	EN7529GTH,
++	EN7562GTH,
++	EN7523SU,
++	EN7529GTS,
++	EN7562GTS,
++	EN7529IT,
++	EN7529CT,
++	EN7562CT,
++	EN7523DT,
++	EN7529DTM,
++	EN7562DTM,
++	EN7529ITM,
++	EN7529CTM,
++	EN7562CTM,
++	EN7523DTM,
++
++	/*EN7528*/
++	EN7528HU,
++	EN7528DU,
++	EN7561DU,
++	EN7526FHEN7528DU,
++	EN7521GEN7528DU,
++
++	/* EN7580 */
++	EN7580GT,
++	EN7580ST,
++	EN7580GAT,
++	EN7565,
++	EN7580,
++
++	/* EN7516 */
++	EN7516G,
++
++	/* EN7527 */
++	EN7527G,
++	EN7561G,
++	EN751627,
++
++	/* EN7512 */
++	EN7512,
++	EN7513,
++	EN7513G,
++
++	/* EN7521, EN7521FC */
++	EN7521FCUD,
++	EN7521F,
++	EN7521S,
++	EN7526D,
++	EN7526F,
++	EN7526G,
++	EN7526FT,
++	EN7526FP,
++	EN7526FT_C,
++	EN751221,
++
++	/* MT7520 */
++	MT7520S,
++	MT7520,
++	MT7520G,
++	MT7525,
++	MT7525G,
++
++	/* AN7581 */
++	AN7581GT,
++	AN7566GT,
++	AN7581PT,
++	AN7581ST,
++	AN7551PT,
++	AN7581CT,
++	AN7581DT,
++	AN7581FG,
++	AN7581FP,
++	AN7581FD,
++	AN7551GT,
++	AN7566PT,
++	AN7581IT,
++	AN7581SIT,
++
++	/* AN7552 */
++	AN7552CT,
++	AN7552ST,
++	AN7552FT,
++	AN7563CT,
++	AN7563PT,
++
++	/* AN7583 */
++	AN7583GT,
++	AN7583GIT,
++	AN7583CT,
++	AN7583DT,
++	RESERVED_PKGID_4,
++	AN7583ST,
++	AN9510GT,
++	RESERVED_PKGID_7,
++	AN7553GT,
++	AN7553CT,
++	AN7567GT,
++	AN7567CT,
++	AN7583ET,
++	AN7583EIT,
++	RESERVED_PKGID_14,
++	RESERVED_PKGID_15,
++	AN7583FG,
++	RESERVED_PKGID_17,
++	AN7583FP,
++	AN7583FD,
++	RESERVED_PKGID_20,
++	AN7583FS,
++	AN7583FF,
++
++	END_PACKAGE_ID = 0xFFFFFFFF,
++};
++
++static const char *const airoha_pkg_id_names[] = {
++	/* EN7523 */
++	AIROHA_PKG_ID_NAME(EN7529DU),
++	AIROHA_PKG_ID_NAME(EN7529DT),
++	AIROHA_PKG_ID_NAME(EN7529CU),
++	AIROHA_PKG_ID_NAME(EN7562DU),
++	AIROHA_PKG_ID_NAME(EN7562DT),
++	AIROHA_PKG_ID_NAME(EN7562CU),
++	AIROHA_PKG_ID_NAME(EN7523GU),
++	AIROHA_PKG_ID_NAME(EN7523DU),
++	AIROHA_PKG_ID_NAME(EN7529GTH),
++	AIROHA_PKG_ID_NAME(EN7562GTH),
++	AIROHA_PKG_ID_NAME(EN7523SU),
++	AIROHA_PKG_ID_NAME(EN7529GTS),
++	AIROHA_PKG_ID_NAME(EN7562GTS),
++	AIROHA_PKG_ID_NAME(EN7529IT),
++	AIROHA_PKG_ID_NAME(EN7529CT),
++	AIROHA_PKG_ID_NAME(EN7562CT),
++	AIROHA_PKG_ID_NAME(EN7523DT),
++	AIROHA_PKG_ID_NAME(EN7529DTM),
++	AIROHA_PKG_ID_NAME(EN7562DTM),
++	AIROHA_PKG_ID_NAME(EN7529ITM),
++	AIROHA_PKG_ID_NAME(EN7529CTM),
++	AIROHA_PKG_ID_NAME(EN7562CTM),
++	AIROHA_PKG_ID_NAME(EN7523DTM),
++
++	/* EN7528 */
++	AIROHA_PKG_ID_NAME(EN7528HU),
++	AIROHA_PKG_ID_NAME(EN7528DU),
++	AIROHA_PKG_ID_NAME(EN7561DU),
++	AIROHA_PKG_ID_NAME(EN7526FHEN7528DU),
++	AIROHA_PKG_ID_NAME(EN7521GEN7528DU),
++
++	/* EN7580 */
++	AIROHA_PKG_ID_NAME(EN7580GT),
++	AIROHA_PKG_ID_NAME(EN7580ST),
++	AIROHA_PKG_ID_NAME(EN7580GAT),
++	AIROHA_PKG_ID_NAME(EN7565),
++	AIROHA_PKG_ID_NAME(EN7580),
++
++	/* EN7516 */
++	AIROHA_PKG_ID_NAME(EN7516G),
++
++	/* EN7527 */
++	AIROHA_PKG_ID_NAME(EN7527G),
++	AIROHA_PKG_ID_NAME(EN7561G),
++	AIROHA_PKG_ID_NAME(EN751627),
++
++	/* EN7512 */
++	AIROHA_PKG_ID_NAME(EN7512),
++	AIROHA_PKG_ID_NAME(EN7513),
++	AIROHA_PKG_ID_NAME(EN7513G),
++
++	/* EN7521 / EN7526 */
++	AIROHA_PKG_ID_NAME(EN7521FCUD),
++	AIROHA_PKG_ID_NAME(EN7521F),
++	AIROHA_PKG_ID_NAME(EN7521S),
++	AIROHA_PKG_ID_NAME(EN7526D),
++	AIROHA_PKG_ID_NAME(EN7526F),
++	AIROHA_PKG_ID_NAME(EN7526G),
++	AIROHA_PKG_ID_NAME(EN7526FT),
++	AIROHA_PKG_ID_NAME(EN7526FP),
++	AIROHA_PKG_ID_NAME(EN7526FT_C),
++	AIROHA_PKG_ID_NAME(EN751221),
++
++	/* MT7520 */
++	AIROHA_PKG_ID_NAME(MT7520S),
++	AIROHA_PKG_ID_NAME(MT7520),
++	AIROHA_PKG_ID_NAME(MT7520G),
++	AIROHA_PKG_ID_NAME(MT7525),
++	AIROHA_PKG_ID_NAME(MT7525G),
++
++	/* AN7581 */
++	AIROHA_PKG_ID_NAME(AN7581GT),
++	AIROHA_PKG_ID_NAME(AN7566GT),
++	AIROHA_PKG_ID_NAME(AN7581PT),
++	AIROHA_PKG_ID_NAME(AN7581ST),
++	AIROHA_PKG_ID_NAME(AN7551PT),
++	AIROHA_PKG_ID_NAME(AN7581CT),
++	AIROHA_PKG_ID_NAME(AN7581DT),
++	AIROHA_PKG_ID_NAME(AN7581FG),
++	AIROHA_PKG_ID_NAME(AN7581FP),
++	AIROHA_PKG_ID_NAME(AN7581FD),
++	AIROHA_PKG_ID_NAME(AN7551GT),
++	AIROHA_PKG_ID_NAME(AN7566PT),
++	AIROHA_PKG_ID_NAME(AN7581IT),
++	AIROHA_PKG_ID_NAME(AN7581SIT),
++
++	/* AN7552 */
++	AIROHA_PKG_ID_NAME(AN7552CT),
++	AIROHA_PKG_ID_NAME(AN7552ST),
++	AIROHA_PKG_ID_NAME(AN7552FT),
++	AIROHA_PKG_ID_NAME(AN7563CT),
++	AIROHA_PKG_ID_NAME(AN7563PT),
++
++	/* AN7583 */
++	AIROHA_PKG_ID_NAME(AN7583GT),
++	AIROHA_PKG_ID_NAME(AN7583GIT),
++	AIROHA_PKG_ID_NAME(AN7583CT),
++	AIROHA_PKG_ID_NAME(AN7583DT),
++	AIROHA_PKG_ID_NAME(AN7583ST),
++	AIROHA_PKG_ID_NAME(AN9510GT),
++	AIROHA_PKG_ID_NAME(AN7553GT),
++	AIROHA_PKG_ID_NAME(AN7553CT),
++	AIROHA_PKG_ID_NAME(AN7567GT),
++	AIROHA_PKG_ID_NAME(AN7567CT),
++	AIROHA_PKG_ID_NAME(AN7583ET),
++	AIROHA_PKG_ID_NAME(AN7583EIT),
++	AIROHA_PKG_ID_NAME(AN7583FG),
++	AIROHA_PKG_ID_NAME(AN7583FP),
++	AIROHA_PKG_ID_NAME(AN7583FD),
++	AIROHA_PKG_ID_NAME(AN7583FS),
++	AIROHA_PKG_ID_NAME(AN7583FF),
++};
++
++static inline const char *airoha_pkg_id_name(enum airoha_pkg_ids id)
++{
++	if (id >= END_PACKAGE_ID ||
++	    (unsigned int)id >= ARRAY_SIZE(airoha_pkg_id_names) ||
++	    !airoha_pkg_id_names[id])
++		return "unknown";
++	return airoha_pkg_id_names[id];
++}
++
++static inline const char *
++airoha_pkg_id_range_name(u32 pkgid, enum airoha_pkg_ids first,
++			 enum airoha_pkg_ids last)
++{
++	u32 id;
++
++	if (pkgid > (u32)(last - first))
++		return NULL;
++
++	id = first + pkgid;
++	if (id >= ARRAY_SIZE(airoha_pkg_id_names) ||
++	    !airoha_pkg_id_names[id])
++		return NULL;
++
++	return airoha_pkg_id_names[id];
++}
++
++static inline enum airoha_pkg airoha_pkg_from_id(u32 id)
++{
++	switch (id) {
++	case AN7583_PKG:
++	case 0x7583:
++	case 0x9510:
++	case 0x7553:
++	case 0x7567:
++		return AN7583_PKG;
++	case AN7552_PKG:
++	case 0x7552:
++	case 0x7563:
++		return AN7552_PKG;
++	case EN7581_PKG:
++	case 0x7581:
++	case 0x7566:
++	case 0x7551:
++		return EN7581_PKG;
++	case EN7523_PKG:
++	case 0x7523:
++	case 0x7529:
++	case 0x7562:
++		return EN7523_PKG;
++	case EN7528_PKG:
++	case 0x7528:
++	case 0x7561:
++		return EN7528_PKG;
++	case EN7580_PKG:
++	case 0x7580:
++	case 0x7565:
++		return EN7580_PKG;
++	case EN751627_PKG:
++	case 0x7516:
++	case 0x7527:
++		return EN751627_PKG;
++	case EN7526C_PKG:
++	case 0x7522:
++		return EN7526C_PKG;
++	case EN751221_PKG:
++	case 0x7512:
++	case 0x7513:
++	case 0x7521:
++	case 0x7526:
++		return EN751221_PKG;
++	case MT751020_PKG:
++	case 0x7510:
++	case 0x7520:
++	case 0x7525:
++		return MT751020_PKG;
++	default:
++		return 0;
++	}
++}
++
++static inline const char *airoha_pkg_family_name(enum airoha_pkg pkg)
++{
++	switch (airoha_pkg_from_id(pkg)) {
++	case AN7583_PKG:
++		return "AN7583";
++	case AN7552_PKG:
++		return "AN7552";
++	case EN7581_PKG:
++		return "EN7581";
++	case EN7523_PKG:
++		return "EN7523";
++	case EN7528_PKG:
++		return "EN7528";
++	case EN7580_PKG:
++		return "EN7580";
++	case EN751627_PKG:
++		return "EN7516/EN7527";
++	case EN7526C_PKG:
++		return "EN7526C/EN7522";
++	case EN751221_PKG:
++		return "EN7512/EN7521";
++	case MT751020_PKG:
++		return "MT7510/MT7520";
++	default:
++		return NULL;
++	}
++}
++
++static inline const char *
++airoha_soc_variant_name(enum airoha_pkg pkg, u32 pkgid)
++{
++	switch (airoha_pkg_from_id(pkg)) {
++	case AN7583_PKG:
++		return airoha_pkg_id_range_name(pkgid, AN7583GT, AN7583FF);
++	case AN7552_PKG:
++		return airoha_pkg_id_range_name(pkgid, AN7552CT, AN7563PT);
++	case EN7581_PKG:
++		return airoha_pkg_id_range_name(pkgid, AN7581GT, AN7581SIT);
++	case EN7523_PKG:
++		return airoha_pkg_id_range_name(pkgid, EN7529DU, EN7523DTM);
++	case EN7528_PKG:
++		return airoha_pkg_id_range_name(pkgid, EN7528HU,
++						EN7521GEN7528DU);
++	case EN7580_PKG:
++		return airoha_pkg_id_range_name(pkgid, EN7580GT, EN7580);
++	case EN751627_PKG:
++		return airoha_pkg_id_range_name(pkgid, EN7516G, EN751627);
++	case EN7526C_PKG:
++		return airoha_pkg_id_range_name(pkgid, EN7521FCUD, EN751221);
++	case EN751221_PKG:
++		return airoha_pkg_id_range_name(pkgid, EN7512, EN751221);
++	case MT751020_PKG:
++		return airoha_pkg_id_range_name(pkgid, MT7520S, MT7525G);
++	default:
++		return NULL;
++	}
++}
++
++static inline const char *airoha_soc_name(enum airoha_pkg pkg, u32 pkgid)
++{
++	const char *name;
++
++	name = airoha_soc_variant_name(pkg, pkgid);
++	if (name)
++		return name;
++
++	name = airoha_pkg_family_name(pkg);
++	if (name)
++		return name;
++
++	return "unknown";
++}
++
++static inline const char *
++airoha_soc_name_from_regs(u32 hir, u32 pkgid, u32 pdidr)
++{
++	enum airoha_pkg hir_pkg = airoha_pkg_from_id(hir);
++	enum airoha_pkg pdidr_pkg = airoha_pkg_from_id(pdidr);
++	const char *name;
++
++	name = airoha_soc_variant_name(hir_pkg, pkgid);
++	if (name)
++		return name;
++
++	name = airoha_soc_variant_name(pdidr_pkg, pkgid);
++	if (name)
++		return name;
++
++	name = airoha_pkg_family_name(hir_pkg);
++	if (name)
++		return name;
++
++	name = airoha_pkg_family_name(pdidr_pkg);
++	if (name)
++		return name;
++
++	return "unknown";
++}
++
++static inline u32 airoha_pkgid_from_screg(u32 value)
++{
++	u32 pkgid = FIELD_GET(AIROHA_NP_SCU_PACKAGE_ID_MASK, value);
++
++	if (value & AIROHA_NP_SCU_PACKAGE_ID_EXT)
++		pkgid |= BIT(4);
++
++	return pkgid;
++}
++
++/*
++ * Package IDs are family-relative values stored by the bootloader in the
++ * NP-SCU watchdog-reset scratch register 1. A value of zero is valid.
++ */
++static inline u32 get_pkgid(struct regmap *np_scu)
++{
++	u32 value;
++	int err;
++
++	err = regmap_read(np_scu, AIROHA_NP_SCU_SCREG_WR1, &value);
++	if (err)
++		return END_PACKAGE_ID;
++
++	return airoha_pkgid_from_screg(value);
++}
++
++/* HIR identifies the SoC family, for example EN7523_PKG (0x0c). */
++static inline enum airoha_pkg get_pkg()
++{
++	struct regmap *np_scu = airoha_get_scu_regmap();
++	u32 value;
++	int err;
++
++	err = regmap_read(np_scu, AIROHA_NP_SCU_HIR, &value);
++	if (err)
++		return 0;
++
++	return FIELD_GET(AIROHA_NP_SCU_HIR_MASK, value);
++}
++
++static inline u32 get_pdidr()
++{
++	struct regmap *np_scu = airoha_get_scu_regmap();
++	u32 value;
++	int err;
++
++	err = regmap_read(np_scu, AIROHA_NP_SCU_PDIDR, &value);
++	if (err)
++		return 0;
++
++	return FIELD_GET(AIROHA_NP_SCU_PDIDR_MASK, value);
++}
++
++static inline u32 get_pdidr_mem(void __iomem *np_scu)
++{
++	return FIELD_GET(AIROHA_NP_SCU_PDIDR_MASK,
++			 readl(np_scu + AIROHA_NP_SCU_PDIDR));
++}
++
++#endif
+diff --git a/include/soc/airoha/scu-regmap.h b/include/soc/airoha/scu-regmap.h
+new file mode 100644
+--- /dev/null
++++ b/include/soc/airoha/scu-regmap.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++/*
++ * Author: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
++ */
++#ifndef __AIROHA_SCU_REGMAP__
++#define __AIROHA_SCU_REGMAP__
++
++#include <dm/device.h>
++#include <dm/ofnode.h>
++#include <regmap.h>
++
++struct regmap *airoha_get_scu_regmap(void);
++struct regmap *airoha_get_chip_scu_regmap(void);
++
++#endif
+

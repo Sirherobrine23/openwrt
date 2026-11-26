@@ -1,0 +1,50 @@
+From cd61f0f879bc43788d307779b54727d000423ba7 Mon Sep 17 00:00:00 2001
+From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 02:43:22 -0300
+Subject: [PATCH] airoha: en751221: xr500v: initialize the environment on first
+ boot
+
+The migration helper creates empty ubootenv and ubootenv2 volumes.
+Until U-Boot saves its board environment, Linux fw_env has no valid
+copy. A Linux fw_setenv using its generic fallback defaults can then
+persist a bootcmd that is not the XR500v boot path.
+
+Add a first-boot marker to the default environment and check it from
+the default bootcmd. Remove the marker before exporting the environment
+and call saveenv twice. On the successful path, env_ubi_save writes the
+primary volume from ENV_INVALID, changes env_valid to ENV_VALID, then
+writes the redundant volume. Both saved copies omit the marker.
+
+Existing saved environments without this marker do not need rewriting.
+Keep booting if saving fails; this is not a transactional repair scheme
+and a failed save can leave fewer than two valid copies.
+
+The same code was exercised in the daily integration with existing
+valid environments. The recent hardware run did not exercise saving
+into two empty UBI volumes.
+
+Co-authored-by: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Signed-off-by: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
+---
+ defenvs/en751221_tplink_archer-xr500v-v1 | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/defenvs/en751221_tplink_archer-xr500v-v1 b/defenvs/en751221_tplink_archer-xr500v-v1
+--- a/defenvs/en751221_tplink_archer-xr500v-v1
++++ b/defenvs/en751221_tplink_archer-xr500v-v1
+@@ -48,7 +48,13 @@ format_ubi_part=\
+     echo "OEM backups missing or invalid: nothing erased"; \
+   fi
+ 
+-bootcmd=run boot_ubi
++# format_ubi_part leaves ubootenv/ubootenv2 empty. Save this environment in
++# both of them on the first boot: until then Linux's fw_setenv finds no valid
++# copy and would store its own generic default environment (bootcmd=run
++# distro_bootcmd) instead, and U-Boot would stop booting OpenWrt. _init_env
++# removes itself, so a saved environment never runs it again.
++_init_env=setenv _init_env; saveenv; saveenv
++bootcmd=if env exists _init_env; then run _init_env; fi; run boot_ubi
+ bootdelay=1
+ bootmenu_confirm_return=askenv - Press ENTER to return to menu ; bootmenu 20
+ bootmenu_default=0
+

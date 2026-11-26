@@ -1,0 +1,141 @@
+From af06d27469dbc1b4741f425163d080a4d8499b22 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 25 Nov 2026 12:52:11 -0300
+Subject: [PATCH] clk: en751627: fix clocks for en751627
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ drivers/clk/airoha/clk-airoha.c | 83 ++++++++++++++++++++++++++++++++---------
+ 1 file changed, 66 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/clk/airoha/clk-airoha.c b/drivers/clk/airoha/clk-airoha.c
+--- a/drivers/clk/airoha/clk-airoha.c
++++ b/drivers/clk/airoha/clk-airoha.c
+@@ -33,7 +33,7 @@
+ #define REG_NPU_CLK_DIV_SEL		0x1fc
+ #define REG_CRYPTO_CLKSRC		0x200
+ 
+-/* EN751221 / EN7528 NP-SCU and CHIP-SCU clock registers. */
++/* EcoNet NP-SCU and CHIP-SCU clock registers. */
+ #define REG_PCI_CONTROL			0x088
+ #define   REG_PCI_CONTROL_PERSTOUT	BIT(29)
+ #define   REG_PCI_CONTROL_PERSTOUT1	BIT(26)
+@@ -59,6 +59,14 @@
+ #define   EN751221_XPON_TOD_DIV_EN	BIT(1)
+ #define EN751221_MAX_CLKS		5
+ 
++#define EN751627_REG_SPI_DIV		0x11c
++#define EN751627_SPI_DIV_MASK		GENMASK(15, 8)
++#define EN751627_SPI_CLK_EN		BIT(0)
++#define EN751627_SPI_BASE		400000000UL
++#define EN751627_SPI_DIV_DEFAULT	40
++#define EN751627_REG_NP_PER_DOM_CLK_GAT_1 0x13c
++#define EN751627_REG_TOD_DIVIDER_ENABLE	0x144
++
+ #define EN7528_REG_SPI_DIV		0x0cc
+ #define EN7528_REG_SPI_DIV_MASK	GENMASK(15, 8)
+ #define EN7528_SPI_BASE		400000000
+@@ -779,6 +787,35 @@ err:
+ 	return -EINVAL;
+ }
+ 
++static ulong airoha_econet_spi_set_rate(struct regmap *map, u16 reg,
++				       u32 enable, ulong base, ulong rate)
++{
++	unsigned int div;
++	u32 val;
++	int ret;
++
++	if (!rate || rate > base / 2)
++		return -EINVAL;
++
++	/* Round the clock down to respect the flash's maximum SPI rate. */
++	div = DIV_ROUND_UP(base / 2, rate);
++	if (div > 255)
++		return -EINVAL;
++
++	ret = regmap_read(map, reg, &val);
++	if (ret)
++		return ret;
++
++	/* Disable the clock before replacing the divider. */
++	val &= ~GENMASK(15, 0);
++	ret = regmap_write(map, reg, val);
++	if (ret)
++		return ret;
++
++	ret = regmap_write(map, reg, val | (div << 8) | enable);
++	return ret ? ret : base / (2 * div);
++}
++
+ static ulong airoha_clk_set_rate(struct clk *clk, ulong rate)
+ {
+ 	struct airoha_clk_priv *priv = dev_get_priv(clk->dev);
+@@ -799,24 +836,16 @@ static ulong airoha_clk_set_rate(struct clk *clk, ulong rate)
+ 	if (data->version == EN7580_PKG) {
+ 		if (id != EN7580_CLK_SPI)
+ 			return -EOPNOTSUPP;
+-		if (!rate || rate > EN7580_SPI_BASE / 2)
+-			return -EINVAL;
+-		/* Round down so the flash clock never exceeds the requested rate. */
+-		div = DIV_ROUND_UP(EN7580_SPI_BASE / 2, rate);
+-		if (div > 255)
+-			return -EINVAL;
+-		ret = regmap_read(map, EN7580_REG_SPI_DIV, &val);
+-		if (ret)
+-			return ret;
+-		/* The SDK disables the clock before replacing its divider. */
+-		ret = regmap_write(map, EN7580_REG_SPI_DIV, val & ~GENMASK(15, 0));
+-		if (ret)
+-			return ret;
+-		val = (val & ~GENMASK(15, 0)) | (div << 8) | EN7580_SPI_CLK_EN;
+-		ret = regmap_write(map, EN7580_REG_SPI_DIV, val);
+-		return ret ? ret : EN7580_SPI_BASE / (2 * div);
++		return airoha_econet_spi_set_rate(map, EN7580_REG_SPI_DIV,
++						  EN7580_SPI_CLK_EN,
++						  EN7580_SPI_BASE, rate);
+ 	}
+ 
++	if (data->version == EN751627_PKG && id == EN751221_CLK_SPI)
++		return airoha_econet_spi_set_rate(map, EN751627_REG_SPI_DIV,
++						  EN751627_SPI_CLK_EN,
++						  EN751627_SPI_BASE, rate);
++
+ 	if (data->econet) {
+ 		ulong current = airoha_econet_clk_get_rate(priv, id);
+ 
+@@ -993,6 +1022,23 @@ static const struct airoha_clk_soc_data en751221_data = {
+ 	.econet = &en751221_econet_data,
+ };
+ 
++static const struct airoha_econet_clk_data en751627_econet_data = {
++	.spi_base = EN751627_SPI_BASE,
++	.spi_div_reg = EN751627_REG_SPI_DIV,
++	.spi_div_mask = EN751627_SPI_DIV_MASK,
++	.spi_div_default = EN751627_SPI_DIV_DEFAULT,
++	.xpon_tod_clk_reg = EN751627_REG_NP_PER_DOM_CLK_GAT_1,
++	.xpon_tod_clk_mask = EN751221_XPON_TOD_CLK_EN,
++	.xpon_tod_div_reg = EN751627_REG_TOD_DIVIDER_ENABLE,
++	.xpon_tod_div_mask = EN751221_XPON_TOD_DIV_EN,
++};
++
++static const struct airoha_clk_soc_data en751627_data = {
++	.version = EN751627_PKG,
++	.num_clocks = EN751221_MAX_CLKS,
++	.econet = &en751627_econet_data,
++};
++
+ static const struct airoha_econet_clk_data en7528_econet_data = {
+ 	.spi_base = EN7528_SPI_BASE,
+ 	.spi_div_reg = EN7528_REG_SPI_DIV,
+@@ -1019,6 +1065,9 @@ static const struct udevice_id airoha_clk_ids[] = {
+ 	{ .compatible = "airoha,en751221-scu",
+ 	  .data = (ulong)&en751221_data,
+ 	},
++	{ .compatible = "airoha,en751627-scu",
++	  .data = (ulong)&en751627_data,
++	},
+ 	{ .compatible = "airoha,en7528-scu",
+ 	  .data = (ulong)&en7528_data,
+ 	},
+

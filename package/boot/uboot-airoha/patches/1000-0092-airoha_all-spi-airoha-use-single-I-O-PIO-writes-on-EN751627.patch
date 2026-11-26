@@ -1,0 +1,69 @@
+From 983d08c7a75c510bf540ed778b2cad6bd5507c91 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 25 Nov 2026 13:07:33 -0300
+Subject: [PATCH] spi: airoha: use single-I/O PIO writes on EN751627
+
+EN751627 can time out while loading a full SPI NAND page through
+NFI DMA. Use the tested manual FIFO write path on this SoC.
+
+Reject quad PROGRAM LOAD and RANDOM PROGRAM LOAD so the SPI NAND
+core selects the single-I/O variants. Keep both NFI register banks
+and the existing PIO read path.
+---
+ drivers/spi/airoha_snfi_spi.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/spi/airoha_snfi_spi.c b/drivers/spi/airoha_snfi_spi.c
+--- a/drivers/spi/airoha_snfi_spi.c
++++ b/drivers/spi/airoha_snfi_spi.c
+@@ -258,6 +258,8 @@ struct airoha_snand_soc_data {
+ 	bool has_nfi2spi;
+ 	bool has_boot_trp;
+ 	bool no_dma_read;
++	bool no_dma_write;
++	bool single_io_program;
+ 	bool double_cs;
+ 	u8 manual_dummy;
+ };
+@@ -758,12 +760,21 @@ static bool airoha_snand_is_page_ops(const struct spi_mem_op *op)
+ static bool airoha_snand_supports_op(struct spi_slave *slave,
+ 				     const struct spi_mem_op *op)
+ {
++	struct airoha_snand_priv *priv = dev_get_priv(slave->dev->parent);
++
+ 	if (!spi_mem_default_supports_op(slave, op))
+ 		return false;
+ 
+ 	if (op->cmd.buswidth != 1)
+ 		return false;
+ 
++	/* Use the single-I/O PROGRAM LOAD variants on EN751627. */
++	if (priv->soc->single_io_program && op->addr.nbytes == 2 &&
++	    op->data.dir == SPI_MEM_DATA_OUT &&
++	    (op->cmd.opcode == SPI_NAND_OP_PROGRAM_LOAD_QUAD ||
++	     op->cmd.opcode == SPI_NAND_OP_PROGRAM_LOAD_RAMDON_QUAD))
++		return false;
++
+ 	if (airoha_snand_is_page_ops(op))
+ 		return true;
+ 
+@@ -1018,7 +1029,8 @@ static ssize_t airoha_snand_dirmap_write(struct spi_mem_dirmap_desc *desc,
+ 	size_t bytes;
+ 	int err;
+ 
+-	if (!priv->dma || !airoha_snand_dma_write_ok(desc, offs, len))
++	if (!priv->dma || priv->soc->no_dma_write ||
++	    !airoha_snand_dma_write_ok(desc, offs, len))
+ 		return airoha_snand_no_dirmap_write(desc, offs, len, buf);
+ 
+ 	bytes = len;
+@@ -1376,6 +1388,8 @@ static const struct airoha_snand_soc_data en751627_spi_data = {
+ 	.has_nfi = true,
+ 	.has_nfi2spi = true,
+ 	.no_dma_read = true,
++	.no_dma_write = true,
++	.single_io_program = true,
+ };
+ 
+ static const struct airoha_snand_soc_data en7523_spi_data = {
+

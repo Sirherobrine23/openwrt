@@ -1,0 +1,387 @@
+From c8c76312e1054e6cb9e7330a087131576cc1cf6b Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Thu, 1 Oct 2026 22:56:22 -0300
+Subject: [PATCH] add quantum c6500xk
+
+---
+ arch/mips/dts/econet,en7580-quantum_c6500xk.dts | 99 +++++++++++++++++++++++++
+ arch/mips/dts/econet,en7580.dtsi                | 62 +++++++++++++---
+ configs/en7580_quantum-c6500xk_defconfig        | 86 +++++++++++++++++++++
+ defenvs/en7580-quantum_c6500xk_env              | 40 ++++++++++
+ 4 files changed, 276 insertions(+), 11 deletions(-)
+
+diff --git a/arch/mips/dts/econet,en7580-quantum_c6500xk.dts b/arch/mips/dts/econet,en7580-quantum_c6500xk.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/dts/econet,en7580-quantum_c6500xk.dts
+@@ -0,0 +1,99 @@
++// SPDX-License-Identifier: GPL-2.0+
++/dts-v1/;
++
++#include "econet,en7580.dtsi"
++
++/ {
++	model = "Quantum C6500XK";
++	compatible = "quantum,c6500xk", "econet,en7580", "airoha,en7580";
++
++	/* The RAM-training stage replaces this size during U-Boot startup. */
++	memory@0 {
++		device_type = "memory";
++		reg = <0x00000000 0x10000000>;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++
++/*
++[    3.222338] 0x000000000000-0x000000200000 : "bootloader"
++[    3.242515] 0x000000200000-0x000000400000 : "dsd"
++[    3.348448] 0x000000400000-0x000004400000 : "tclinux"
++[    3.462141] 0x000004400000-0x000008400000 : "tclinux_slave"
++[    3.481968] 0x000008400000-0x00001c400000 : "system"
++[    3.500182] 0x00001c400000-0x00001c600000 : "uenv"
++[    3.517237] 0x00001d5c0000-0x00001d740000 : "art"
++*/
++	
++	flash@0 {
++		compatible = "spi-nand";
++		reg = <0>;
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <2>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			bootloader@0 {
++				label = "tcboot";
++				reg = <0x00000000 0x00200000>;
++				read-only;
++			};
++
++			dsd@200000 {
++				label = "dsd";
++				reg = <0x00200000 0x00200000>;
++			};
++
++			tclinux@400000 {
++				label = "tclinux";
++				reg = <0x00400000 0x00400000>;
++			};
++
++			tclinux_slave@440000 {
++				label = "tclinux_slave";
++				reg = <0x00440000 0x00400000>;
++			};
++
++			system@840000 {
++				label = "system";
++				reg = <0x00840000 0x01400000>;
++			};
++
++			uenv@1c400000 {
++				label = "uenv";
++				reg = <0x01c40000 0x00200000>;
++			};
++
++			art@1d5c0000 {
++				label = "art";
++				reg = <0x1d5c0000 0x00180000>;
++			};
++		};
++	};
++};
++
++&eth {
++	status = "okay";
++};
++
++&gdm1 {
++	status = "okay";
++};
++
++&switch {
++	status = "okay";
++};
+\ No newline at end of file
+diff --git a/arch/mips/dts/econet,en7580.dtsi b/arch/mips/dts/econet,en7580.dtsi
+--- a/arch/mips/dts/econet,en7580.dtsi
++++ b/arch/mips/dts/econet,en7580.dtsi
+@@ -1,9 +1,14 @@
+ // SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+ 
+-#include <dt-bindings/reset/airoha,en7523-reset.h>
++#include <dt-bindings/input/linux-event-codes.h>
++#include <dt-bindings/interrupt-controller/irq.h>
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/leds/common.h>
++#include <dt-bindings/clock/econet,en7580-scu.h>
++#include <dt-bindings/reset/econet,en7580-scu.h>
+ 
+ / {
+-	compatible = "airoha,en7580";
++	compatible = "econet,en7580", "airoha,en7580";
+ 	#address-cells = <1>;
+ 	#size-cells = <1>;
+ 
+@@ -20,6 +25,7 @@
+ 
+ 	aliases {
+ 		serial0 = &uart0;
++		ethernet0 = &gdm1;
+ 	};
+ 
+ 	soc {
+@@ -29,27 +35,43 @@
+ 		ranges;
+ 
+ 		chip_scu: syscon@1fa20000 {
+-			compatible = "airoha,en7580-chip-scu",
+-				     "airoha,en7528-chip-scu", "syscon";
++			compatible = "airoha,scuclk", "airoha,en7580-chip-scu", "syscon";
+ 			reg = <0x1fa20000 0x400>;
+ 		};
+ 
+ 		scuclk: system-controller@1fb00000 {
+-			compatible = "airoha,en7580-scu", "airoha,en7528-scu",
+-				     "syscon";
++			compatible = "airoha,en7580-scu", "syscon";
+ 			reg = <0x1fb00000 0x1000>;
++
+ 			airoha,chip-scu = <&chip_scu>;
+ 			#clock-cells = <1>;
+ 			#reset-cells = <1>;
+ 		};
+ 
++		system-controller@1fbf0200 {
++			compatible = "syscon", "simple-mfd";
++			reg = <0x1fbf0200 0xc0>;
++
++			pinctrl: pinctrl {
++				compatible = "airoha,en7580-pinctrl";
++				airoha,chip-scu = <&chip_scu>;
++
++				gpio-controller;
++				#gpio-cells = <2>;
++				gpio-ranges = <&pinctrl 0 0 42>;
++			};
++		};
++
+ 		uart0: serial@1fbf0000 {
+ 			compatible = "ns16550";
+ 			reg = <0x1fbf0000 0x30>;
++
+ 			reg-io-width = <4>;
+ 			reg-shift = <2>;
++
+ 			clock-frequency = <1843200>;
+ 			current-speed = <115200>;
++
+ 			status = "disabled";
+ 		};
+ 
+@@ -57,25 +79,33 @@
+ 			compatible = "airoha,en7523-spi";
+ 			reg = <0x1fa10000 0x140>,
+ 			      <0x1fa11000 0x600>;
++
++			clocks = <&scuclk EN7580_CLK_SPI>;
++			clock-names = "spi";
++
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
++
+ 			status = "disabled";
+ 		};
+ 
+ 		eth: ethernet@1fb50000 {
+ 			compatible = "econet,en7580-eth";
++			status = "disabled";
+ 			reg = <0x1fb50000 0x2600>,
+ 			      <0x1fb54000 0x2000>,
+ 			      <0x1fb56000 0x2000>,
+ 			      <0x1fa40000 0x8000>;
+ 			reg-names = "fe", "qdma0", "qdma1", "gdmp";
+-			resets = <&scuclk EN7523_FE_RST>,
+-				 <&scuclk EN7523_FE_PDMA_RST>,
+-				 <&scuclk EN7523_FE_QDMA_RST>;
+-			reset-names = "fe", "pdma", "qdma";
++
++			resets = <&scuclk EN7580_FE_RST>,
++				 <&scuclk EN7580_FE_QDMA1_RST>,
++				 <&scuclk EN7580_FE_QDMA2_RST>,
++				 <&scuclk EN7580_GSW_RST>;
++			reset-names = "fe", "pdma", "qdma", "switch";
++
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;
+-			status = "disabled";
+ 
+ 			gdm1: mac@1 {
+ 				compatible = "econet,eth-mac";
+@@ -93,7 +123,17 @@
+ 		switch: switch@1fb58000 {
+ 			compatible = "airoha,en7580-switch";
+ 			reg = <0x1fb58000 0x8000>;
++
+ 			status = "disabled";
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++			dsa,member = <0 0>;
++
++			mdio {
++				#address-cells = <1>;
++				#size-cells = <0>;
++			};
+ 		};
+ 	};
+ };
+diff --git a/configs/en7580_quantum-c6500xk_defconfig b/configs/en7580_quantum-c6500xk_defconfig
+new file mode 100644
+--- /dev/null
++++ b/configs/en7580_quantum-c6500xk_defconfig
+@@ -0,0 +1,86 @@
++CONFIG_MIPS=y
++CONFIG_SKIP_LOWLEVEL_INIT=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_ENV_SIZE=0x1000
++CONFIG_DM_GPIO=y
++CONFIG_DEFAULT_DEVICE_TREE="econet,en7580-quantum_c6500xk"
++CONFIG_SYS_BOOTM_LEN=0x10000000
++CONFIG_SYS_LOAD_ADDR=0x82000000
++CONFIG_DEBUG_UART_BASE=0xbfbf0000
++CONFIG_DEBUG_UART_CLOCK=1843200
++CONFIG_ARCH_ECONET=y
++CONFIG_TARGET_EN7580=y
++CONFIG_SYS_MIPS_TIMER_FREQ=650000000
++CONFIG_MIPS_CACHE_SETUP=y
++CONFIG_MIPS_CACHE_DISABLE=y
++CONFIG_MIPS_RELOCATION_TABLE_SIZE=0xc000
++CONFIG_RESTORE_EXCEPTION_VECTOR_BASE=y
++CONFIG_MIPS_BOOT_FDT=y
++CONFIG_DEBUG_UART=y
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++CONFIG_BOOTDELAY=3
++CONFIG_OF_STDOUT_VIA_ALIAS=y
++CONFIG_DEFAULT_FDT_FILE="econet,en7580-quantum_c6500xk.dtb"
++CONFIG_SYS_PBSIZE=1049
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++CONFIG_DISPLAY_CPUINFO=y
++# CONFIG_DISPLAY_BOARDINFO is not set
++CONFIG_HUSH_PARSER=y
++CONFIG_SYS_PROMPT="U-Boot> "
++CONFIG_SYS_MAXARGS=16
++CONFIG_CMD_BOOTZ=y
++CONFIG_CMD_BOOTMENU=y
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_MEMINFO=y
++CONFIG_CMD_BIND=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_MTD=y
++# CONFIG_CMD_SETEXPR is not set
++CONFIG_CMD_DHCP=y
++CONFIG_CMD_MII=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_LOG=y
++CONFIG_CMD_UBI=y
++CONFIG_ENV_OVERWRITE=y
++CONFIG_ENV_IS_IN_UBI=y
++CONFIG_ENV_REDUNDANT=y
++CONFIG_ENV_UBI_PART="ubi"
++CONFIG_ENV_UBI_VOLUME="ubootenv"
++CONFIG_ENV_UBI_VOLUME_REDUND="ubootenv2"
++CONFIG_ENV_RELOC_GD_ENV_ADDR=y
++CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE=y
++CONFIG_ENV_DEFAULT_ENV_TEXT_FILE="defenvs/en7580-quantum_c6500xk_env"
++CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_SYS_RX_ETH_BUFFER=16
++CONFIG_BUTTON=y
++CONFIG_BUTTON_GPIO=y
++CONFIG_DMA=y
++CONFIG_LED=y
++CONFIG_LED_BOOT=y
++CONFIG_LED_BLINK=y
++CONFIG_LED_SW_BLINK=y
++CONFIG_LED_GPIO=y
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_UBI_BLOCK=y
++CONFIG_PHY=y
++CONFIG_RAM=y
++CONFIG_DEBUG_UART_SHIFT=2
++CONFIG_DEBUG_UART_SKIP_INIT=y
++CONFIG_SYS_NS16550=y
++CONFIG_SYS_NS16550_MEM32=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_AIROHA_SNFI_SPI=y
++# CONFIG_UBIFS_SILENCE_MSG is not set
++CONFIG_SHA512=y
++CONFIG_LZMA=y
+diff --git a/defenvs/en7580-quantum_c6500xk_env b/defenvs/en7580-quantum_c6500xk_env
+new file mode 100644
+--- /dev/null
++++ b/defenvs/en7580-quantum_c6500xk_env
+@@ -0,0 +1,40 @@
++loadaddr=0x89400000
++ipaddr=192.168.1.1
++serverip=192.168.1.10
++bootled_pwr=green:status-6
++
++bootconf=config-1
++bootfile=openwrt-airoha-en751221-nokia_g240g-e-initramfs-kernel.bin
++bootloaderfile=openwrt-airoha-en751221-nokia_g240g-e-uboot-bootloader.bin
++
++boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
++ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++
++boot_openwrt=led $bootled_pwr blink 255; ( run ubi_read_openwrt || echo Install openwrt ; run boot_tftp ) && bootm $loadaddr#$bootconf ; led $bootled_pwr on
++boot_ubi=ubi part ubi && run boot_openwrt
++
++upgrade_uboot=\
++  mw.b 0x89400000 0xff 0x100000 && tftpboot 0x89400000 ${bootloaderfile} && \
++  mtd erase u-boot && mtd write u-boot 0x89400000
++
++format_ubi_part=\
++  mtd read spi-nand0 0x89500000 0x6e40000 0x40000 && \
++  mtd read spi-nand0 0x89540000 0x6d80000 0x40000 && \
++  mtd erase ubi && ubi part ubi && \
++  ubi create ubootenv 0x1f000 static && \
++  ubi create ubootenv2 0x1f000 static && \
++  ubi create ri 0x40000 static && ubi write 0x89500000 ri 0x40000 && \
++  ubi create bosa 0x40000 static && ubi write 0x89540000 bosa 0x40000 && \
++  run upgrade_uboot
++
++bootcmd=run boot_ubi
++bootdelay=3
++bootmenu_confirm_return=askenv - Press ENTER to return to menu ; bootmenu 20
++bootmenu_default=0
++bootmenu_delay=3
++bootmenu_title=      34m( ( ( mOpenWrt34m ) ) )
++bootmenu_0=Run default boot command.=run boot_openwrt
++bootmenu_1=Boot system via TFTP.=run boot_tftp ; run bootmenu_confirm_return
++bootmenu_2=Format UBI partition.=run format_ubi_part
++bootmenu_4=Upgrade u-boot.=run upgrade_uboot
++bootmenu_5=Reboot.=reset
+

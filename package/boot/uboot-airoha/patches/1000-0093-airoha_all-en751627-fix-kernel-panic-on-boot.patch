@@ -1,0 +1,84 @@
+From 3102e24feaa1e89a4898ffda8ed29137c73d1e1b Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Wed, 25 Nov 2026 15:20:01 -0300
+Subject: [PATCH] en751627: fix kernel panic on boot
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ board/airoha/en7528/board.c | 30 +++++++++++++-----------------
+ 1 file changed, 13 insertions(+), 17 deletions(-)
+
+diff --git a/board/airoha/en7528/board.c b/board/airoha/en7528/board.c
+--- a/board/airoha/en7528/board.c
++++ b/board/airoha/en7528/board.c
+@@ -23,9 +23,8 @@ static void en7528_clear_eic_shadow_sets(void)
+ 	u32 i, vp;
+ 
+ 	/*
+-	 * The vendor bootram does this after boot2: all 64 EIC vectors are
+-	 * returned to shadow register set 0 on every VP.  boot2 itself does
+-	 * not provide that final handoff cleanup.
++	 * Restore shadow register set 0 for every EIC vector on each VP,
++	 * as the vendor bootram does after boot2.
+ 	 */
+ 	for (i = 0; i < EN7528_GIC_NUM_EIC_VECTORS; i++)
+ 		__raw_writel(0, (void __iomem *)(EN7528_GIC_VL_EIC_SHADOW_SET +
+@@ -44,7 +43,7 @@ static void en7528_clear_eic_shadow_sets(void)
+ 						       i * sizeof(u32)));
+ 	}
+ 
+-	/* Restore redirected local-register access to VP0, as the SDK does. */
++	/* Restore redirected local-register access to VP0. */
+ 	__raw_writel(0, (void __iomem *)EN7528_GIC_VL_OTHER);
+ 	asm volatile("sync" : : : "memory");
+ }
+@@ -52,15 +51,12 @@ static void en7528_clear_eic_shadow_sets(void)
+ static void en7528_quiesce_legacy_timer(void)
+ {
+ 	/*
+-	 * The vendor EN7528 boot2 leaves the CP0 Count/Compare interrupt
+-	 * routable through the GIC and maps it to EIC pin 0x28 + VP ID.
+-	 * Linux CPS/GIC does not use that firmware routing: it installs the
+-	 * GIC dispatcher on EIC pin 0 and this board uses the external HPT as
+-	 * its clockevent.
++	 * boot2 can route CP0 Count/Compare to EIC pin 0x28 + VP ID.
++	 * Linux uses the external HPT for clock events and installs
++	 * the GIC dispatcher on EIC pin 0.
+ 	 *
+-	 * U-Boot resets Count and Compare to zero during startup.  If U-Boot
+-	 * stays up for a full Count wrap the CP0 timer therefore becomes
+-	 * pending again.  Do not pass that pending legacy interrupt to Linux.
++	 * Compare starts at zero, so Count can wrap and assert the
++	 * timer interrupt while U-Boot is still running.
+ 	 */
+ 	__raw_writel(EN7528_GIC_LOCAL_IRQS,
+ 		     (void __iomem *)EN7528_GIC_VL_RMASK);
+@@ -68,7 +64,7 @@ static void en7528_quiesce_legacy_timer(void)
+ 		     (void __iomem *)EN7528_GIC_VL_TIMER_MAP);
+ 	asm volatile("sync" : : : "memory");
+ 
+-	/* Writing Compare clears Cause.TI.  Keep the next match far away. */
++	/* Writing Compare clears Cause.TI and delays the next match. */
+ 	write_c0_count(0);
+ 	write_c0_compare(~0U);
+ 	asm volatile("ehb" : : : "memory");
+@@ -79,15 +75,15 @@ int board_init(void)
+ 	if (IS_ENABLED(CONFIG_TARGET_EN7528))
+ 		en7528_clear_eic_shadow_sets();
+ 
+- 	return 0;
+- }
++	return 0;
++}
+ 
+ void board_quiesce_devices(void)
+ {
+-	if (!IS_ENABLED(CONFIG_TARGET_EN7528))
++	if (!IS_ENABLED(CONFIG_TARGET_EN7528) &&
++	    !IS_ENABLED(CONFIG_TARGET_EN751627))
+ 		return;
+ 
+-	/* Re-assert the SDK's clean EIC state immediately before Linux. */
+ 	en7528_clear_eic_shadow_sets();
+ 	en7528_quiesce_legacy_timer();
+ }

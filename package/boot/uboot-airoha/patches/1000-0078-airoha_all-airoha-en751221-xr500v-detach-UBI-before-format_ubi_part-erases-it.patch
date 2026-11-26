@@ -1,0 +1,37 @@
+From 5ff3118bf570aa9a7e4809149a665eaef4e4abd5 Mon Sep 17 00:00:00 2001
+From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
+Date: Sat, 3 Oct 2026 18:44:44 -0300
+Subject: [PATCH] airoha: en751221: xr500v: detach UBI before format_ubi_part
+ erases it
+
+The environment load attaches the ubi partition before the prompt, so on
+a migrated unit format_ubi_part erased the partition under that
+attachment. 'ubi part ubi' then only reported that the partition was
+already selected, every 'ubi create' failed on the stale state, and the
+erased misc, tcboot_oem and environment volumes were never recreated.
+
+Detach first, as the AN7581 Nokia environment already does.
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Signed-off-by: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
+---
+ defenvs/en751221_tplink_archer-xr500v-v1 | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/defenvs/en751221_tplink_archer-xr500v-v1 b/defenvs/en751221_tplink_archer-xr500v-v1
+--- a/defenvs/en751221_tplink_archer-xr500v-v1
++++ b/defenvs/en751221_tplink_archer-xr500v-v1
+@@ -35,8 +35,12 @@ load_oem_backups=\
+   tftpboot 0x89a00000 ${oembootfile} && itest ${filesize} == 40000 && \
+   itest.l *0x89a0000c == 0x36353738
+ 
++# The environment load attached UBI already: detach it before erasing the
++# partition, or 'ubi part ubi' keeps the stale attachment and every 'ubi
++# create' below fails on a partition that has just been erased.
+ format_ubi_part=\
+   if run load_oem_backups; then \
++    ubi detach && \
+     mtd erase ubi && \
+     ubi part ubi && \
+     ubi create ubootenv 0x1f000 static && \
+

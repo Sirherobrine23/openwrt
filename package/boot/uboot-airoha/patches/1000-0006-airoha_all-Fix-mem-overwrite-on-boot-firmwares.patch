@@ -1,0 +1,40 @@
+From 1999a16d29d808c2828453903d3d43c7009e9f57 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Tue, 23 Jun 2026 22:06:51 -0300
+Subject: [PATCH] Fix mem overwrite on boot firmwares
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ defenvs/en7523-genexis_pixly_r1_env | 2 +-
+ defenvs/en7523-tplink-ex530v_v1_env | 2 +-
+ defenvs/en7523-tplink-xx230v_v1_env | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/defenvs/en7523-genexis_pixly_r1_env b/defenvs/en7523-genexis_pixly_r1_env
+--- a/defenvs/en7523-genexis_pixly_r1_env
++++ b/defenvs/en7523-genexis_pixly_r1_env
+@@ -1,4 +1,4 @@
+-loadaddr=0x90000000
++loadaddr=0x89400000
+ ipaddr=192.168.1.1
+ serverip=192.168.1.10
+ bootfile=openwrt-airoha-en7523-genexis_pixly_r1-initramfs-kernel.bin
+diff --git a/defenvs/en7523-tplink-ex530v_v1_env b/defenvs/en7523-tplink-ex530v_v1_env
+--- a/defenvs/en7523-tplink-ex530v_v1_env
++++ b/defenvs/en7523-tplink-ex530v_v1_env
+@@ -1,4 +1,4 @@
+-loadaddr=0x86a00000
++loadaddr=0x89400000
+ ipaddr=192.168.1.1
+ serverip=192.168.1.10
+ bootled_pwr=green:power
+diff --git a/defenvs/en7523-tplink-xx230v_v1_env b/defenvs/en7523-tplink-xx230v_v1_env
+--- a/defenvs/en7523-tplink-xx230v_v1_env
++++ b/defenvs/en7523-tplink-xx230v_v1_env
+@@ -1,4 +1,4 @@
+-loadaddr=0x86a00000
++loadaddr=0x89400000
+ ipaddr=192.168.1.1
+ serverip=192.168.1.10
+ bootled_pwr=green:power
+

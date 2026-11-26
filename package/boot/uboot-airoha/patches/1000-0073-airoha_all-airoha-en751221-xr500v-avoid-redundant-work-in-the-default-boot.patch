@@ -1,0 +1,71 @@
+From e9c75c49cbf6210987a04d0952b0761697aea2c9 Mon Sep 17 00:00:00 2001
+From: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 02:43:22 -0300
+Subject: [PATCH] airoha: en751221: xr500v: avoid redundant work in the default
+ boot
+
+The board reads the entire 4.5 MiB misc volume just to get the six-byte
+MAC at offset 0xf100. Limit that read to the first 64 KiB.
+
+Drop the separate iminfo pass before bootm. bootm retains its normal
+verification of the selected FIT configuration and images. Move the
+TFTP fallback after the bootm attempt so either a failed UBI read or a
+returning/failed bootm can reach recovery. This does not force a new
+value of the user-controlled verify variable.
+
+Set the compiled and text-environment default boot delay to one second.
+Saved environments retain their own values. The UART countdown remains
+interruptible; this setting has been used on the XR500v daily setup.
+
+These changes have been used in the XR500v daily integration.
+Do not attribute a fixed time saving to this change: the daily image
+also contains independent SNFI optimizations, and no isolated timing
+comparison of this upstream-only series was run.
+
+Co-authored-by: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Signed-off-by: Cristian Papa <76759272+Cris7015@users.noreply.github.com>
+---
+ configs/en751221_tplink_archer-xr500v-v1_defconfig | 2 +-
+ defenvs/en751221_tplink_archer-xr500v-v1           | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/configs/en751221_tplink_archer-xr500v-v1_defconfig b/configs/en751221_tplink_archer-xr500v-v1_defconfig
+--- a/configs/en751221_tplink_archer-xr500v-v1_defconfig
++++ b/configs/en751221_tplink_archer-xr500v-v1_defconfig
+@@ -15,7 +15,7 @@ CONFIG_RESTORE_EXCEPTION_VECTOR_BASE=y
+ CONFIG_MIPS_BOOT_FDT=y
+ CONFIG_FIT=y
+ CONFIG_FIT_VERBOSE=y
+-CONFIG_BOOTDELAY=3
++CONFIG_BOOTDELAY=1
+ CONFIG_OF_STDOUT_VIA_ALIAS=y
+ CONFIG_DEFAULT_FDT_FILE="econet,en751221-tplink_archer-xr500v-v1.dtb"
+ CONFIG_SYS_PBSIZE=1049
+diff --git a/defenvs/en751221_tplink_archer-xr500v-v1 b/defenvs/en751221_tplink_archer-xr500v-v1
+--- a/defenvs/en751221_tplink_archer-xr500v-v1
++++ b/defenvs/en751221_tplink_archer-xr500v-v1
+@@ -8,11 +8,11 @@ bootfile=openwrt-airoha-en751221-tplink_archer-xr500v-v1-initramfs-kernel.bin
+ bootloaderfile=openwrt-airoha-en751221-tplink_archer-xr500v-v1-uboot-bootloader.bin
+ 
+ boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
+-ubi_read_openwrt=ubi read $loadaddr fit && iminfo $loadaddr
++ubi_read_openwrt=ubi read $loadaddr fit
+ 
+-set_ethaddr=ubi read 0x89f00000 misc 0x480000 && bin2mac ethaddr 0x89f0f100 6
++set_ethaddr=ubi read 0x89f00000 misc 0x10000 && bin2mac ethaddr 0x89f0f100 6
+ 
+-boot_openwrt=led $bootled blink 255; run set_ethaddr; if run ubi_read_openwrt; then bootm $loadaddr#$bootconf; else echo Install openwrt; run boot_tftp; fi; led $bootled on
++boot_openwrt=led $bootled blink 255; run set_ethaddr; if run ubi_read_openwrt; then bootm $loadaddr#$bootconf; fi; echo Install openwrt; run boot_tftp; led $bootled on
+ boot_ubi=ubi part ubi && run boot_openwrt
+ 
+ upgrade_uboot=\
+@@ -49,7 +49,7 @@ format_ubi_part=\
+   fi
+ 
+ bootcmd=run boot_ubi
+-bootdelay=3
++bootdelay=1
+ bootmenu_confirm_return=askenv - Press ENTER to return to menu ; bootmenu 20
+ bootmenu_default=0
+ bootmenu_delay=3
+

@@ -1,0 +1,331 @@
+From 279165c2df3dbbeb7d01fe4ceea64156e0554051 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Sun, 22 Nov 2026 20:38:32 -0300
+Subject: [PATCH] en751627: add zyxel vmg8623-t50b
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ .../dts/econet,en751627-zyxel_vmg8623-t50b.dts     | 168 +++++++++++++++++++++
+ configs/en751627_zyxel-vmg8623-t50b_defconfig      |  93 ++++++++++++
+ defenvs/en751627-zyxel_vmg8623-t50b_env            |  42 ++++++
+ 3 files changed, 303 insertions(+)
+
+diff --git a/arch/mips/dts/econet,en751627-zyxel_vmg8623-t50b.dts b/arch/mips/dts/econet,en751627-zyxel_vmg8623-t50b.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/mips/dts/econet,en751627-zyxel_vmg8623-t50b.dts
+@@ -0,0 +1,168 @@
++// SPDX-License-Identifier: GPL-2.0+
++/dts-v1/;
++#include "econet,en751627.dtsi"
++
++/ {
++	model = "Zyxel VMG8623-T50B";
++	compatible = "econet,en751627-zyxel_vmg8623-t50b", "econet,en751627";
++
++	memory@0 {
++		device_type = "memory";
++		/* Placeholder; dram_init uses the vendor calibrated size. */
++		reg = <0x00000000 0x10000000>;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	keys {
++		compatible = "gpio-keys";
++
++		key-reset {
++			label = "Reset";
++			gpios = <&pinctrl 0 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RESTART>;
++			debounce-interval = <60>;
++		};
++
++		wps {
++			label = "wps";
++			gpios = <&pinctrl 28 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_WPS_BUTTON>;
++			debounce-interval = <60>;
++		};
++
++		key-wlan {
++			label = "wifi";
++			gpios = <&pinctrl 2 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_RFKILL>;
++			debounce-interval = <60>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led_power_green: led-power-green {
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <8>;
++			gpios = <&pinctrl 8 GPIO_ACTIVE_LOW>;
++		};
++
++		led_power_red: led-power-red {
++			color = <LED_COLOR_ID_RED>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <6>;
++			gpios = <&pinctrl 6 GPIO_ACTIVE_LOW>;
++		};
++
++		led-internet {
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_WAN_ONLINE;
++			function-enumerator = <4>;
++			gpios = <&pinctrl 4 GPIO_ACTIVE_LOW>;
++		};
++
++		led_internet_red: led-internet-red {
++			color = <LED_COLOR_ID_RED>;
++			function = LED_FUNCTION_WAN_ONLINE;
++			function-enumerator = <3>;
++			gpios = <&pinctrl 3 GPIO_ACTIVE_LOW>;
++		};
++
++		led_dsl: led-dsl {
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <5>;
++			gpios = <&pinctrl 5 GPIO_ACTIVE_LOW>;
++		};
++
++		led_voip_green: led-voip-green {
++			color = <LED_COLOR_ID_GREEN>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <9>;
++			gpios = <&pinctrl 9 GPIO_ACTIVE_LOW>;
++		};
++
++		led_voip_amber: led-voip-amber {
++			color = <LED_COLOR_ID_AMBER>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <10>;
++			gpios = <&pinctrl 10 GPIO_ACTIVE_LOW>;
++		};
++
++		led_wlan_2g: led-wlan-2g {
++			color = <LED_COLOR_ID_AMBER>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <21>;
++			gpios = <&pinctrl 21 GPIO_ACTIVE_LOW>;
++		};
++
++		led_wlan_5g: led-wlan-5g {
++			color = <LED_COLOR_ID_AMBER>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <20>;
++			gpios = <&pinctrl 20 GPIO_ACTIVE_LOW>;
++		};
++
++		led_wps_2g: led-wps-2g {
++			color = <LED_COLOR_ID_AMBER>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <23>;
++			gpios = <&pinctrl 23 GPIO_ACTIVE_LOW>;
++		};
++
++		led_wps_5g: led-wps-5g {
++			color = <LED_COLOR_ID_AMBER>;
++			function = LED_FUNCTION_STATUS;
++			function-enumerator = <22>;
++			gpios = <&pinctrl 22 GPIO_ACTIVE_LOW>;
++		};
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&eth {
++	status = "okay";
++};
++
++&gdm1 {
++	status = "okay";
++};
++
++&switch {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++
++	nand: nand@0 {
++		compatible = "spi-nand";
++		reg = <0>;
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <2>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++	
++			partition@0 {
++				label = "u-boot";
++				reg = <0x000000 0x100000>;
++			};
++	
++			partition@100000 {
++				label = "ubi";
++				reg = <0x100000 0x000000>;
++			};
++		};
++	};
++};
+diff --git a/configs/en751627_zyxel-vmg8623-t50b_defconfig b/configs/en751627_zyxel-vmg8623-t50b_defconfig
+new file mode 100644
+--- /dev/null
++++ b/configs/en751627_zyxel-vmg8623-t50b_defconfig
+@@ -0,0 +1,93 @@
++CONFIG_MIPS=y
++CONFIG_SKIP_LOWLEVEL_INIT=y
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_ENV_SIZE=0x4000
++CONFIG_DM_GPIO=y
++CONFIG_DEFAULT_DEVICE_TREE="econet,en751627-zyxel_vmg8623-t50b"
++CONFIG_SYS_BOOTM_LEN=0x08000000
++CONFIG_SYS_LOAD_ADDR=0x82000000
++CONFIG_ARCH_ECONET=y
++CONFIG_TARGET_EN751627=y
++CONFIG_SYS_MIPS_TIMER_FREQ=200000000
++CONFIG_MIPS_CACHE_SETUP=y
++CONFIG_MIPS_CACHE_DISABLE=y
++CONFIG_MIPS_RELOCATION_TABLE_SIZE=0xc000
++CONFIG_RESTORE_EXCEPTION_VECTOR_BASE=y
++CONFIG_MIPS_BOOT_FDT=y
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++# CONFIG_BOOTMETH_VBE is not set
++CONFIG_BOOTDELAY=3
++CONFIG_OF_STDOUT_VIA_ALIAS=y
++CONFIG_DEFAULT_FDT_FILE="econet,en751627-zyxel_vmg8623-t50b.dtb"
++CONFIG_SYS_PBSIZE=1049
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++CONFIG_DISPLAY_CPUINFO=y
++# CONFIG_DISPLAY_BOARDINFO is not set
++CONFIG_HUSH_PARSER=y
++CONFIG_SYS_PROMPT="U-Boot> "
++CONFIG_SYS_MAXARGS=16
++CONFIG_CMD_BOOTZ=y
++CONFIG_CMD_BOOTMENU=y
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_MEMINFO=y
++CONFIG_CMD_BIND=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_MTD=y
++CONFIG_CMD_PART=y
++CONFIG_CMD_TFTPPUT=y
++CONFIG_CMD_DHCP=y
++CONFIG_CMD_MII=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_LOG=y
++CONFIG_CMD_UBI=y
++CONFIG_ENV_OVERWRITE=y
++CONFIG_ENV_IS_IN_UBI=y
++CONFIG_ENV_REDUNDANT=y
++CONFIG_ENV_UBI_PART="ubi"
++CONFIG_ENV_UBI_VOLUME="ubootenv"
++CONFIG_ENV_UBI_VOLUME_REDUND="ubootenv2"
++CONFIG_ENV_RELOC_GD_ENV_ADDR=y
++CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE=y
++CONFIG_ENV_DEFAULT_ENV_TEXT_FILE="defenvs/en751627-zyxel_vmg8623-t50b_env"
++CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
++CONFIG_IPV6=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_SYS_RX_ETH_BUFFER=16
++CONFIG_BUTTON=y
++CONFIG_BUTTON_GPIO=y
++CONFIG_DMA=y
++CONFIG_SYS_I2C_MT7621=y
++CONFIG_LED=y
++CONFIG_LED_BOOT=y
++CONFIG_LED_BLINK=y
++CONFIG_LED_SW_BLINK=y
++CONFIG_LED_GPIO=y
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH_EON=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_SPI_FLASH_XMC=y
++CONFIG_SPI_FLASH_MTD=y
++CONFIG_UBI_BLOCK=y
++CONFIG_PHY=y
++CONFIG_RAM=y
++CONFIG_SYS_NS16550=y
++CONFIG_SYS_NS16550_MEM32=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_AIROHA_SNFI_SPI=y
++# CONFIG_UBIFS_SILENCE_MSG is not set
++CONFIG_FS_SQUASHFS=y
++CONFIG_SHA512=y
++CONFIG_LZMA=y
++# CONFIG_VPL_LZMA is not set
++CONFIG_HEXDUMP=y
+diff --git a/defenvs/en751627-zyxel_vmg8623-t50b_env b/defenvs/en751627-zyxel_vmg8623-t50b_env
+new file mode 100644
+--- /dev/null
++++ b/defenvs/en751627-zyxel_vmg8623-t50b_env
+@@ -0,0 +1,42 @@
++loadaddr=0x89000000
++ipaddr=192.168.1.1
++serverip=192.168.1.10
++bootled_pwr=green:status-8
++
++bootconf=config-1
++bootfile=openwrt-airoha-en751627-zyxel_vmg8623-t50b-initramfs-kernel.bin
++bootloaderfile=openwrt-airoha-en751627-zyxel_vmg8623-t50b-tcboot.bin
++
++boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr#$bootconf
++ubi_read_openwrt=ubi read $loadaddr fit
++
++boot_openwrt=led $bootled_pwr blink 255; run ubi_read_openwrt && bootm $loadaddr#$bootconf; echo Install openwrt ; run boot_tftp ; led $bootled_pwr on
++boot_ubi=ubi part ubi && run boot_openwrt
++
++load_uboot=mw.b 0x89000000 0xff 0x100000 && tftpboot 0x89000000 ${bootloaderfile}
++flash_uboot=mtd erase u-boot && mtd write u-boot 0x89000000
++upgrade_uboot=run load_uboot && run flash_uboot
++
++format_ubi_part=\
++  ubi detach; \
++  run load_uboot && \
++  mtd read spi-nand0 0x89100000 0x7520000 0xc0000 && \
++  mtd read spi-nand0 0x891C0000 0x000f800 0x00800 && \
++  mtd erase ubi && ubi part ubi && \
++  ubi create ubootenv 0x5000 static && \
++  ubi create ubootenv2 0x5000 static && \
++  ubi create art 0xc0000 static && ubi write 0x89100000 art 0xc0000 && \
++  setenv ethaddr && bin2mac ethaddr 0x891C0748 0x6 && \
++  saveenv && saveenv && run flash_uboot
++
++bootcmd=run boot_ubi
++bootdelay=3
++bootmenu_confirm_return=askenv - Press ENTER to return to menu ; bootmenu 20
++bootmenu_default=0
++bootmenu_delay=3
++bootmenu_title=      34m( ( ( mOpenWrt34m ) ) )
++bootmenu_0=Run default boot command.=run boot_openwrt
++bootmenu_1=Boot system via TFTP.=run boot_tftp ; run bootmenu_confirm_return
++bootmenu_2=Format UBI partition.=run format_ubi_part
++bootmenu_4=Upgrade u-boot.=run upgrade_uboot
++bootmenu_5=Reboot.=reset
+

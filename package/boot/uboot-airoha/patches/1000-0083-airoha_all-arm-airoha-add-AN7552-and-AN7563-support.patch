@@ -1,0 +1,3567 @@
+From 7688dc815dfe58c39103b48e23a83dacef5c10f9 Mon Sep 17 00:00:00 2001
+From: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+Date: Tue, 27 Oct 2026 06:46:03 -0300
+Subject: [PATCH] arm: airoha: add AN7552 and AN7563 support
+
+Add an AArch32 U-Boot proper target for the Cortex-A53 AN7552 family,
+including AN7563 evaluation board defaults. Follow the supplied A7552
+SDK handoff: the preceding stages initialize DRAM and trusted firmware.
+Read the saved NP SCU capacity, fall back to board DT only for an unset
+field, and propagate the detected memory bank to the kernel DT.
+
+Reuse the EN7523 peripheral clock/reset layout with the U-Boot resource
+ordering. Port the kernel AN7563 pinctrl data and add GPIO mux release
+for the 38 GPIO lines. Enable the existing SNFI driver for SPI-NAND.
+
+Add the AN7552 GDM1/QDMA0 copper Ethernet profile with its own PSE pool,
+GDMP SRAM selection, fixed share threshold, flow-control mapping and
+accounting selectors. Port the AN7552-specific PHY tuning, impedance
+and analog calibration from the kernel and supplied SDK. Keep shared
+REXT state local to one switch probe and propagate MDIO errors.
+
+Signed-off-by: Matheus Sampaio Queiroga <srherobrine20@gmail.com>
+---
+ arch/arm/dts/Makefile                    |    3 +
+ arch/arm/dts/an7552-evb.dts              |   25 +
+ arch/arm/dts/an7552.dtsi                 |  222 +++++
+ arch/arm/dts/an7563-evb.dts              |    8 +
+ arch/arm/mach-airoha/Kconfig             |   16 +
+ arch/arm/mach-airoha/Makefile            |    1 +
+ arch/arm/mach-airoha/an7552/Makefile     |    3 +
+ arch/arm/mach-airoha/an7552/init.c       |   91 ++
+ arch/arm/mach-airoha/an7552/scu-regmap.c |   30 +
+ board/airoha/an7552/MAINTAINERS          |   13 +
+ board/airoha/an7552/Makefile             |    3 +
+ board/airoha/an7552/an7552_evb.c         |   16 +
+ configs/an7552_evb_defconfig             |   78 ++
+ configs/an7563_evb_defconfig             |   78 ++
+ drivers/clk/airoha/clk-airoha.c          |    3 +
+ drivers/net/airoha/Makefile              |    3 +
+ drivers/net/airoha/phy-an7552.c          | 1229 +++++++++++++++++++++++++++
+ drivers/net/airoha/phy-an7552.h          |   16 +
+ drivers/net/airoha_eth.c                 |   72 +-
+ drivers/pinctrl/airoha/Kconfig           |    5 +
+ drivers/pinctrl/airoha/Makefile          |    1 +
+ drivers/pinctrl/airoha/pinctrl-an7563.c  | 1323 ++++++++++++++++++++++++++++++
+ drivers/reset/reset-airoha.c             |    3 +-
+ include/configs/an7552.h                 |   21 +
+ 24 files changed, 3261 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -1193,6 +1193,9 @@ dtb-$(CONFIG_TARGET_CORSTONE1000) += corstone1000-mps3.dtb \
+ 
+ dtb-$(CONFIG_TARGET_COREPRIMEVELTE) += pxa1908-samsung-coreprimevelte.dtb
+ 
++dtb-$(CONFIG_TARGET_EN7523) += en7523-evb.dtb
++dtb-$(CONFIG_TARGET_AN7552) += an7552-evb.dtb an7563-evb.dtb
++
+ include $(srctree)/scripts/Makefile.dts
+ 
+ # Add any required device tree compiler flags here
+diff --git a/arch/arm/dts/an7552-evb.dts b/arch/arm/dts/an7552-evb.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/arm/dts/an7552-evb.dts
+@@ -0,0 +1,25 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++/dts-v1/;
++
++#include "an7552.dtsi"
++
++/ {
++	model = "Airoha AN7552 Evaluation Board";
++	compatible = "airoha,an7552-evb", "airoha,an7552";
++};
++
++&eth {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++
++	nand@0 {
++		compatible = "spi-nand";
++		reg = <0>;
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <2>;
++	};
++};
+diff --git a/arch/arm/dts/an7552.dtsi b/arch/arm/dts/an7552.dtsi
+new file mode 100644
+--- /dev/null
++++ b/arch/arm/dts/an7552.dtsi
+@@ -0,0 +1,222 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++
++#include <dt-bindings/interrupt-controller/irq.h>
++#include <dt-bindings/clock/en7523-clk.h>
++#include <dt-bindings/leds/common.h>
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/interrupt-controller/arm-gic.h>
++#include <dt-bindings/reset/airoha,en7523-reset.h>
++
++/ {
++	compatible = "airoha,an7552";
++	#address-cells = <1>;
++	#size-cells = <1>;
++	interrupt-parent = <&gic>;
++
++	aliases {
++		serial0 = &uart1;
++		spi0 = &snfi;
++		ethernet0 = &gdm1;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x80000000 0x20000000>;
++	};
++
++	reserved-memory {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		ranges;
++
++		atf@80000000 {
++			reg = <0x80000000 0x200000>;
++			no-map;
++		};
++
++		npu@84000000 {
++			reg = <0x84000000 0x400000>;
++			no-map;
++		};
++	};
++
++	cpus {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		cpu-map {
++			cluster0 {
++				core0 {
++					cpu = <&cpu0>;
++				};
++				core1 {
++					cpu = <&cpu1>;
++				};
++			};
++		};
++
++		cpu0: cpu@0 {
++			device_type = "cpu";
++			compatible = "arm,cortex-a53";
++			reg = <0x0>;
++			enable-method = "psci";
++			clock-frequency = <80000000>;
++			next-level-cache = <&L2_0>;
++		};
++
++		cpu1: cpu@1 {
++			device_type = "cpu";
++			compatible = "arm,cortex-a53";
++			reg = <0x1>;
++			enable-method = "psci";
++			clock-frequency = <80000000>;
++			next-level-cache = <&L2_0>;
++		};
++
++		L2_0: l2-cache0 {
++			compatible = "cache";
++			cache-level = <2>;
++			cache-unified;
++		};
++	};
++
++	psci {
++		compatible = "arm,psci-0.2";
++		method = "smc";
++	};
++
++	timer {
++		compatible = "arm,armv8-timer";
++		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_LOW>,
++			     <GIC_PPI 14 IRQ_TYPE_LEVEL_LOW>,
++			     <GIC_PPI 11 IRQ_TYPE_LEVEL_LOW>,
++			     <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
++	};
++
++	gic: interrupt-controller@9000000 {
++		compatible = "arm,gic-v3";
++		reg = <0x09000000 0x20000>,
++		      <0x09080000 0x80000>,
++		      <0x09400000 0x2000>,
++					      <0x09500000 0x2000>,
++		      <0x09600000 0x20000>;
++
++		interrupt-controller;
++		#interrupt-cells = <3>;
++		#address-cells = <0>;
++
++		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_LOW>;
++	};
++
++	/* Keep the existing U-Boot CHIP SCU / NP SCU resource order. */
++	scu: system-controller@1fa20000 {
++		compatible = "airoha,an7552-scu";
++		reg = <0x1fa20000 0x400>,
++		      <0x1fb00000 0x1000>;
++
++		#clock-cells = <1>;
++		#reset-cells = <1>;
++	};
++
++	system-controller@1fbf0200 {
++		compatible = "syscon", "simple-mfd";
++		reg = <0x1fbf0200 0xc0>;
++
++		pinctrl: pinctrl {
++			compatible = "airoha,an7563-pinctrl";
++
++			gpio-controller;
++			#gpio-cells = <2>;
++
++			gpio-ranges = <&pinctrl 0 0 38>;
++		};
++	};
++
++	uart1: serial@1fbf0000 {
++		bootph-all;
++		compatible = "ns16550";
++		reg = <0x1fbf0000 0x30>;
++		reg-io-width = <4>;
++		reg-shift = <2>;
++		clock-frequency = <1843200>;
++		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
++	};
++
++	spi0: spi@1fa10000 {
++		compatible = "airoha,en7523-spi";
++		reg = <0x1fa10000 0x140>,
++		      <0x1fa11000 0x600>;
++
++		clocks = <&scu EN7523_CLK_SPI>;
++		clock-names = "spi";
++
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		status = "disabled";
++	};
++
++	eth: ethernet@1fb50000 {
++		compatible = "airoha,an7552-eth";
++		reg = <0x1fb50000 0x2600>,
++		      <0x1fb54000 0x2000>,
++		      <0x1fbf9000 0x1000>;
++		reg-names = "fe", "qdma0", "gdmp";
++
++		resets = <&scu EN7523_FE_RST>,
++		         <&scu EN7523_FE_PDMA_RST>,
++		         <&scu EN7523_FE_QDMA_RST>,
++			       <&scu EN7523_GSW_RST>;
++		reset-names = "fe", "pdma", "qdma", "switch";
++
++		#address-cells = <1>;
++		#size-cells = <0>;
++		status = "disabled";
++
++		gdm1: ethernet@1 {
++			compatible = "airoha,eth-mac";
++			reg = <1>;
++			phy-mode = "internal";
++
++			fixed-link {
++				speed = <10000>;
++				full-duplex;
++				pause;
++			};
++		};
++	};
++
++	switch: switch@1fb58000 {
++		compatible = "airoha,an7552-switch";
++		reg = <0x1fb58000 0x8000>;
++
++		mdio: mdio {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			ethernet-phy@9 {
++				reg = <9>;
++				airoha,mdi-resistor-ohms = <5>;
++			};
++
++			ethernet-phy@a {
++				reg = <10>;
++				airoha,mdi-resistor-ohms = <5>;
++			};
++
++			ethernet-phy@b {
++				reg = <11>;
++				airoha,mdi-resistor-ohms = <5>;
++			};
++
++			ethernet-phy@c {
++				reg = <12>;
++				airoha,mdi-resistor-ohms = <5>;
++			};
++		};
++	};
++};
+diff --git a/arch/arm/dts/an7563-evb.dts b/arch/arm/dts/an7563-evb.dts
+new file mode 100644
+--- /dev/null
++++ b/arch/arm/dts/an7563-evb.dts
+@@ -0,0 +1,8 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++
++#include "an7552-evb.dts"
++
++/ {
++	model = "Airoha AN7563 Evaluation Board";
++	compatible = "airoha,an7563-evb", "airoha,an7552";
++};
+diff --git a/arch/arm/mach-airoha/Kconfig b/arch/arm/mach-airoha/Kconfig
+--- a/arch/arm/mach-airoha/Kconfig
++++ b/arch/arm/mach-airoha/Kconfig
+@@ -20,6 +20,19 @@ config TARGET_EN7523
+ 	  With advanced hardware design, EN7523 provides high processing
+ 	  performance and low power consumption.
+ 
++config TARGET_AN7552
++	bool "Airoha AN7552/AN7563 SoCs"
++	select CPU_V7A
++	select ARMV7_SET_CORTEX_SMPEN
++	select REGMAP
++	select OF_SYSTEM_SETUP
++	select ARCH_FIXUP_FDT_MEMORY
++	help
++	  Support the dual-core Cortex-A53 AN7552 family, including AN7563,
++	  in AArch32 mode. U-Boot runs after the vendor DRAM initialization
++	  and trusted firmware, as in the A7552 SDK boot flow.
++	  The evaluation boards provide serial, SPI flash and copper Ethernet.
++
+ config TARGET_AN7581
+ 	bool "Airoha AN7581 SoC"
+ 	select ARM64
+@@ -46,16 +59,19 @@ endchoice
+ 
+ config SYS_SOC
+ 	default "en7523" if TARGET_EN7523
++	default "an7552" if TARGET_AN7552
+ 	default "an7581" if TARGET_AN7581
+ 	default "an7583" if TARGET_AN7583
+ 
+ config SYS_BOARD
+ 	default "en7523" if TARGET_EN7523
++	default "an7552" if TARGET_AN7552
+ 	default "an7581" if TARGET_AN7581
+ 	default "an7583" if TARGET_AN7583
+ 
+ config SYS_CONFIG_NAME
+ 	default "en7523" if TARGET_EN7523
++	default "an7552" if TARGET_AN7552
+ 	default "an7581" if TARGET_AN7581
+ 	default "an7583" if TARGET_AN7583
+ 
+diff --git a/arch/arm/mach-airoha/Makefile b/arch/arm/mach-airoha/Makefile
+--- a/arch/arm/mach-airoha/Makefile
++++ b/arch/arm/mach-airoha/Makefile
+@@ -3,5 +3,6 @@
+ obj-y	+= cpu.o
+ 
+ obj-$(CONFIG_TARGET_EN7523) += en7523/
++obj-$(CONFIG_TARGET_AN7552) += an7552/
+ obj-$(CONFIG_TARGET_AN7581) += an7581/
+ obj-$(CONFIG_TARGET_AN7583) += an7583/
+diff --git a/arch/arm/mach-airoha/an7552/Makefile b/arch/arm/mach-airoha/an7552/Makefile
+new file mode 100644
+--- /dev/null
++++ b/arch/arm/mach-airoha/an7552/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++obj-y += init.o scu-regmap.o
+diff --git a/arch/arm/mach-airoha/an7552/init.c b/arch/arm/mach-airoha/an7552/init.c
+new file mode 100644
+--- /dev/null
++++ b/arch/arm/mach-airoha/an7552/init.c
+@@ -0,0 +1,91 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <fdt_support.h>
++#include <init.h>
++#include <dm/ofnode.h>
++#include <asm/global_data.h>
++#include <asm/system.h>
++#include <linux/bitfield.h>
++#include <linux/io.h>
++#include <linux/sizes.h>
++#include <soc/airoha/pkgids.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++#define AN7552_SYS_GLOBAL_PARM		0x1fb00284
++#define AN7552_DRAM_SIZE_MASK		GENMASK(29, 20)
++#define AN7552_RESET_CONTROL		0x1fb00040
++
++int print_cpuinfo(void)
++{
++	u32 hir = get_pkg();
++	u32 pdidr = get_pdidr();
++	u32 pkgid = get_pkgid();
++	const char *soc_name = airoha_soc_name_from_regs(hir, pkgid, pdidr);
++
++	if (pkgid != END_PACKAGE_ID) {
++		printf("SoC:   Airoha %s\n", soc_name);
++	} else {
++		printf("SoC:   Airoha AN7552/AN7563\n");
++	}
++
++	return 0;
++}
++
++int dram_init(void)
++{
++	phys_size_t size;
++	u32 value, units;
++
++	/* The first-stage loader records capacity in units of 16 MiB. */
++	value = readl((void __iomem *)AN7552_SYS_GLOBAL_PARM);
++	units = FIELD_GET(AN7552_DRAM_SIZE_MASK, value);
++	if (units > SZ_1G / SZ_16M)
++		return -EINVAL;
++
++	size = (phys_size_t)units * SZ_16M;
++	if (!size) {
++		ofnode node = ofnode_path("/memory@80000000");
++		fdt_size_t dt_size;
++
++		/* Older firmware may leave the field unset; use the board DT. */
++		if (!ofnode_valid(node) ||
++		    ofnode_get_addr_size(node, "reg", &dt_size) != CFG_SYS_SDRAM_BASE)
++			return -EINVAL;
++		size = dt_size;
++	}
++
++	/* This AArch32 port describes one contiguous bank below 4 GiB. */
++	if (size < SZ_32M || size > SZ_1G)
++		return -EINVAL;
++
++	gd->ram_base = CFG_SYS_SDRAM_BASE;
++	gd->ram_size = size;
++
++	return 0;
++}
++
++int dram_init_banksize(void)
++{
++	gd->bd->bi_dram[0].start = gd->ram_base;
++	gd->bd->bi_dram[0].size = gd->ram_size;
++
++	return 0;
++}
++
++#ifdef CONFIG_OF_SYSTEM_SETUP
++int ft_system_setup(void *blob, struct bd_info *bd)
++{
++	u64 start[] = { gd->ram_base };
++	u64 size[] = { gd->ram_size };
++
++	return fdt_fixup_memory_banks(blob, start, size, ARRAY_SIZE(start));
++}
++#endif
++
++void __noreturn reset_cpu(void)
++{
++	writel(BIT(31), (void __iomem *)AN7552_RESET_CONTROL);
++	while (1)
++		wfi();
++}
+diff --git a/arch/arm/mach-airoha/an7552/scu-regmap.c b/arch/arm/mach-airoha/an7552/scu-regmap.c
+new file mode 100644
+--- /dev/null
++++ b/arch/arm/mach-airoha/an7552/scu-regmap.c
+@@ -0,0 +1,30 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <dm/ofnode.h>
++#include <linux/err.h>
++#include <soc/airoha/scu-regmap.h>
++
++static struct regmap *an7552_scu_regmap(unsigned int index)
++{
++	struct regmap *map;
++	ofnode node;
++	int ret;
++
++	node = ofnode_by_compatible(ofnode_null(), "airoha,an7552-scu");
++	if (!ofnode_valid(node))
++		return ERR_PTR(-ENODEV);
++
++	/* Match the EN7523 U-Boot provider: CHIP SCU first, NP SCU second. */
++	ret = regmap_init_mem_index(node, &map, index);
++	return ret ? ERR_PTR(ret) : map;
++}
++
++struct regmap *airoha_get_scu_regmap(void)
++{
++	return an7552_scu_regmap(1);
++}
++
++struct regmap *airoha_get_chip_scu_regmap(void)
++{
++	return an7552_scu_regmap(0);
++}
+diff --git a/board/airoha/an7552/MAINTAINERS b/board/airoha/an7552/MAINTAINERS
+new file mode 100644
+--- /dev/null
++++ b/board/airoha/an7552/MAINTAINERS
+@@ -0,0 +1,13 @@
++AN7552 / AN7563
++M:	Matheus Sampaio Queiroga <srherobrine20@gmail.com>
++S:	Maintained
++F:	arch/arm/mach-airoha/an7552/
++F:	board/airoha/an7552/
++F:	arch/arm/dts/an7552*
++F:	arch/arm/dts/an7563*
++F:	configs/an7552_evb_defconfig
++F:	configs/an7563_evb_defconfig
++F:	include/configs/an7552.h
++F:	drivers/pinctrl/airoha/pinctrl-an7563.c
++F:	drivers/net/airoha/phy-an7552.*
++F:	doc/board/airoha/an7552.rst
+diff --git a/board/airoha/an7552/Makefile b/board/airoha/an7552/Makefile
+new file mode 100644
+--- /dev/null
++++ b/board/airoha/an7552/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++obj-y += an7552_evb.o
+diff --git a/board/airoha/an7552/an7552_evb.c b/board/airoha/an7552/an7552_evb.c
+new file mode 100644
+--- /dev/null
++++ b/board/airoha/an7552/an7552_evb.c
+@@ -0,0 +1,16 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Author: Christian Marangi <ansuelsmth@gmail.com>
++ */
++
++#include <asm/global_data.h>
++
++DECLARE_GLOBAL_DATA_PTR;
++
++int board_init(void)
++{
++	/* address of boot parameters */
++	gd->bd->bi_boot_params = CFG_SYS_SDRAM_BASE + 0x100;
++
++	return 0;
++}
+diff --git a/configs/an7552_evb_defconfig b/configs/an7552_evb_defconfig
+new file mode 100644
+--- /dev/null
++++ b/configs/an7552_evb_defconfig
+@@ -0,0 +1,78 @@
++CONFIG_ARM=y
++CONFIG_POSITION_INDEPENDENT=y
++CONFIG_SYS_ARCH_TIMER=y
++CONFIG_ARCH_AIROHA=y
++CONFIG_TARGET_AN7552=y
++CONFIG_TEXT_BASE=0x81E00000
++CONFIG_SYS_MALLOC_F_LEN=0x4000
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_ENV_SIZE=0x4000
++CONFIG_DM_GPIO=y
++CONFIG_DEFAULT_DEVICE_TREE="an7552-evb"
++CONFIG_SYS_LOAD_ADDR=0x81800000
++CONFIG_BUILD_TARGET="u-boot.bin"
++# CONFIG_EFI_LOADER is not set
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++CONFIG_BOOTDELAY=3
++CONFIG_DEFAULT_FDT_FILE="airoha/an7552-evb.dtb"
++CONFIG_SYS_PBSIZE=1049
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++# CONFIG_DISPLAY_BOARDINFO is not set
++CONFIG_HUSH_PARSER=y
++CONFIG_SYS_PROMPT="U-Boot> "
++CONFIG_SYS_MAXARGS=8
++CONFIG_CMD_BOOTZ=y
++CONFIG_CMD_BOOTMENU=y
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++CONFIG_CMD_BIND=y
++CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_MTD=y
++# CONFIG_CMD_SETEXPR is not set
++CONFIG_CMD_MII=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_LOG=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_SPI=y
++CONFIG_CMD_SF=y
++CONFIG_CMD_SF_TEST=y
++# CONFIG_OF_UPSTREAM is not set
++CONFIG_ENV_OVERWRITE=y
++# CONFIG_ENV_IS_IN_MTD is not set
++CONFIG_ENV_IS_NOWHERE=y
++CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_SYS_RX_ETH_BUFFER=8
++CONFIG_CLK=y
++CONFIG_DMA=y
++CONFIG_LED=y
++CONFIG_LED_GPIO=y
++# CONFIG_MMC is not set
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_SPI_FLASH_GIGADEVICE=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_UBI_BLOCK=y
++CONFIG_DM_MDIO=y
++CONFIG_AIROHA_ETH=y
++CONFIG_PHY=y
++CONFIG_PINCTRL=y
++CONFIG_PINCTRL_AIROHA_AN7563=y
++CONFIG_RAM=y
++CONFIG_DM_SERIAL=y
++CONFIG_SYS_NS16550=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_AIROHA_SNFI_SPI=y
++# CONFIG_UBIFS_SILENCE_MSG is not set
++CONFIG_SHA512=y
++# CONFIG_TOOLS_MKEFICAPSULE is not set
+diff --git a/configs/an7563_evb_defconfig b/configs/an7563_evb_defconfig
+new file mode 100644
+--- /dev/null
++++ b/configs/an7563_evb_defconfig
+@@ -0,0 +1,78 @@
++CONFIG_ARM=y
++CONFIG_POSITION_INDEPENDENT=y
++CONFIG_SYS_ARCH_TIMER=y
++CONFIG_ARCH_AIROHA=y
++CONFIG_TARGET_AN7552=y
++CONFIG_TEXT_BASE=0x81E00000
++CONFIG_SYS_MALLOC_F_LEN=0x4000
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_ENV_SIZE=0x4000
++CONFIG_DM_GPIO=y
++CONFIG_DEFAULT_DEVICE_TREE="an7563-evb"
++CONFIG_SYS_LOAD_ADDR=0x81800000
++CONFIG_BUILD_TARGET="u-boot.bin"
++# CONFIG_EFI_LOADER is not set
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++CONFIG_BOOTDELAY=3
++CONFIG_DEFAULT_FDT_FILE="airoha/an7563-evb.dtb"
++CONFIG_SYS_PBSIZE=1049
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++# CONFIG_DISPLAY_BOARDINFO is not set
++CONFIG_HUSH_PARSER=y
++CONFIG_SYS_PROMPT="U-Boot> "
++CONFIG_SYS_MAXARGS=8
++CONFIG_CMD_BOOTZ=y
++CONFIG_CMD_BOOTMENU=y
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++CONFIG_CMD_BIND=y
++CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_MTD=y
++# CONFIG_CMD_SETEXPR is not set
++CONFIG_CMD_MII=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_LOG=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_SPI=y
++CONFIG_CMD_SF=y
++CONFIG_CMD_SF_TEST=y
++# CONFIG_OF_UPSTREAM is not set
++CONFIG_ENV_OVERWRITE=y
++# CONFIG_ENV_IS_IN_MTD is not set
++CONFIG_ENV_IS_NOWHERE=y
++CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_SYS_RX_ETH_BUFFER=8
++CONFIG_CLK=y
++CONFIG_DMA=y
++CONFIG_LED=y
++CONFIG_LED_GPIO=y
++# CONFIG_MMC is not set
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_SPI_FLASH_GIGADEVICE=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_UBI_BLOCK=y
++CONFIG_DM_MDIO=y
++CONFIG_AIROHA_ETH=y
++CONFIG_PHY=y
++CONFIG_PINCTRL=y
++CONFIG_PINCTRL_AIROHA_AN7563=y
++CONFIG_RAM=y
++CONFIG_DM_SERIAL=y
++CONFIG_SYS_NS16550=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_AIROHA_SNFI_SPI=y
++# CONFIG_UBIFS_SILENCE_MSG is not set
++CONFIG_SHA512=y
++# CONFIG_TOOLS_MKEFICAPSULE is not set
+diff --git a/drivers/clk/airoha/clk-airoha.c b/drivers/clk/airoha/clk-airoha.c
+--- a/drivers/clk/airoha/clk-airoha.c
++++ b/drivers/clk/airoha/clk-airoha.c
+@@ -1028,6 +1028,9 @@ static const struct udevice_id airoha_clk_ids[] = {
+ 	{ .compatible = "airoha,en7523-scu",
+ 	  .data = (ulong)&en7523_data,
+ 	},
++	{ .compatible = "airoha,an7552-scu",
++	  .data = (ulong)&en7523_data,
++	},
+ 	{ .compatible = "airoha,en7581-scu",
+ 	  .data = (ulong)&en7581_data,
+ 	},
+diff --git a/drivers/net/airoha/Makefile b/drivers/net/airoha/Makefile
+--- a/drivers/net/airoha/Makefile
++++ b/drivers/net/airoha/Makefile
+@@ -3,3 +3,6 @@
+ obj-$(CONFIG_PCS_AIROHA)	+= pcs-airoha-common.o
+ obj-$(CONFIG_PCS_AIROHA_AN7581)	+= pcs-an7581.o
+ obj-$(CONFIG_PCS_AIROHA_AN7583)	+= pcs-an7583.o
++ifeq ($(CONFIG_AIROHA_ETH),y)
++obj-$(CONFIG_TARGET_AN7552)	+= phy-an7552.o
++endif
+diff --git a/drivers/net/airoha/phy-an7552.c b/drivers/net/airoha/phy-an7552.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/airoha/phy-an7552.c
+@@ -0,0 +1,1229 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * AN7552/AN7563 integrated PHY initialization.
++ * Derived from Linux drivers/net/phy/mediatek/airoha-ge-soc.c and the
++ * A7552.04.02 SDK private/tcphy/tcetherphy_7552.c calibration profile.
++ */
++
++#include <dm.h>
++#include <dm/device-internal.h>
++#include <miiphy.h>
++#include <linux/bitfield.h>
++#include <linux/delay.h>
++#include <linux/iopoll.h>
++#include <linux/mdio.h>
++
++#include "phy-an7552.h"
++
++#define AIROHA_DEFAULT_PORT0_ADDR 9
++
++#define MTK_PHY_TXVLD_DA_RG			0x12
++#define   MTK_PHY_DA_TX_I2MPB_A_GBE_MASK	GENMASK(15, 10)
++#define   MTK_PHY_DA_TX_I2MPB_A_TBT_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_A2		0x16
++#define   MTK_PHY_DA_TX_I2MPB_A_HBT_MASK	GENMASK(15, 10)
++#define   MTK_PHY_DA_TX_I2MPB_A_TST_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_B1		0x17
++#define   MTK_PHY_DA_TX_I2MPB_B_GBE_MASK	GENMASK(13, 8)
++#define   MTK_PHY_DA_TX_I2MPB_B_TBT_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_B2		0x18
++#define   MTK_PHY_DA_TX_I2MPB_B_HBT_MASK	GENMASK(13, 8)
++#define   MTK_PHY_DA_TX_I2MPB_B_TST_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_C1		0x19
++#define   MTK_PHY_DA_TX_I2MPB_C_GBE_MASK	GENMASK(13, 8)
++#define   MTK_PHY_DA_TX_I2MPB_C_TBT_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_C2		0x20
++#define   MTK_PHY_DA_TX_I2MPB_C_HBT_MASK	GENMASK(13, 8)
++#define   MTK_PHY_DA_TX_I2MPB_C_TST_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_D1		0x21
++#define   MTK_PHY_DA_TX_I2MPB_D_GBE_MASK	GENMASK(13, 8)
++#define   MTK_PHY_DA_TX_I2MPB_D_TBT_MASK	GENMASK(5, 0)
++#define MTK_PHY_TX_I2MPB_TEST_MODE_D2		0x22
++#define   MTK_PHY_DA_TX_I2MPB_D_HBT_MASK	GENMASK(13, 8)
++#define   MTK_PHY_DA_TX_I2MPB_D_TST_MASK	GENMASK(5, 0)
++#define MTK_PHY_RG_ANA_CAL_RG0			0xdb
++#define   MTK_PHY_RG_CAL_CKINV			BIT(12)
++#define   MTK_PHY_RG_ANA_CALEN			BIT(8)
++#define   MTK_PHY_RG_REXT_CALEN			BIT(4)
++#define   MTK_PHY_RG_ZCALEN_A			BIT(0)
++#define MTK_PHY_RG_ANA_CAL_RG1			0xdc
++#define   MTK_PHY_RG_ZCALEN_B			BIT(12)
++#define   MTK_PHY_RG_ZCALEN_C			BIT(8)
++#define   MTK_PHY_RG_ZCALEN_D			BIT(4)
++#define   MTK_PHY_RG_TXVOS_CALEN		BIT(0)
++#define MTK_PHY_RG_ANA_CAL_RG5			0xe0
++#define   MTK_PHY_RG_REXT_TRIM_MASK		GENMASK(13, 8)
++#define   MTK_PHY_RG_REXT_ZCAL_CTRL_MASK	GENMASK(5, 0)
++#define MTK_PHY_RG_ANA_CAL_RG6			0xe1
++#define MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B		0x172
++#define   MTK_PHY_CR_TX_AMP_OFFSET_A_MASK	GENMASK(13, 8)
++#define   MTK_PHY_CR_TX_AMP_OFFSET_B_MASK	GENMASK(6, 0)
++#define MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D		0x173
++#define   MTK_PHY_CR_TX_AMP_OFFSET_C_MASK	GENMASK(13, 8)
++#define   MTK_PHY_CR_TX_AMP_OFFSET_D_MASK	GENMASK(6, 0)
++#define MTK_PHY_RG_AD_CAL_COMP			0x17a
++#define   MTK_PHY_AD_CAL_COMP_OUT_MASK		GENMASK(8, 8)
++#define MTK_PHY_RG_AD_CAL_CLK			0x17b
++#define   MTK_PHY_DA_CAL_CLK			BIT(0)
++#define MTK_PHY_RG_AD_CALIN			0x17c
++#define   MTK_PHY_DA_CALIN_FLAG			BIT(0)
++#define MTK_PHY_RG_DASN_DAC_IN0_A		0x17d
++#define MTK_PHY_RG_DASN_DAC_IN0_B		0x17e
++#define MTK_PHY_RG_DASN_DAC_IN0_C		0x17f
++#define MTK_PHY_RG_DASN_DAC_IN0_D		0x180
++#define MTK_PHY_RG_DASN_DAC_IN1_A		0x181
++#define MTK_PHY_RG_DASN_DAC_IN1_B		0x182
++#define MTK_PHY_RG_DASN_DAC_IN1_C		0x183
++#define MTK_PHY_RG_DASN_DAC_IN1_D		0x184
++#define MTK_PHY_RG_BG_RASEL			0x115
++#define   MTK_PHY_RG_BG_RASEL_MASK		GENMASK(2, 0)
++
++enum { REXT, TX_OFFSET, TX_AMP, TX_R50, RX_OFFSET };
++enum { NO_PAIR, PAIR_A, PAIR_B, PAIR_C, PAIR_D };
++enum airoha_mdi_resister_type {
++	MDI_0R,
++	MDI_5R,
++
++	MDI_TYPE_MAX,
++};
++
++enum airoha_transformer_type {
++	TXMR,
++	DISCRETE,
++
++	TRANSFORMER_TYPE_MAX,
++};
++
++enum airoha_calib_const_type {
++	TX_AMP_TEST_A,
++	TX_AMP_TEST_B,
++	TX_AMP_TEST_C,
++	TX_AMP_TEST_D,
++	TX_AMP_1G_A,
++	TX_AMP_1G_B,
++	TX_AMP_1G_C,
++	TX_AMP_1G_D,
++	TX_AMP_100M_A,
++	TX_AMP_100M_B,
++	TX_AMP_10M_A,
++	TX_AMP_10M_B,
++	R50_A,
++	R50_B,
++	R50_C,
++	R50_D,
++
++	CALIB_CONST_TYPE_MAX,
++};
++
++struct an7552_phy_shared {
++	bool rext_sw_calib_done;
++	int error;
++	const u8 *r50_cal_tbl;
++	enum airoha_mdi_resister_type mdi_resister_type;
++	enum airoha_transformer_type transformer_type[4];
++};
++
++struct airoha_mmd_reg {
++	int devad;
++	u16 reg;
++	u16 val;
++};
++
++/* AN7552 A7552.04.02 PHY tuning, separate from the EN7523 profile. */
++static const struct airoha_mmd_reg an7552_ge_init_regs[] = {
++	{ MDIO_MMD_VEND2, 0x0044, 0x00a0 },
++	{ MDIO_MMD_VEND2, 0x027c, 0x0808 },
++	{ MDIO_MMD_VEND2, 0x027b, 0x1177 },
++	{ MDIO_MMD_VEND2, 0x0417, 0x7775 },
++	{ MDIO_MMD_VEND2, 0x0024, 0xc007 },
++	{ MDIO_MMD_VEND2, 0x0025, 0x003f },
++	{ MDIO_MMD_VEND2, 0x0026, 0xc007 },
++	{ MDIO_MMD_VEND2, 0x0027, 0x003f },
++	{ MDIO_MMD_VEND2, 0x0021, 0x800a },
++	{ MDIO_MMD_VEND1, 0x0000, 0x0190 },
++	{ MDIO_MMD_VEND1, 0x0001, 0x01c8 },
++	{ MDIO_MMD_VEND1, 0x0002, 0x01c2 },
++	{ MDIO_MMD_VEND1, 0x0003, 0x0100 },
++	{ MDIO_MMD_VEND1, 0x0004, 0x020d },
++	{ MDIO_MMD_VEND1, 0x0005, 0x020a },
++	{ MDIO_MMD_VEND1, 0x0006, 0x038f },
++	{ MDIO_MMD_VEND1, 0x0007, 0x03c8 },
++	{ MDIO_MMD_VEND1, 0x0008, 0x03c4 },
++	{ MDIO_MMD_VEND1, 0x0009, 0x0300 },
++	{ MDIO_MMD_VEND1, 0x000a, 0x0008 },
++	{ MDIO_MMD_VEND1, 0x000b, 0x0002 },
++	{ MDIO_MMD_VEND1, 0x0011, 0x0f00 },
++	{ MDIO_MMD_VEND1, 0x0013, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x0014, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x0044, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x0176, 0x6600 },
++	{ MDIO_MMD_VEND1, 0x0177, 0x0066 },
++	{ MDIO_MMD_VEND1, 0x0041, 0x3333 },
++	{ MDIO_MMD_VEND1, 0x0040, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x0201, 0x4000 },
++	{ MDIO_MMD_VEND1, 0x003d, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x0198, 0x0001 },
++	{ MDIO_MMD_VEND1, 0x003e, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x023c, 0x0a20 },
++	{ MDIO_MMD_VEND1, 0x01a3, 0x00d2 },
++	{ MDIO_MMD_VEND1, 0x01a4, 0x010e },
++	{ MDIO_MMD_VEND1, 0x0123, 0xffff },
++	{ MDIO_MMD_VEND1, 0x0147, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x0236, 0x0020 },
++	{ MDIO_MMD_VEND1, 0x0190, 0x0110 },
++	{ MDIO_MMD_VEND1, 0x0191, 0x4444 },
++	{ MDIO_MMD_VEND1, 0x00a6, 0x0350 },
++	{ MDIO_MMD_VEND1, 0x00e7, 0x5555 },
++	{ MDIO_MMD_VEND1, 0x00e9, 0x0001 },
++	{ MDIO_MMD_VEND1, 0x00fe, 0x0000 },
++	{ MDIO_MMD_VEND1, 0x00e6, 0x1111 },
++	{ MDIO_MMD_VEND1, 0x0023, 0x0885 },
++	{ MDIO_MMD_VEND1, 0x0024, 0x0885 },
++	{ MDIO_MMD_VEND1, 0x0025, 0x0885 },
++	{ MDIO_MMD_VEND1, 0x0026, 0x0885 },
++	{ MDIO_MMD_AN, 0x003c, 0x0006 },
++};
++
++static const u8 an7552_zcal_to_r50ohm[2][64] = {
++	{
++		127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
++		127, 126, 122, 117, 112, 109, 104, 101, 97, 94, 90, 88, 84, 80, 78, 74,
++		72, 68, 66, 64, 61, 58, 56, 53, 51, 48, 47, 44, 42, 40, 38, 36,
++		34, 32, 31, 28, 27, 24, 24, 22, 20, 18, 16, 16, 14, 12, 11, 9,
++	},
++	{
++		127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127, 127,
++		127, 127, 127, 127, 127, 127, 127, 127, 123, 119, 115, 112, 108, 104, 100, 96,
++		94, 92, 88, 85, 82, 80, 76, 74, 72, 68, 66, 64, 62, 60, 56, 55,
++		52, 50, 48, 46, 44, 42, 40, 39, 36, 35, 32, 32, 30, 28, 27, 25,
++	},
++};
++
++static const s8 an7552_tx_comp[TRANSFORMER_TYPE_MAX][MDI_TYPE_MAX][CALIB_CONST_TYPE_MAX][4] = {
++	[TXMR][MDI_5R] = {
++		[TX_AMP_TEST_A] = { 17, 16, 19, 14 },
++		[TX_AMP_TEST_B] = { 16, 16, 16, 16 },
++		[TX_AMP_TEST_C] = { 14, 17, 17, 13 },
++		[TX_AMP_TEST_D] = { 17, 15, 15, 17 },
++		[TX_AMP_1G_A] = { 17, 16, 19, 14 },
++		[TX_AMP_1G_B] = { 16, 16, 16, 16 },
++		[TX_AMP_1G_C] = { 14, 17, 17, 13 },
++		[TX_AMP_1G_D] = { 17, 15, 15, 17 },
++		[TX_AMP_100M_A] = { 31, 32, 31, 28 },
++		[TX_AMP_100M_B] = { 31, 29, 27, 30 },
++		[TX_AMP_10M_A] = { 22, 22, 22, 23 },
++		[TX_AMP_10M_B] = { 22, 22, 22, 23 },
++		[R50_A] = { 7, 8, 9, 11 },
++		[R50_B] = { 8, 9, 10, 11 },
++		[R50_C] = { 10, 10, 10, 11 },
++		[R50_D] = { 10, 10, 10, 10 },
++	},
++	[DISCRETE][MDI_5R] = {
++		[TX_AMP_TEST_A] = { 3, 2, 1, 3 },
++		[TX_AMP_TEST_B] = { 1, -1, 0, 4 },
++		[TX_AMP_TEST_C] = { 4, 4, 1, 2 },
++		[TX_AMP_TEST_D] = { 3, 3, 1, 2 },
++		[TX_AMP_1G_A] = { 3, 2, 1, 3 },
++		[TX_AMP_1G_B] = { 1, -1, 0, 4 },
++		[TX_AMP_1G_C] = { 4, 4, 1, 2 },
++		[TX_AMP_1G_D] = { 3, 3, 1, 2 },
++		[TX_AMP_100M_A] = { 17, 17, 16, 15 },
++		[TX_AMP_100M_B] = { 17, 15, 14, 18 },
++		[TX_AMP_10M_A] = { 22, 22, 22, 23 },
++		[TX_AMP_10M_B] = { 22, 22, 22, 23 },
++		[R50_A] = { 0, 0, 0, 0 },
++		[R50_B] = { 0, 0, 0, 0 },
++		[R50_C] = { 0, 0, 0, 0 },
++		[R50_D] = { 0, 0, 0, 0 },
++	},
++};
++
++static int an7552_phy_read(struct phy_device *phydev, int devad, int reg)
++{
++	struct an7552_phy_shared *shared = phydev->priv;
++	int ret = phy_read(phydev, devad, reg);
++
++	if (ret < 0 && !shared->error)
++		shared->error = ret;
++	return ret;
++}
++
++static int an7552_phy_write(struct phy_device *phydev, int devad, int reg,
++			    u16 value)
++{
++	struct an7552_phy_shared *shared = phydev->priv;
++	int ret = phy_write(phydev, devad, reg, value);
++
++	if (ret < 0 && !shared->error)
++		shared->error = ret;
++	return ret;
++}
++
++/* The switch MDIO controller supports native Clause 45 transactions. */
++static struct phy_driver an7552_phy_access = {
++	.features = PHY_GBIT_FEATURES,
++	.read_mmd = an7552_phy_read,
++	.write_mmd = an7552_phy_write,
++};
++
++/* REXT and the analog comparator are shared by all four PHYs. */
++static int airoha_p0_read_mmd(struct phy_device *phydev, int devad, u32 reg)
++{
++	struct phy_device p0 = *phydev;
++
++	p0.addr = AIROHA_DEFAULT_PORT0_ADDR;
++	return phy_read_mmd(&p0, devad, reg);
++}
++
++static int airoha_p0_write_mmd(struct phy_device *phydev, int devad, u32 reg,
++			       u16 val)
++{
++	struct phy_device p0 = *phydev;
++
++	p0.addr = AIROHA_DEFAULT_PORT0_ADDR;
++	return phy_write_mmd(&p0, devad, reg, val);
++}
++
++static int airoha_p0_modify_mmd(struct phy_device *phydev, int devad, u32 reg,
++				u16 mask, u16 val)
++{
++	struct phy_device p0 = *phydev;
++
++	p0.addr = AIROHA_DEFAULT_PORT0_ADDR;
++	return phy_modify_mmd(&p0, devad, reg, mask, val);
++}
++
++static int airoha_cal_cycle_wait(struct phy_device *phydev)
++{
++	struct an7552_phy_shared *shared = phydev->priv;
++	int ret;
++
++	if (shared->error)
++		return shared->error;
++
++	/*
++	 * The EN7523 SDK flow does not poll here: it raises DA_CALIN,
++	 * waits 20 us for the analog comparator, reads AD_CAL_CLK/COMP,
++	 * then lowers DA_CALIN.  Using the generic MTK helper can sample the
++	 * comparator too early on EN7523 and drive TX AMP to the rail.
++	 */
++	ret = airoha_p0_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
++				   0, MTK_PHY_DA_CALIN_FLAG);
++	if (ret)
++		return ret;
++
++	udelay(20);
++
++	ret = airoha_p0_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_CLK);
++	if (ret < 0)
++		goto out;
++
++	if (!(ret & MTK_PHY_DA_CAL_CLK)) {
++		ret = -ETIMEDOUT;
++		goto out;
++	}
++
++	ret = airoha_p0_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP);
++	if (ret < 0)
++		goto out;
++
++	ret = FIELD_GET(MTK_PHY_AD_CAL_COMP_OUT_MASK, ret);
++
++out:
++	airoha_p0_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
++			     MTK_PHY_DA_CALIN_FLAG, 0);
++
++	return ret;
++}
++
++static int airoha_cal_cycle(struct phy_device *phydev, int devad,
++			    u32 regnum, u16 mask, u16 cal_val)
++{
++	int ret;
++
++	ret = phy_modify_mmd(phydev, devad, regnum, mask, cal_val);
++	if (ret)
++		return ret;
++
++	ret = airoha_cal_cycle_wait(phydev);
++
++	return ret;
++}
++
++static int airoha_p0_cal_cycle(struct phy_device *phydev, int devad,
++			       u32 regnum, u16 mask, u16 cal_val)
++{
++	int ret;
++
++	ret = airoha_p0_modify_mmd(phydev, devad, regnum, mask, cal_val);
++	if (ret)
++		return ret;
++
++	return airoha_cal_cycle_wait(phydev);
++}
++
++static int airoha_rext_cal_sw(struct phy_device *phydev)
++{
++	int calibration_polarity;
++	u8 zcal_ctrl = 32;
++	int first_calib;
++	int ret;
++
++	/* BG voltage output */
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0xc000);
++
++	/* tst_mode2 */
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND2, 0xff, 0x2);
++	airoha_p0_modify_mmd(phydev, MDIO_MMD_VEND2, 0xff,
++			     GENMASK(15, 4) | GENMASK(1, 0), 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++			    MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN |
++			    MTK_PHY_RG_REXT_CALEN);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0);
++
++	first_calib = airoha_p0_cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
++					  MTK_PHY_RG_REXT_ZCAL_CTRL_MASK, zcal_ctrl);
++
++	if (first_calib < 0) {
++		printf("REXT SW calibration failed.\n");
++		return -EINVAL;
++	}
++
++	/* If REXT calibration failed:
++	 * - increase dB until calibration succeed.
++	 * If REXT calibration succeeded:
++	 * - decrease dB until calibration fail to fine tune it.
++	 */
++	if (first_calib == 1)
++		calibration_polarity = -1;
++	else
++		calibration_polarity = 1;
++
++	while (zcal_ctrl > 0 &&
++	       zcal_ctrl < FIELD_MAX(MTK_PHY_RG_REXT_ZCAL_CTRL_MASK)) {
++		zcal_ctrl += calibration_polarity;
++
++		ret = airoha_p0_cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
++					  MTK_PHY_RG_REXT_ZCAL_CTRL_MASK, zcal_ctrl);
++		/* Exit if we either failed or succeeded compared to the
++		 * first calibration result. (aka we finished fine tuning or
++		 * we succeeded with calibration)
++		 */
++		if (ret != first_calib)
++			break;
++	}
++
++	if (ret < 0) {
++		printf("REXT SW calibration failed.\n");
++		return -EINVAL;
++	}
++
++	if (zcal_ctrl == 0 ||
++	    zcal_ctrl == FIELD_MAX(MTK_PHY_RG_REXT_ZCAL_CTRL_MASK)) {
++		zcal_ctrl = 32;
++		printf("REXT SW calibration saturation. Defaulting to %x.\n",
++		       zcal_ctrl);
++	}
++
++	airoha_p0_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
++			     MTK_PHY_RG_REXT_TRIM_MASK,
++			     FIELD_PREP(MTK_PHY_RG_REXT_TRIM_MASK, zcal_ctrl));
++	airoha_p0_modify_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_BG_RASEL,
++			     MTK_PHY_RG_BG_RASEL_MASK,
++			     FIELD_PREP(MTK_PHY_RG_BG_RASEL_MASK, zcal_ctrl >> 3));
++
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++
++	return 0;
++}
++
++static int airoha_tx_offset_cal_sw(struct phy_device *phydev, u8 txg_calen_x)
++{
++	u16 dev1e_145_tmp, bmcr_tmp;
++	int calibration_polarity;
++	u16 reg_dac1, reg_dac2;
++	int zcal_ctrl = 0;
++	int first_calib;
++	u16 reg, mask;
++	int ret;
++
++	/* BG voltage output */
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0xc000);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++		      MTK_PHY_RG_ANA_CALEN);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1,
++		      MTK_PHY_RG_TXVOS_CALEN);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++			    MTK_PHY_RG_ANA_CALEN);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1,
++			    MTK_PHY_RG_TXVOS_CALEN);
++
++	/* Force 1G full duplex for calibration */
++	bmcr_tmp = an7552_phy_read(phydev, MDIO_DEVAD_NONE, MII_BMCR);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_FULLDPLX | BMCR_SPEED1000);
++
++	/* Force MDI */
++	dev1e_145_tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, 0x0145);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, 0x1010);
++
++	/* 1e_96[15]:bypass_tx_offset_cal, Hw bypass, Fw cal */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x96,
++		      0x8000);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3e,
++		      0xf808);
++
++	switch (txg_calen_x) {
++	case PAIR_A:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(12));
++
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_A;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_A;
++		reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B;
++		mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
++		break;
++	case PAIR_B:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(8));
++
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_B;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_B;
++		reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B;
++		mask = MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
++		break;
++	case PAIR_C:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(4));
++
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_C;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_C;
++		reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
++		mask = MTK_PHY_CR_TX_AMP_OFFSET_C_MASK;
++		break;
++	case PAIR_D:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(0));
++
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_D;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_D;
++		reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
++		mask = MTK_PHY_CR_TX_AMP_OFFSET_D_MASK;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, reg_dac1,
++		      0x8000);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, reg_dac2,
++		      0x8000);
++
++	first_calib = airoha_cal_cycle(phydev, MDIO_MMD_VEND1, reg, mask,
++				       zcal_ctrl << __ffs(mask));
++
++	if (first_calib < 0)
++		return first_calib;
++
++	/* If TX Offset calibration failed:
++	 * - increase dB until calibration succeed.
++	 * If TX Offset calibration succeeded:
++	 * - decrease dB until calibration fail to fine tune it.
++	 */
++	if (first_calib == 1)
++		calibration_polarity = -1;
++	else
++		calibration_polarity = 1;
++
++	while (zcal_ctrl > -32 && zcal_ctrl < 32) {
++		u32 val;
++
++		zcal_ctrl += calibration_polarity;
++		if (zcal_ctrl >= 0)
++			val = zcal_ctrl;
++		else
++			/* BIT(5) signal negative number for TX Offset */
++			val = BIT(5) | abs(zcal_ctrl);
++
++		ret = airoha_cal_cycle(phydev, MDIO_MMD_VEND1, reg, mask,
++				       val << __ffs(mask));
++		/* Exit if we either failed or succeeded compared to the
++		 * first calibration result. (aka we finished fine tuning or
++		 * we succeeded with calibration)
++		 */
++		if (ret != first_calib)
++			break;
++	}
++
++	if (ret < 0) {
++		printf("TX Offset calibration failed.\n");
++		return -EINVAL;
++	}
++
++	if (zcal_ctrl == -32 ||
++	    zcal_ctrl == 32) {
++		zcal_ctrl = 0;
++		printf("TX Offset SW calibration saturation. Defaulting to %x.\n",
++		       zcal_ctrl);
++
++		phy_modify_mmd(phydev, MDIO_MMD_VEND1, reg, mask,
++			       zcal_ctrl << __ffs(mask));
++	}
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0x0);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x96, 0x0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3e, 0xc000);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, 0);
++
++	/* Restore BMCR */
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, bmcr_tmp);
++
++	/* Restore MDI */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, dev1e_145_tmp);
++
++	return 0;
++}
++
++static int airoha_tx_amp_cal_sw(struct phy_device *phydev, u8 txg_calen_x)
++{
++	u16 mask_gbe, mask_tbt, mask_tst, mask_hbt;
++	u16 reg, reg_100, reg_dac1, reg_dac2;
++	int calibration_polarity;
++	int dev1e_145_tmp;
++	int bmcr_tmp;
++	u8 zcal_ctrl = 32;
++	int first_calib;
++	int ret = 0;
++
++	bmcr_tmp = an7552_phy_read(phydev, MDIO_DEVAD_NONE, MII_BMCR);
++	if (bmcr_tmp < 0)
++		return bmcr_tmp;
++
++	dev1e_145_tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, 0x145);
++	if (dev1e_145_tmp < 0)
++		return dev1e_145_tmp;
++
++	/* BG voltage output */
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0xc000);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x145, 0x1010);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++		      MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1,
++		      MTK_PHY_RG_TXVOS_CALEN);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0);
++
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++			    MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1,
++			    MTK_PHY_RG_TXVOS_CALEN);
++
++	/* Enable Tx VLD. */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3e, 0xf808);
++
++	/* Force 1G full duplex for calibration */
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_FULLDPLX | BMCR_SPEED1000);
++
++	switch (txg_calen_x) {
++	case PAIR_A:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(12));
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG0,
++			      MTK_PHY_RG_CAL_CKINV |
++			      MTK_PHY_RG_ANA_CALEN |
++			      MTK_PHY_RG_ZCALEN_A);
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG1,
++			      MTK_PHY_RG_TXVOS_CALEN);
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_A;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_A;
++		reg = MTK_PHY_TXVLD_DA_RG;
++		mask_gbe = MTK_PHY_DA_TX_I2MPB_A_GBE_MASK;
++		mask_tbt = MTK_PHY_DA_TX_I2MPB_A_TBT_MASK;
++		reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_A2;
++		mask_hbt = MTK_PHY_DA_TX_I2MPB_A_HBT_MASK;
++		mask_tst = MTK_PHY_DA_TX_I2MPB_A_TST_MASK;
++		break;
++	case PAIR_B:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(8));
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG0,
++			      MTK_PHY_RG_CAL_CKINV |
++			      MTK_PHY_RG_ANA_CALEN);
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG1,
++			      MTK_PHY_RG_ZCALEN_B |
++			      MTK_PHY_RG_TXVOS_CALEN);
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_B;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_B;
++		reg = MTK_PHY_TX_I2MPB_TEST_MODE_B1;
++		mask_gbe = MTK_PHY_DA_TX_I2MPB_B_GBE_MASK;
++		mask_tbt = MTK_PHY_DA_TX_I2MPB_B_TBT_MASK;
++		reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_B2;
++		mask_hbt = MTK_PHY_DA_TX_I2MPB_B_HBT_MASK;
++		mask_tst = MTK_PHY_DA_TX_I2MPB_B_TST_MASK;
++		break;
++	case PAIR_C:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(4));
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG0,
++			      MTK_PHY_RG_CAL_CKINV |
++			      MTK_PHY_RG_ANA_CALEN);
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG1,
++			      MTK_PHY_RG_ZCALEN_C |
++			      MTK_PHY_RG_TXVOS_CALEN);
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_C;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_C;
++		reg = MTK_PHY_TX_I2MPB_TEST_MODE_C1;
++		mask_gbe = MTK_PHY_DA_TX_I2MPB_C_GBE_MASK;
++		mask_tbt = MTK_PHY_DA_TX_I2MPB_C_TBT_MASK;
++		reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_C2;
++		mask_hbt = MTK_PHY_DA_TX_I2MPB_C_HBT_MASK;
++		mask_tst = MTK_PHY_DA_TX_I2MPB_C_TST_MASK;
++		break;
++	case PAIR_D:
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, BIT(0));
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG0,
++			      MTK_PHY_RG_CAL_CKINV |
++			      MTK_PHY_RG_ANA_CALEN);
++		phy_write_mmd(phydev, MDIO_MMD_VEND1,
++			      MTK_PHY_RG_ANA_CAL_RG1,
++			      MTK_PHY_RG_ZCALEN_D |
++			      MTK_PHY_RG_TXVOS_CALEN);
++		reg_dac1 = MTK_PHY_RG_DASN_DAC_IN0_D;
++		reg_dac2 = MTK_PHY_RG_DASN_DAC_IN1_D;
++		reg = MTK_PHY_TX_I2MPB_TEST_MODE_D1;
++		mask_gbe = MTK_PHY_DA_TX_I2MPB_D_GBE_MASK;
++		mask_tbt = MTK_PHY_DA_TX_I2MPB_D_TBT_MASK;
++		reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_D2;
++		mask_hbt = MTK_PHY_DA_TX_I2MPB_D_HBT_MASK;
++		mask_tst = MTK_PHY_DA_TX_I2MPB_D_TST_MASK;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, reg_dac1,
++		      0x8000 | 0xf0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, reg_dac2,
++		      0x8000 | 0xf0);
++
++	first_calib = airoha_cal_cycle(phydev, MDIO_MMD_VEND1, reg,
++				       mask_gbe, zcal_ctrl << __ffs(mask_gbe));
++	if (first_calib < 0) {
++		printf("TX AMP calibration failed.\n");
++		ret = -EINVAL;
++		goto restore;
++	}
++
++	/* If TX Amp calibration failed:
++	 * - increase dB until calibration succeed.
++	 * If TX Amp calibration succeeded:
++	 * - decrease dB until calibration fail to fine tune it.
++	 */
++	if (first_calib == 1)
++		calibration_polarity = -1;
++	else
++		calibration_polarity = 1;
++
++	while (zcal_ctrl > 0 &&
++	       zcal_ctrl < FIELD_MAX(MTK_PHY_RG_REXT_ZCAL_CTRL_MASK)) {
++		zcal_ctrl += calibration_polarity;
++
++		ret = airoha_cal_cycle(phydev, MDIO_MMD_VEND1, reg,
++				       mask_gbe, zcal_ctrl << __ffs(mask_gbe));
++		/* Exit if we either failed or succeeded compared to the
++		 * first calibration result. (aka we finished fine tuning or
++		 * we succeeded with calibration)
++		 */
++		if (ret != first_calib)
++			break;
++	}
++
++	if (ret < 0) {
++		printf("TX AMP calibration failed.\n");
++		ret = -EINVAL;
++		goto restore;
++	}
++
++	phy_modify_mmd(phydev, MDIO_MMD_VEND1, reg,
++		       mask_gbe | mask_tbt,
++		       (zcal_ctrl << __ffs(mask_gbe)) |
++		       (zcal_ctrl << __ffs(mask_tbt)));
++
++	phy_modify_mmd(phydev, MDIO_MMD_VEND1, reg_100,
++		       mask_hbt | mask_tst,
++		       (zcal_ctrl << __ffs(mask_hbt)) |
++		       (zcal_ctrl << __ffs(mask_tst)));
++
++	ret = 0;
++
++restore:
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0x0);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3e, 0xc000);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xdd, 0);
++
++	/* Restore BMCR */
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, bmcr_tmp);
++
++	/* Restore MDI */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x145, dev1e_145_tmp);
++
++	return ret;
++}
++
++static int airoha_tx_r50_cal_sw(struct phy_device *phydev, u8 txg_calen_x)
++{
++	struct an7552_phy_shared *shared = phydev->priv;
++	u16 dev1e_145_tmp, bmcr_tmp;
++	int calibration_polarity;
++	u8 zcal_ctrl = 32;
++	int first_calib;
++	u16 reg, shift;
++	int ret;
++
++	/* BG voltage output */
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0xc000);
++
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++			    MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6,
++			    0x10);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
++		      MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6,
++		      0x10);
++
++	/* Force 1G full duplex for calibration */
++	bmcr_tmp = an7552_phy_read(phydev, MDIO_DEVAD_NONE, MII_BMCR);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_FULLDPLX | BMCR_SPEED1000);
++
++	/* Force MDI */
++	dev1e_145_tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, 0x0145);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, 0x1010);
++
++	/* disable tx slew control */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0000);
++
++	switch (txg_calen_x) {
++	case PAIR_A:
++		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
++				 MTK_PHY_RG_ANA_CAL_RG0,
++				 MTK_PHY_RG_ZCALEN_A);
++		break;
++	case PAIR_B:
++		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
++				 MTK_PHY_RG_ANA_CAL_RG1,
++				 MTK_PHY_RG_ZCALEN_B);
++		break;
++	case PAIR_C:
++		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
++				 MTK_PHY_RG_ANA_CAL_RG1,
++				 MTK_PHY_RG_ZCALEN_C);
++		break;
++	case PAIR_D:
++		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
++				 MTK_PHY_RG_ANA_CAL_RG1,
++				 MTK_PHY_RG_ZCALEN_D);
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	first_calib = airoha_p0_cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
++					  MTK_PHY_RG_REXT_ZCAL_CTRL_MASK, zcal_ctrl);
++
++	if (first_calib < 0) {
++		printf("TX r50 SW calibration failed.\n");
++		return -EINVAL;
++	}
++
++	/* If TX r50 calibration failed:
++	 * - increase dB until calibration succeed.
++	 * If TX r50 calibration succeeded:
++	 * - decrease dB until calibration fail to fine tune it.
++	 */
++	if (first_calib == 1)
++		calibration_polarity = -1;
++	else
++		calibration_polarity = 1;
++
++	while (zcal_ctrl > 0 &&
++	       zcal_ctrl < FIELD_MAX(MTK_PHY_RG_REXT_ZCAL_CTRL_MASK)) {
++		zcal_ctrl += calibration_polarity;
++
++		ret = airoha_p0_cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
++					  MTK_PHY_RG_REXT_ZCAL_CTRL_MASK, zcal_ctrl);
++		/* Exit if we either failed or succeeded compared to the
++		 * first calibration result. (aka we finished fine tuning or
++		 * we succeeded with calibration)
++		 */
++		if (ret != first_calib)
++			break;
++	}
++
++	if (ret < 0) {
++		printf("TX r50 SW calibration failed.\n");
++		return -EINVAL;
++	}
++
++	if (zcal_ctrl == 0 ||
++	    zcal_ctrl == FIELD_MAX(MTK_PHY_RG_REXT_ZCAL_CTRL_MASK))
++		printf("TX r50 SW calibration saturation.\n");
++
++	zcal_ctrl = shared->r50_cal_tbl[zcal_ctrl];
++
++	shift = txg_calen_x == PAIR_A || txg_calen_x == PAIR_C ? 8 : 0;
++
++	/* AN7552 has a seven-bit impedance code and per-byte enable. */
++	reg = txg_calen_x <= PAIR_B ? 0x174 : 0x175;
++	ret = phy_modify_mmd(phydev, MDIO_MMD_VEND1, reg,
++			     0xff << shift, (0x80 | zcal_ctrl) << shift);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
++
++	/* Enable tx slew control */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0001);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0x0);
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0x0);
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG6, 0x0);
++
++	/* Restore BMCR */
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, MII_BMCR, bmcr_tmp);
++
++	/* Restore MDI */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, dev1e_145_tmp);
++
++	return ret < 0 ? ret : 0;
++}
++
++static int airoha_rx_offset_cal_sw(struct phy_device *phydev)
++{
++	/* Hw bypass, Fw cal */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x96, 0x8000);
++	/* tx/rx_cal_criteria_value */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x37, 0x0033);
++
++	/* rx offset cal by Hw setup */
++	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, 0x39,
++			   BIT(14) | BIT(11));
++
++	/* disable rtune calibration */
++	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, 0x107,
++			   BIT(12));
++
++	/* bypass tx/rx dc offset cancellation process */
++	phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, 0x171,
++			 BIT(8) | BIT(7));
++
++	/* rx offset calibration start */
++	phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, 0x39,
++			 BIT(13));
++
++	/* rx offset calibration stop */
++	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, 0x39,
++			   BIT(13));
++
++	mdelay(10);
++
++	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, 0x171,
++			   BIT(8) | BIT(7));
++
++	return 0;
++}
++
++static int airoha_cal_sw(struct phy_device *phydev, int cal_item,
++			 u8 start_pair, u8 end_pair)
++{
++	u8 pair_n;
++	int ret;
++
++	for (pair_n = start_pair; pair_n <= end_pair; pair_n++) {
++		switch (cal_item) {
++		case REXT:
++			ret = airoha_rext_cal_sw(phydev);
++			break;
++		case TX_OFFSET:
++			ret = airoha_tx_offset_cal_sw(phydev, pair_n);
++			break;
++		case TX_AMP:
++			ret = airoha_tx_amp_cal_sw(phydev, pair_n);
++			break;
++		case TX_R50:
++			ret = airoha_tx_r50_cal_sw(phydev, pair_n);
++			break;
++		case RX_OFFSET:
++			ret = airoha_rx_offset_cal_sw(phydev);
++			break;
++		default:
++			return -EINVAL;
++		}
++		if (ret)
++			return ret;
++	}
++	return 0;
++}
++
++static int airoha_start_cal(struct phy_device *phydev, int cal_item,
++			    u8 start_pair, u8 end_pair)
++{
++	int ret;
++
++	ret = airoha_cal_sw(phydev, cal_item, start_pair, end_pair);
++
++	if (ret) {
++		printf("cal %d failed\n", cal_item);
++		return -EIO;
++	}
++
++	return 0;
++}
++
++static int airoha_phy_calib(struct phy_device *phydev)
++{
++	struct an7552_phy_shared *shared = phydev->priv;
++	int ret;
++
++	/* PreCalibrate Set */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x5c, 0x6666);
++
++	if (!shared->rext_sw_calib_done) {
++		ret = airoha_start_cal(phydev, REXT, NO_PAIR, NO_PAIR);
++		if (ret)
++			return ret;
++
++		shared->rext_sw_calib_done = true;
++	}
++
++	ret = airoha_start_cal(phydev, TX_R50, PAIR_A, PAIR_D);
++	if (ret)
++		return ret;
++
++	ret = airoha_start_cal(phydev, TX_OFFSET, PAIR_A, PAIR_D);
++	if (ret)
++		return ret;
++
++	ret = airoha_start_cal(phydev, TX_AMP, PAIR_A, PAIR_D);
++	if (ret)
++		return ret;
++
++	ret = airoha_start_cal(phydev, RX_OFFSET, NO_PAIR, NO_PAIR);
++	if (ret)
++		return ret;
++
++	/* Gating, short with other pair */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x15, 0x0);
++
++	airoha_p0_write_mmd(phydev, MDIO_MMD_VEND2, 0x100, 0x0);
++
++	return 0;
++}
++
++static int an7552_phy_config_init(struct phy_device *phydev)
++{
++	static const u16 amp_regs[CALIB_CONST_TYPE_MAX] = {
++		0x16, 0x18, 0x20, 0x22, 0x12, 0x17, 0x19, 0x21,
++		0x16, 0x18, 0x12, 0x17, 0x174, 0x174, 0x175, 0x175,
++	};
++	static const u16 amp_masks[CALIB_CONST_TYPE_MAX] = {
++		0x003f, 0x003f, 0x003f, 0x003f, 0xfc00, 0x3f00, 0x3f00, 0x3f00,
++		0xfc00, 0x3f00, 0x003f, 0x003f, 0x7f00, 0x007f, 0x7f00, 0x007f,
++	};
++	struct an7552_phy_shared *shared = phydev->priv;
++	ofnode node = phydev->node;
++	u32 ohms;
++	int port = phydev->addr - AIROHA_DEFAULT_PORT0_ADDR;
++	int i, ret, val, comp;
++	bool integrated;
++
++	if (port < 0 || port >= 4)
++		return -EINVAL;
++	ohms = ofnode_read_u32_default(node, "airoha,mdi-resistor-ohms", 5);
++	if (ohms != 0 && ohms != 5)
++		return -EINVAL;
++	integrated = ofnode_read_bool(node, "airoha,integrated-transformer");
++
++	shared->mdi_resister_type = ohms ? MDI_5R : MDI_0R;
++	shared->transformer_type[port] = integrated ? TXMR : DISCRETE;
++	shared->r50_cal_tbl = an7552_zcal_to_r50ohm[!!ohms];
++
++	for (i = 0; i < ARRAY_SIZE(an7552_ge_init_regs); i++) {
++		const struct airoha_mmd_reg *reg = &an7552_ge_init_regs[i];
++
++		ret = phy_write_mmd(phydev, reg->devad, reg->reg, reg->val);
++		if (ret < 0)
++			goto out;
++	}
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x52b5);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x11, 0x2422);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x12, 0x0008);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x10, 0x8000 | (1 << 11) | (0xf << 7) | (3 << 1));
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0);
++
++	/* PreCalSet: use the AN7552 low-power and long-reach profile. */
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3c, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3d, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x3e, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xc6, 0x53aa);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x268, 0x07f1);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x269, 0x1111);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x26a, 0);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x26b, 0x0074);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x26e, 0x00f6);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x26f, 0x6666);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x271, 0x2c02);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x272, 0x0c22);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x700, 0x0001);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x701, 0x0803);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x702, 0x01b6);
++	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x703, 0x1111);
++	for (i = 0x200; i <= 0x230; i += 2)
++		phy_write_mmd(phydev, MDIO_MMD_VEND2, i, 0x2010);
++
++	ret = airoha_phy_calib(phydev);
++	if (ret)
++		goto out;
++
++	for (i = 0; i < CALIB_CONST_TYPE_MAX; i++) {
++		u16 mask = amp_masks[i];
++
++		val = phy_read_mmd(phydev, MDIO_MMD_VEND1, amp_regs[i]);
++		if (val < 0) {
++			ret = val;
++			goto out;
++		}
++		comp = an7552_tx_comp[shared->transformer_type[port]]
++				    [shared->mdi_resister_type][i][port];
++		val = clamp_t(int, ((val & mask) >> __ffs(mask)) + comp,
++			      0, mask >> __ffs(mask));
++		ret = phy_modify_mmd(phydev, MDIO_MMD_VEND1, amp_regs[i],
++				     mask, val << __ffs(mask));
++		if (ret < 0)
++			goto out;
++	}
++
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xe7,
++		      ohms ? (integrated ? 0x6666 : 0x5555) : 0x2222);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xe9,
++		      ohms && integrated ? 6 : 1);
++	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xfe,
++		      ohms && integrated ? 3 : 0);
++	if (integrated && ohms) {
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x5c, 0x5555);
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x176, 0x5500);
++		phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x177, 0x0055);
++	}
++	phy_write_mmd(phydev, MDIO_MMD_AN, MDIO_AN_EEE_ADV, 0);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 1);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x14, 0x3a18);
++	an7552_phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0);
++	ret = 0;
++out:
++	return ret ? ret : shared->error;
++}
++
++int an7552_switch_phy_init(struct udevice *mdio_dev)
++{
++	struct mdio_perdev_priv *mdio_priv;
++	struct an7552_phy_shared shared = {};
++	struct phy_device phydev = {
++		.priv = &shared,
++		.drv = &an7552_phy_access,
++		.supported = PHY_GBIT_FEATURES,
++		.advertising = PHY_GBIT_FEATURES,
++		.autoneg = AUTONEG_ENABLE,
++	};
++	ofnode node;
++	int ret, value;
++	u32 addr;
++
++	ret = device_probe(mdio_dev);
++	if (ret)
++		return ret;
++	mdio_priv = dev_get_uclass_priv(mdio_dev);
++	phydev.bus = mdio_priv->mii_bus;
++
++	for (addr = 9; addr <= 12; addr++) {
++		phydev.addr = addr;
++		ret = an7552_phy_write(&phydev, MDIO_DEVAD_NONE, 0x1f, 0);
++		if (ret)
++			return ret;
++		ret = an7552_phy_write(&phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_RESET);
++		if (ret)
++			return ret;
++		ret = read_poll_timeout(an7552_phy_read, value,
++					value < 0 || !(value & BMCR_RESET),
++					1000, 500000, &phydev,
++					MDIO_DEVAD_NONE, MII_BMCR);
++		if (ret || value < 0)
++			return ret ? ret : value;
++	}
++
++	dev_for_each_subnode(node, mdio_dev) {
++		if (!ofnode_is_enabled(node))
++			continue;
++		ret = ofnode_read_u32(node, "reg", &addr);
++		if (ret || addr < 9 || addr > 12)
++			return -EINVAL;
++		phydev.addr = addr;
++		phydev.node = node;
++
++		/* The SDK matches PHYSID2 only; do not fabricate the OUI. */
++		value = phy_read(&phydev, MDIO_DEVAD_NONE, MII_PHYSID2);
++		if (value < 0)
++			return value;
++		if (value != 0x0400)
++			return -ENODEV;
++
++		ret = an7552_phy_config_init(&phydev);
++		if (ret)
++			return ret;
++		ret = phy_clear_bits(&phydev, MDIO_DEVAD_NONE, MII_BMCR, BMCR_PDOWN);
++		if (ret < 0)
++			return ret;
++		ret = genphy_config_aneg(&phydev);
++		if (ret < 0)
++			return ret;
++	}
++
++	return 0;
++}
+diff --git a/drivers/net/airoha/phy-an7552.h b/drivers/net/airoha/phy-an7552.h
+new file mode 100644
+--- /dev/null
++++ b/drivers/net/airoha/phy-an7552.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef __AIROHA_PHY_AN7552_H
++#define __AIROHA_PHY_AN7552_H
++
++struct udevice;
++
++#if CONFIG_IS_ENABLED(TARGET_AN7552)
++int an7552_switch_phy_init(struct udevice *mdio_dev);
++#else
++static inline int an7552_switch_phy_init(struct udevice *mdio_dev)
++{
++	return -EOPNOTSUPP;
++}
++#endif
++
++#endif
+diff --git a/drivers/net/airoha_eth.c b/drivers/net/airoha_eth.c
+--- a/drivers/net/airoha_eth.c
++++ b/drivers/net/airoha_eth.c
+@@ -43,6 +43,7 @@
+ #endif
+ 
+ #include "airoha/pcs-airoha.h"
++#include "airoha/phy-an7552.h"
+ 
+ #define AIROHA_MAX_NUM_GDM_PORTS	4
+ #define AIROHA_MAX_NUM_QDMA		1
+@@ -187,6 +188,14 @@
+ #define GDM1_BASE			0x0500
+ #define PPE1_BASE			0x0c00
+ 
++#define AN7552_FE_RST_GLO_CFG		0x0004
++#define AN7552_FE_RST_CORE		BIT(0)
++#define AN7552_FE_PCE_CFG			0x0070
++#define AN7552_PSE_SHARE_USED_THD		0x00d0
++#define AN7552_PSE_FQ_CFG			0x014c
++#define AN7552_QDMA2_FC_MAPPING5		0x21c4
++#define AN7552_GDMP_SRAM_SEL		0x0074
++
+ #define CDM2_BASE			0x1400
+ #define GDM2_BASE			0x1500
+ 
+@@ -622,6 +631,7 @@ struct airoha_gdm_port {
+ 
+ struct airoha_eth {
+ 	void __iomem *fe_regs;
++	void __iomem *gdmp_regs;
+ 	void __iomem *switch_regs;
+ 	struct udevice *switch_mdio_dev;
+ 
+@@ -1094,6 +1104,7 @@ static int airoha_get_fe_port(struct airoha_gdm_port *port)
+ 		return EN751221_FPORT_GDM1;
+ 	case 0x7580:
+ 	case 0x7523:
++	case 0x7552:
+ 		/* FIXME: GDM1 is the only supported port */
+ 		return FE_PSE_PORT_GDM1;
+ 	case 0x7583:
+@@ -1203,6 +1214,22 @@ static int airoha_fe_init(struct airoha_gdm_port *port)
+ 
+ 	airoha_fe_maccr_init(port);
+ 
++	if (port->qdma->eth->soc->version == 0x7552) {
++		struct airoha_eth *eth = port->qdma->eth;
++
++		/* U-Boot uses the CPU path without PPE, PCE or special tags. */
++		airoha_fe_wr(eth, AN7552_FE_PCE_CFG, 0);
++		airoha_fe_wr(eth, REG_CDM1_HWF_CHN_EN, 0);
++		airoha_fe_wr(eth, REG_CDM2_HWF_CHN_EN, 0);
++		airoha_fe_clear(eth, REG_CDM_CSG_CFG, CDM_STAG_EN);
++		airoha_fe_rmw(eth, REG_FE_CPORT_CFG, BIT(24),
++			      FE_CPORT_PAD_EN | BIT(25));
++		/* No PON consumer is registered in U-Boot. */
++		airoha_fe_rmw(eth, REG_GDM_FWD_CFG(2),
++			      GDM_UCFQ_MASK | GDM_BCFQ_MASK |
++			      GDM_MCFQ_MASK | GDM_OCFQ_MASK, 0xffff);
++	}
++
+ 	if (airoha_is_gen1(port->qdma->eth))
+ 		en751221_fe_trace(port->qdma->eth, port->id, "fe: after");
+ 
+@@ -2097,6 +2124,16 @@ static int airoha_hw_init(struct udevice *dev,
+ 
+ 	mdelay(20);
+ 
++	if (eth->soc->version == 0x7552) {
++		/* Match the AN7552 SDK before QDMA gets its descriptor bases. */
++		writel(3, eth->gdmp_regs + AN7552_GDMP_SRAM_SEL);
++		airoha_fe_wr(eth, AN7552_PSE_FQ_CFG, 0x500);
++		airoha_fe_wr(eth, AN7552_FE_RST_GLO_CFG, AN7552_FE_RST_CORE);
++		mdelay(1);
++		airoha_fe_wr(eth, AN7552_PSE_SHARE_USED_THD, 0x01e001f4);
++		airoha_fe_wr(eth, AN7552_QDMA2_FC_MAPPING5, 0x004b004a);
++	}
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+ 		ret = airoha_qdma_init(dev, eth, &eth->qdma[i]);
+ 		if (ret)
+@@ -2652,7 +2689,7 @@ static int airoha_switch_init(struct udevice *dev, struct airoha_eth *eth)
+ 			  airoha_switch_rr(eth, SWITCH_SYS_CTRL));
+ 		return 0;
+ 	}
+-	if (data->version == 0x7580) {
++	if (data->version == 0x7580 || data->version == 0x7552) {
+ 		int port;
+ 
+ 		airoha_switch_wr(eth, SWITCH_MFC,
+@@ -2882,6 +2919,12 @@ static int airoha_eth_probe(struct udevice *dev)
+ 	if (!eth->fe_regs)
+ 		return -ENOMEM;
+ 
++	if (data->version == 0x7552) {
++		eth->gdmp_regs = dev_remap_addr_name(dev, "gdmp");
++		if (!eth->gdmp_regs)
++			return -EINVAL;
++	}
++
+ 	if (!data->direct_reset) {
+ 		eth->rsts.resets = devm_kcalloc(dev, AIROHA_MAX_NUM_RSTS,
+ 						sizeof(struct reset_ctl), GFP_KERNEL);
+@@ -2951,6 +2994,20 @@ static int airoha_eth_probe(struct udevice *dev)
+ 			eth->switch_mdio_dev = mdio_dev;
+ 	}
+ 
++	if (data->version == 0x7552) {
++		u32 poll;
++
++		if (!eth->switch_mdio_dev)
++			return -ENODEV;
++		poll = airoha_switch_rr(eth, SWITCH_PHY_POLL);
++		airoha_switch_wr(eth, SWITCH_PHY_POLL,
++				 poll & ~(SWITCH_PHY_AP_EN | SWITCH_EEE_POLL_EN));
++		ret = an7552_switch_phy_init(eth->switch_mdio_dev);
++		airoha_switch_wr(eth, SWITCH_PHY_POLL, poll);
++		if (ret)
++			return ret;
++	}
++
+ 	ofnode_for_each_subnode(node, dev_ofnode(dev)) {
+ 		if (!ofnode_device_is_compatible(node, "airoha,eth-mac") &&
+ 		    !ofnode_device_is_compatible(node, "econet,eth-mac"))
+@@ -3499,6 +3556,10 @@ static int airoha_eth_send(struct udevice *dev, void *packet, int length)
+ 		msg1 = FIELD_PREP(QDMA_ETH_TXMSG_FPORT_MASK, fport) |
+ 		       FIELD_PREP(QDMA_ETH_TXMSG_METER_MASK, 0x7f);
+ 
++	/* AN7552 uses all ones to disable both accounting group selectors. */
++	if (qdma->eth->soc->version == 0x7552)
++		msg1 |= GENMASK(10, 0);
++
+ 	val = FIELD_PREP(QDMA_DESC_LEN_MASK, length);
+ 	WRITE_ONCE(desc->ctrl, cpu_to_le32(val));
+ 	WRITE_ONCE(desc->addr, cpu_to_le32(dma_addr));
+@@ -3668,6 +3729,12 @@ static const struct airoha_eth_soc_data en7523_data = {
+ 	.switch_compatible = "airoha,en7523-switch",
+ };
+ 
++static const struct airoha_eth_soc_data an7552_data = {
++	.version = 0x7552,
++	.switch_mdio = true,
++	.switch_compatible = "airoha,an7552-switch",
++};
++
+ static const struct airoha_eth_soc_data en751221_data = {
+ 	.version = 0x7512,
+ 	.econet = true,
+@@ -3735,6 +3802,9 @@ static const struct udevice_id airoha_eth_ids[] = {
+ 	{ .compatible = "airoha,en7523-eth",
+ 	  .data = (ulong)&en7523_data,
+ 	},
++	{ .compatible = "airoha,an7552-eth",
++	  .data = (ulong)&an7552_data,
++	},
+ 	{ .compatible = "airoha,en7581-eth",
+ 	  .data = (ulong)&en7581_data,
+ 	},
+diff --git a/drivers/pinctrl/airoha/Kconfig b/drivers/pinctrl/airoha/Kconfig
+--- a/drivers/pinctrl/airoha/Kconfig
++++ b/drivers/pinctrl/airoha/Kconfig
+@@ -41,6 +41,11 @@ config PINCTRL_AIROHA_EN7523
+ 	depends on TARGET_EN7523
+ 	select PINCTRL_AIROHA
+ 
++config PINCTRL_AIROHA_AN7563
++	bool "Airoha AN7552/AN7563 pin controller and gpio driver"
++	depends on TARGET_AN7552
++	select PINCTRL_AIROHA
++
+ config PINCTRL_AIROHA_AN7581
+ 	bool "Airoha AN7581 pin controller and gpio driver"
+ 	depends on TARGET_AN7581
+diff --git a/drivers/pinctrl/airoha/Makefile b/drivers/pinctrl/airoha/Makefile
+--- a/drivers/pinctrl/airoha/Makefile
++++ b/drivers/pinctrl/airoha/Makefile
+@@ -6,5 +6,6 @@ obj-$(CONFIG_PINCTRL_AIROHA_EN751221)	+= pinctrl-en751221.o
+ obj-$(CONFIG_PINCTRL_AIROHA_EN7528)	+= pinctrl-en7528.o
+ obj-$(CONFIG_PINCTRL_AIROHA_EN7580)	+= pinctrl-en7580.o
+ obj-$(CONFIG_PINCTRL_AIROHA_EN7523)	+= pinctrl-en7523.o
++obj-$(CONFIG_PINCTRL_AIROHA_AN7563)	+= pinctrl-an7563.o
+ obj-$(CONFIG_PINCTRL_AIROHA_AN7581)	+= pinctrl-an7581.o
+ obj-$(CONFIG_PINCTRL_AIROHA_AN7583)	+= pinctrl-an7583.o
+diff --git a/drivers/pinctrl/airoha/pinctrl-an7563.c b/drivers/pinctrl/airoha/pinctrl-an7563.c
+new file mode 100644
+--- /dev/null
++++ b/drivers/pinctrl/airoha/pinctrl-an7563.c
+@@ -0,0 +1,1323 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * AN7563 SoC pinctrl data for the Airoha pinctrl driver (pinctrl-airoha.c).
++ *
++ * Sources: AN7563 Programming Guide chapter 2 (CHIP SCU, base 0x1fa20000),
++ * chapter 17 (GPIO controller, base 0x1fbf0200) and AN7563PT datasheet
++ * chapter 4.3 (pin sharing scheme).
++ *
++ * Pin numbering follows the GPIO line numbering of the SoC:
++ *   pins  0-27 -> GPIO0-GPIO27 (dedicated GPIO pads)
++ *   pins 28/29 -> PCIE_RESET0/PCIE_RESET1 pads (GPIO28/GPIO29)
++ *   pins 30/31 -> I2C_SCL/I2C_SDA pads (GPIO30/GPIO31)
++ *   pins 32-35 -> SPI_CLK/SPI_CS/SPI_MOSI/SPI_MISO pads (GPIO32-GPIO35)
++ *   pins 36/37 -> UART_TXD/UART_RXD pads (GPIO36/GPIO37)
++ *
++ * Adapted from the Linux AN7563 pinctrl data for the U-Boot driver model.
++ */
++
++#include "airoha-common.h"
++
++/*
++ * shared - named RG_SW_TOD_1PPS_MODE on AN7563. Only the LAN LED mode
++ * bits and GSW_TOD_1PPS exist on AN7563 (no 2nd I2C, I2S or PON 1PPS).
++ */
++#define REG_GPIO_2ND_I2C_MODE			0x0214
++#define GPIO_LAN3_LED1_MODE_MASK		BIT(10)
++#define GPIO_LAN3_LED0_MODE_MASK		BIT(9)
++#define GPIO_LAN2_LED1_MODE_MASK		BIT(8)
++#define GPIO_LAN2_LED0_MODE_MASK		BIT(7)
++#define GPIO_LAN1_LED1_MODE_MASK		BIT(6)
++#define GPIO_LAN1_LED0_MODE_MASK		BIT(5)
++#define GPIO_LAN0_LED1_MODE_MASK		BIT(4)
++#define GPIO_LAN0_LED0_MODE_MASK		BIT(3)
++#define GSW_TOD_1PPS_MODE_MASK			BIT(1)
++
++/* shared */
++#define REG_GPIO_SPI_CS1_MODE			0x0218
++#define GPIO_PCM_SPI_CS4_MODE_MASK		BIT(21)
++#define GPIO_PCM_SPI_CS3_MODE_MASK		BIT(20)
++#define GPIO_PCM_SPI_CS2_MODE_MASK		BIT(18)
++#define GPIO_PCM_SPI_CS1_MODE_MASK		BIT(17)
++#define GPIO_PCM_SPI_MODE_MASK			BIT(16)
++#define GPIO_PCM2_MODE_MASK			BIT(13)
++#define GPIO_PCM1_MODE_MASK			BIT(12)
++#define GPIO_PCM_INT_MODE_MASK			BIT(9)
++#define GPIO_PCM_RESET_MODE_MASK		BIT(8)
++#define GPIO_SPI_QUAD_MODE_MASK			BIT(4)
++#define GPIO_SPI_CS4_MODE_MASK			BIT(3)
++#define GPIO_SPI_CS3_MODE_MASK			BIT(2)
++#define GPIO_SPI_CS2_MODE_MASK			BIT(1)
++#define GPIO_SPI_CS1_MODE_MASK			BIT(0)
++
++#define REG_GPIO_PON_MODE			0x021c
++/*
++ * AN7563 specific: route the standalone pads to their GPIO function.
++ * 0: pad keeps its base function, 1: pad is GPIO<n>.
++ */
++#define UART_RXD_GPIO_MODE_MASK			BIT(22)	/* GPIO37 */
++#define UART_TXD_GPIO_MODE_MASK			BIT(21)	/* GPIO36 */
++#define SPI_MISO_GPIO_MODE_MASK			BIT(20)	/* GPIO35 */
++#define SPI_MOSI_GPIO_MODE_MASK			BIT(19)	/* GPIO34 */
++#define SPI_CS_GPIO_MODE_MASK			BIT(18)	/* GPIO33 */
++#define SPI_CLK_GPIO_MODE_MASK			BIT(17)	/* GPIO32 */
++#define I2C_SDA_GPIO_MODE_MASK			BIT(16)	/* GPIO31 */
++#define I2C_SCL_GPIO_MODE_MASK			BIT(15)	/* GPIO30 */
++/* shared */
++#define GPIO_PARALLEL_NAND_MODE_MASK		BIT(14)
++#define GPIO_SGMII_MDIO_MODE_MASK		BIT(13)
++#define SIPO_RCLK_MODE_MASK			BIT(11)
++/*
++ * Note: on AN7563 GPIO_PCIE_RESET{0,1} select the GPIO function of the
++ * PCIE_RESET pads (0: PCIe reset, 1: GPIO28/GPIO29).
++ */
++#define GPIO_PCIE_RESET1_MASK			BIT(10)	/* GPIO29 */
++#define GPIO_PCIE_RESET0_MASK			BIT(9)	/* GPIO28 */
++#define GPIO_HSUART_CTS_RTS_MODE_MASK		BIT(6)
++#define GPIO_HSUART_MODE_MASK			BIT(5)
++#define GPIO_SIPO_MODE_MASK			BIT(2)
++#define GPIO_PON_MODE_MASK			BIT(0)
++
++/* shared */
++#define REG_NPU_UART_EN				0x0224
++#define JTAG_UDI_EN_MASK			BIT(4)
++#define JTAG_DFD_EN_MASK			BIT(3)
++
++/* LED MAP - shared */
++#define REG_LAN_LED0_MAPPING			0x027c
++#define REG_LAN_LED1_MAPPING			0x0280
++
++#define LAN3_LED_MAPPING_MASK			GENMASK(14, 12)
++#define LAN3_PHY_LED_MAP(_n)			FIELD_PREP_CONST(LAN3_LED_MAPPING_MASK, (_n))
++
++#define LAN2_LED_MAPPING_MASK			GENMASK(10, 8)
++#define LAN2_PHY_LED_MAP(_n)			FIELD_PREP_CONST(LAN2_LED_MAPPING_MASK, (_n))
++
++#define LAN1_LED_MAPPING_MASK			GENMASK(6, 4)
++#define LAN1_PHY_LED_MAP(_n)			FIELD_PREP_CONST(LAN1_LED_MAPPING_MASK, (_n))
++
++#define LAN0_LED_MAPPING_MASK			GENMASK(2, 0)
++#define LAN0_PHY_LED_MAP(_n)			FIELD_PREP_CONST(LAN0_LED_MAPPING_MASK, (_n))
++
++/*
++ * CONF - shared.
++ * The AN7563 standalone IO conf registers use the same bit layout as
++ * EN7581 (UART1_TXD/RXD are named UART_TXD/RXD on AN7563).
++ */
++#define REG_I2C_SDA_E2				0x001c
++#define SPI_MISO_E2_MASK			BIT(14)
++#define SPI_MOSI_E2_MASK			BIT(13)
++#define SPI_CLK_E2_MASK				BIT(12)
++#define SPI_CS0_E2_MASK				BIT(11)
++#define PCIE1_RESET_E2_MASK			BIT(9)
++#define PCIE0_RESET_E2_MASK			BIT(8)
++#define UART1_RXD_E2_MASK			BIT(3)
++#define UART1_TXD_E2_MASK			BIT(2)
++#define I2C_SCL_E2_MASK				BIT(1)
++#define I2C_SDA_E2_MASK				BIT(0)
++
++#define REG_I2C_SDA_E4				0x0020
++#define SPI_MISO_E4_MASK			BIT(14)
++#define SPI_MOSI_E4_MASK			BIT(13)
++#define SPI_CLK_E4_MASK				BIT(12)
++#define SPI_CS0_E4_MASK				BIT(11)
++#define PCIE1_RESET_E4_MASK			BIT(9)
++#define PCIE0_RESET_E4_MASK			BIT(8)
++#define UART1_RXD_E4_MASK			BIT(3)
++#define UART1_TXD_E4_MASK			BIT(2)
++#define I2C_SCL_E4_MASK				BIT(1)
++#define I2C_SDA_E4_MASK				BIT(0)
++
++#define REG_GPIO_L_E2				0x0024
++#define REG_GPIO_L_E4				0x0028
++
++#define REG_I2C_SDA_PU				0x0044
++#define SPI_MISO_PU_MASK			BIT(14)
++#define SPI_MOSI_PU_MASK			BIT(13)
++#define SPI_CLK_PU_MASK				BIT(12)
++#define SPI_CS0_PU_MASK				BIT(11)
++#define PCIE1_RESET_PU_MASK			BIT(9)
++#define PCIE0_RESET_PU_MASK			BIT(8)
++#define UART1_RXD_PU_MASK			BIT(3)
++#define UART1_TXD_PU_MASK			BIT(2)
++#define I2C_SCL_PU_MASK				BIT(1)
++#define I2C_SDA_PU_MASK				BIT(0)
++
++#define REG_I2C_SDA_PD				0x0048
++#define SPI_MISO_PD_MASK			BIT(14)
++#define SPI_MOSI_PD_MASK			BIT(13)
++#define SPI_CLK_PD_MASK				BIT(12)
++#define SPI_CS0_PD_MASK				BIT(11)
++#define PCIE1_RESET_PD_MASK			BIT(9)
++#define PCIE0_RESET_PD_MASK			BIT(8)
++#define UART1_RXD_PD_MASK			BIT(3)
++#define UART1_TXD_PD_MASK			BIT(2)
++#define I2C_SCL_PD_MASK				BIT(1)
++#define I2C_SDA_PD_MASK				BIT(0)
++
++#define REG_GPIO_L_PU				0x004c
++#define REG_GPIO_L_PD				0x0050
++
++#define REG_PCIE_RESET_OD			0x018c
++#define PCIE1_RESET_OD_MASK			BIT(1)
++#define PCIE0_RESET_OD_MASK			BIT(0)
++
++/*
++ * PWM MODE CONF - shared.
++ * The AN7563 GPIO flash mode registers use the same layout as EN7581:
++ * REG_GPIO_FLASH_MODE_CFG covers GPIO0-15, REG_GPIO_FLASH_MODE_CFG_EXT
++ * covers GPIO16-31 (bits 0-15) and GPIO36+ (bits 16+). The SPI pads
++ * (GPIO32-35) have no flash mode configuration bit.
++ */
++#define REG_GPIO_FLASH_MODE_CFG			0x0034
++#define GPIO15_FLASH_MODE_CFG			BIT(15)
++#define GPIO14_FLASH_MODE_CFG			BIT(14)
++#define GPIO13_FLASH_MODE_CFG			BIT(13)
++#define GPIO12_FLASH_MODE_CFG			BIT(12)
++#define GPIO11_FLASH_MODE_CFG			BIT(11)
++#define GPIO10_FLASH_MODE_CFG			BIT(10)
++#define GPIO9_FLASH_MODE_CFG			BIT(9)
++#define GPIO8_FLASH_MODE_CFG			BIT(8)
++#define GPIO7_FLASH_MODE_CFG			BIT(7)
++#define GPIO6_FLASH_MODE_CFG			BIT(6)
++#define GPIO5_FLASH_MODE_CFG			BIT(5)
++#define GPIO4_FLASH_MODE_CFG			BIT(4)
++#define GPIO3_FLASH_MODE_CFG			BIT(3)
++#define GPIO2_FLASH_MODE_CFG			BIT(2)
++#define GPIO1_FLASH_MODE_CFG			BIT(1)
++#define GPIO0_FLASH_MODE_CFG			BIT(0)
++
++#define REG_GPIO_FLASH_MODE_CFG_EXT		0x0068
++#define GPIO37_FLASH_MODE_CFG			BIT(17)
++#define GPIO36_FLASH_MODE_CFG			BIT(16)
++#define GPIO31_FLASH_MODE_CFG			BIT(15)
++#define GPIO30_FLASH_MODE_CFG			BIT(14)
++#define GPIO29_FLASH_MODE_CFG			BIT(13)
++#define GPIO28_FLASH_MODE_CFG			BIT(12)
++#define GPIO27_FLASH_MODE_CFG			BIT(11)
++#define GPIO26_FLASH_MODE_CFG			BIT(10)
++#define GPIO25_FLASH_MODE_CFG			BIT(9)
++#define GPIO24_FLASH_MODE_CFG			BIT(8)
++#define GPIO23_FLASH_MODE_CFG			BIT(7)
++#define GPIO22_FLASH_MODE_CFG			BIT(6)
++#define GPIO21_FLASH_MODE_CFG			BIT(5)
++#define GPIO20_FLASH_MODE_CFG			BIT(4)
++#define GPIO19_FLASH_MODE_CFG			BIT(3)
++#define GPIO18_FLASH_MODE_CFG			BIT(2)
++#define GPIO17_FLASH_MODE_CFG			BIT(1)
++#define GPIO16_FLASH_MODE_CFG			BIT(0)
++
++#define AIROHA_PINCTRL_GPIO(gpio, mux_val)			\
++	{							\
++		.name = (gpio),					\
++		.regmap[0] = {					\
++			AIROHA_FUNC_MUX,			\
++			REG_GPIO_PON_MODE,			\
++			(mux_val),				\
++			(mux_val)				\
++		},						\
++		.regmap_size = 1,				\
++	}
++
++#define AIROHA_PINCTRL_GPIO_EXT(gpio, mux_val, smux_val)	\
++	{							\
++		.name = (gpio),					\
++		.regmap[0] = {					\
++			AIROHA_FUNC_PWM_EXT_MUX,		\
++			REG_GPIO_FLASH_MODE_CFG_EXT,		\
++			(mux_val),				\
++			0					\
++		},						\
++		.regmap[1] = {					\
++			AIROHA_FUNC_MUX,			\
++			REG_GPIO_PON_MODE,			\
++			(smux_val),				\
++			(smux_val)				\
++		},						\
++		.regmap_size = 2,				\
++	}
++
++/* PWM */
++#define AIROHA_PINCTRL_PWM(gpio, mux_val)			\
++	{							\
++		.name = (gpio),					\
++		.regmap[0] = {					\
++			AIROHA_FUNC_PWM_MUX,			\
++			REG_GPIO_FLASH_MODE_CFG,		\
++			(mux_val),				\
++			(mux_val)				\
++		},						\
++		.regmap_size = 1,				\
++	}
++
++#define AIROHA_PINCTRL_PWM_EXT(gpio, mux_val)			\
++	{							\
++		.name = (gpio),					\
++		.regmap[0] = {					\
++			AIROHA_FUNC_PWM_EXT_MUX,		\
++			REG_GPIO_FLASH_MODE_CFG_EXT,		\
++			(mux_val),				\
++			(mux_val)				\
++		},						\
++		.regmap_size = 1,				\
++	}
++
++#define AIROHA_PINCTRL_PWM_EXT_SEC(gpio, mux_val, smux_val)	\
++	{							\
++		.name = (gpio),					\
++		.regmap[0] = {					\
++			AIROHA_FUNC_PWM_EXT_MUX,		\
++			REG_GPIO_FLASH_MODE_CFG_EXT,		\
++			(mux_val),				\
++			(mux_val)				\
++		},						\
++		.regmap[1] = {					\
++			AIROHA_FUNC_MUX,			\
++			REG_GPIO_PON_MODE,			\
++			(smux_val),				\
++			(smux_val)				\
++		},						\
++		.regmap_size = 2,				\
++	}
++
++#define AIROHA_PINCTRL_PHY_LED0(gpio, mux_val, map_mask, map_val)	\
++	{								\
++		.name = (gpio),						\
++		.regmap[0] = {						\
++			AIROHA_FUNC_MUX,				\
++			REG_GPIO_2ND_I2C_MODE,				\
++			(mux_val),					\
++			(mux_val),					\
++		},							\
++		.regmap[1] = {						\
++			AIROHA_FUNC_MUX,				\
++			REG_LAN_LED0_MAPPING,				\
++			(map_mask),					\
++			(map_val),					\
++		},							\
++		.regmap_size = 2,					\
++	}
++
++#define AIROHA_PINCTRL_PHY_LED1(gpio, mux_val, map_mask, map_val)	\
++	{								\
++		.name = (gpio),						\
++		.regmap[0] = {						\
++			AIROHA_FUNC_MUX,				\
++			REG_GPIO_2ND_I2C_MODE,				\
++			(mux_val),					\
++			(mux_val),					\
++		},							\
++		.regmap[1] = {						\
++			AIROHA_FUNC_MUX,				\
++			REG_LAN_LED1_MAPPING,				\
++			(map_mask),					\
++			(map_val),					\
++		},							\
++		.regmap_size = 2,					\
++	}
++
++static const struct pinctrl_pin_desc pinctrl_pins[] = {
++	PINCTRL_PIN(0, "gpio0"),
++	PINCTRL_PIN(1, "gpio1"),
++	PINCTRL_PIN(2, "gpio2"),
++	PINCTRL_PIN(3, "gpio3"),
++	PINCTRL_PIN(4, "gpio4"),
++	PINCTRL_PIN(5, "gpio5"),
++	PINCTRL_PIN(6, "gpio6"),
++	PINCTRL_PIN(7, "gpio7"),
++	PINCTRL_PIN(8, "gpio8"),
++	PINCTRL_PIN(9, "gpio9"),
++	PINCTRL_PIN(10, "gpio10"),
++	PINCTRL_PIN(11, "gpio11"),
++	PINCTRL_PIN(12, "gpio12"),
++	PINCTRL_PIN(13, "gpio13"),
++	PINCTRL_PIN(14, "gpio14"),
++	PINCTRL_PIN(15, "gpio15"),
++	PINCTRL_PIN(16, "gpio16"),
++	PINCTRL_PIN(17, "gpio17"),
++	PINCTRL_PIN(18, "gpio18"),
++	PINCTRL_PIN(19, "gpio19"),
++	PINCTRL_PIN(20, "gpio20"),
++	PINCTRL_PIN(21, "gpio21"),
++	PINCTRL_PIN(22, "gpio22"),
++	PINCTRL_PIN(23, "gpio23"),
++	PINCTRL_PIN(24, "gpio24"),
++	PINCTRL_PIN(25, "gpio25"),
++	PINCTRL_PIN(26, "gpio26"),
++	PINCTRL_PIN(27, "gpio27"),
++	PINCTRL_PIN(28, "pcie_reset0"),	/* GPIO28 */
++	PINCTRL_PIN(29, "pcie_reset1"),	/* GPIO29 */
++	PINCTRL_PIN(30, "i2c_scl"),	/* GPIO30 */
++	PINCTRL_PIN(31, "i2c_sda"),	/* GPIO31 */
++	PINCTRL_PIN(32, "spi_clk"),	/* GPIO32 */
++	PINCTRL_PIN(33, "spi_cs"),	/* GPIO33 */
++	PINCTRL_PIN(34, "spi_mosi"),	/* GPIO34 */
++	PINCTRL_PIN(35, "spi_miso"),	/* GPIO35 */
++	PINCTRL_PIN(36, "uart_txd"),	/* GPIO36 */
++	PINCTRL_PIN(37, "uart_rxd"),	/* GPIO37 */
++};
++
++static const int pon_pins[] = { 14, 15, 16, 17, 18, 19 };
++
++static const int sipo_pins[] = { 20, 21 };
++
++static const int sipo_rclk_pins[] = { 20, 21, 26 };
++
++static const int mdio_pins[] = { 30, 31 };
++
++static const int hsuart_pins[] = { 16, 17 };
++
++static const int hsuart_cts_rts_pins[] = { 14, 15 };
++
++static const int i2c_pins[] = { 30, 31 };
++
++static const int jtag_udi_pins[] = { 7, 8, 9, 10, 11 };
++
++static const int jtag_dfd_pins[] = { 7, 8, 9, 10, 11 };
++
++static const int pcm1_pins[] = { 22, 23, 24, 25 };
++
++static const int pcm2_pins[] = { 1, 2, 3, 4 };
++
++static const int spi_pins[] = { 32, 33, 34, 35 };
++
++static const int spi_quad_pins[] = { 2, 3 };
++
++static const int spi_cs1_pins[] = { 4 };
++
++static const int pnand_pins[] = {
++	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 27, 32, 33, 34, 35
++};
++
++static const int gpio0_pins[] = { 0 };
++
++static const int gpio1_pins[] = { 1 };
++
++static const int gpio2_pins[] = { 2 };
++
++static const int gpio3_pins[] = { 3 };
++
++static const int gpio4_pins[] = { 4 };
++
++static const int gpio5_pins[] = { 5 };
++
++static const int gpio6_pins[] = { 6 };
++
++static const int gpio7_pins[] = { 7 };
++
++static const int gpio8_pins[] = { 8 };
++
++static const int gpio9_pins[] = { 9 };
++
++static const int gpio10_pins[] = { 10 };
++
++static const int gpio11_pins[] = { 11 };
++
++static const int gpio12_pins[] = { 12 };
++
++static const int gpio13_pins[] = { 13 };
++
++static const int gpio14_pins[] = { 14 };
++
++static const int gpio15_pins[] = { 15 };
++
++static const int gpio16_pins[] = { 16 };
++
++static const int gpio17_pins[] = { 17 };
++
++static const int gpio18_pins[] = { 18 };
++
++static const int gpio19_pins[] = { 19 };
++
++static const int gpio20_pins[] = { 20 };
++
++static const int gpio21_pins[] = { 21 };
++
++static const int gpio22_pins[] = { 22 };
++
++static const int gpio23_pins[] = { 23 };
++
++static const int gpio24_pins[] = { 24 };
++
++static const int gpio25_pins[] = { 25 };
++
++static const int gpio26_pins[] = { 26 };
++
++static const int gpio27_pins[] = { 27 };
++
++static const int gpio28_pins[] = { 28 };
++
++static const int gpio29_pins[] = { 29 };
++
++static const int gpio30_pins[] = { 30 };
++
++static const int gpio31_pins[] = { 31 };
++
++static const int gpio32_pins[] = { 32 };
++
++static const int gpio33_pins[] = { 33 };
++
++static const int gpio34_pins[] = { 34 };
++
++static const int gpio35_pins[] = { 35 };
++
++static const int gpio36_pins[] = { 36 };
++
++static const int gpio37_pins[] = { 37 };
++
++static const int pcie_reset0_pins[] = { 28 };
++
++static const int pcie_reset1_pins[] = { 29 };
++
++static const struct pingroup pinctrl_groups[] = {
++	PINCTRL_PIN_GROUP("pon", pon),
++	PINCTRL_PIN_GROUP("sipo", sipo),
++	PINCTRL_PIN_GROUP("sipo_rclk", sipo_rclk),
++	PINCTRL_PIN_GROUP("mdio", mdio),
++	PINCTRL_PIN_GROUP("hsuart", hsuart),
++	PINCTRL_PIN_GROUP("hsuart_cts_rts", hsuart_cts_rts),
++	PINCTRL_PIN_GROUP("i2c", i2c),
++	PINCTRL_PIN_GROUP("jtag_udi", jtag_udi),
++	PINCTRL_PIN_GROUP("jtag_dfd", jtag_dfd),
++	PINCTRL_PIN_GROUP("pcm1", pcm1),
++	PINCTRL_PIN_GROUP("pcm2", pcm2),
++	PINCTRL_PIN_GROUP("spi", spi),
++	PINCTRL_PIN_GROUP("spi_quad", spi_quad),
++	PINCTRL_PIN_GROUP("spi_cs1", spi_cs1),
++	PINCTRL_PIN_GROUP("pnand", pnand),
++	PINCTRL_PIN_GROUP("gpio0", gpio0),
++	PINCTRL_PIN_GROUP("gpio1", gpio1),
++	PINCTRL_PIN_GROUP("gpio2", gpio2),
++	PINCTRL_PIN_GROUP("gpio3", gpio3),
++	PINCTRL_PIN_GROUP("gpio4", gpio4),
++	PINCTRL_PIN_GROUP("gpio5", gpio5),
++	PINCTRL_PIN_GROUP("gpio6", gpio6),
++	PINCTRL_PIN_GROUP("gpio7", gpio7),
++	PINCTRL_PIN_GROUP("gpio8", gpio8),
++	PINCTRL_PIN_GROUP("gpio9", gpio9),
++	PINCTRL_PIN_GROUP("gpio10", gpio10),
++	PINCTRL_PIN_GROUP("gpio11", gpio11),
++	PINCTRL_PIN_GROUP("gpio12", gpio12),
++	PINCTRL_PIN_GROUP("gpio13", gpio13),
++	PINCTRL_PIN_GROUP("gpio14", gpio14),
++	PINCTRL_PIN_GROUP("gpio15", gpio15),
++	PINCTRL_PIN_GROUP("gpio16", gpio16),
++	PINCTRL_PIN_GROUP("gpio17", gpio17),
++	PINCTRL_PIN_GROUP("gpio18", gpio18),
++	PINCTRL_PIN_GROUP("gpio19", gpio19),
++	PINCTRL_PIN_GROUP("gpio20", gpio20),
++	PINCTRL_PIN_GROUP("gpio21", gpio21),
++	PINCTRL_PIN_GROUP("gpio22", gpio22),
++	PINCTRL_PIN_GROUP("gpio23", gpio23),
++	PINCTRL_PIN_GROUP("gpio24", gpio24),
++	PINCTRL_PIN_GROUP("gpio25", gpio25),
++	PINCTRL_PIN_GROUP("gpio26", gpio26),
++	PINCTRL_PIN_GROUP("gpio27", gpio27),
++	PINCTRL_PIN_GROUP("gpio28", gpio28),
++	PINCTRL_PIN_GROUP("gpio29", gpio29),
++	PINCTRL_PIN_GROUP("gpio30", gpio30),
++	PINCTRL_PIN_GROUP("gpio31", gpio31),
++	PINCTRL_PIN_GROUP("gpio32", gpio32),
++	PINCTRL_PIN_GROUP("gpio33", gpio33),
++	PINCTRL_PIN_GROUP("gpio34", gpio34),
++	PINCTRL_PIN_GROUP("gpio35", gpio35),
++	PINCTRL_PIN_GROUP("gpio36", gpio36),
++	PINCTRL_PIN_GROUP("gpio37", gpio37),
++	PINCTRL_PIN_GROUP("pcie_reset0", pcie_reset0),
++	PINCTRL_PIN_GROUP("pcie_reset1", pcie_reset1),
++};
++
++/* shared */
++static const char *const pon_groups[] = { "pon" };
++
++static const char *const sipo_groups[] = { "sipo", "sipo_rclk" };
++
++static const char *const mdio_groups[] = { "mdio" };
++
++static const char *const uart_groups[] = {
++	"hsuart", "hsuart_cts_rts"
++};
++
++static const char *const jtag_groups[] = { "jtag_udi", "jtag_dfd" };
++
++static const char *const pcm_groups[] = { "pcm1", "pcm2" };
++
++static const char *const spi_groups[] = { "spi_quad", "spi_cs1" };
++
++static const char *const pnand_groups[] = { "pnand" };
++
++static const char *const gpio_groups[] = {
++	"gpio28", "gpio29", "gpio30", "gpio31", "gpio32",
++	"gpio33", "gpio34", "gpio35", "gpio36", "gpio37"
++};
++
++static const char *const pcie_reset_groups[] = {
++	"pcie_reset0", "pcie_reset1"
++};
++
++static const char *const pwm_groups[] = {
++	"gpio0",  "gpio1",  "gpio2",  "gpio3",  "gpio4",  "gpio5",
++	"gpio6",  "gpio7",  "gpio8",  "gpio9",  "gpio10", "gpio11",
++	"gpio12", "gpio13", "gpio14", "gpio15", "gpio16", "gpio17",
++	"gpio18", "gpio19", "gpio20", "gpio21", "gpio22", "gpio23",
++	"gpio24", "gpio25", "gpio26", "gpio27", "gpio28", "gpio29",
++	"gpio30", "gpio31", "gpio36", "gpio37"
++};
++
++static const char *const phy1_led0_groups[] = {
++	"gpio8", "gpio9", "gpio10", "gpio11"
++};
++
++static const char *const phy2_led0_groups[] = {
++	"gpio8", "gpio9", "gpio10", "gpio11"
++};
++
++static const char *const phy3_led0_groups[] = {
++	"gpio8", "gpio9", "gpio10", "gpio11"
++};
++
++static const char *const phy4_led0_groups[] = {
++	"gpio8", "gpio9", "gpio10", "gpio11"
++};
++
++static const char *const phy1_led1_groups[] = {
++	"gpio4", "gpio5", "gpio6", "gpio7"
++};
++
++static const char *const phy2_led1_groups[] = {
++	"gpio4", "gpio5", "gpio6", "gpio7"
++};
++
++static const char *const phy3_led1_groups[] = {
++	"gpio4", "gpio5", "gpio6", "gpio7"
++};
++
++static const char *const phy4_led1_groups[] = {
++	"gpio4", "gpio5", "gpio6", "gpio7"
++};
++
++/* shared */
++static const struct airoha_pinctrl_func_group pon_func_group[] = {
++	{
++		.name = "pon",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_PON_MODE_MASK,
++			GPIO_PON_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++/* shared */
++static const struct airoha_pinctrl_func_group sipo_func_group[] = {
++	{
++		.name = "sipo",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_SIPO_MODE_MASK | SIPO_RCLK_MODE_MASK,
++			GPIO_SIPO_MODE_MASK
++		},
++		.regmap_size = 1,
++	}, {
++		.name = "sipo_rclk",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_SIPO_MODE_MASK | SIPO_RCLK_MODE_MASK,
++			GPIO_SIPO_MODE_MASK | SIPO_RCLK_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++/*
++ * On AN7563 the SMI master (MDC/MDIO) is shared with the I2C_SCL/I2C_SDA
++ * pads and selected via the SGMII MDIO mode bit. I2C is the default pad
++ * function (no mux bit).
++ */
++static const struct airoha_pinctrl_func_group mdio_func_group[] = {
++	{
++		.name = "mdio",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_SGMII_MDIO_MODE_MASK,
++			GPIO_SGMII_MDIO_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++static const struct airoha_pinctrl_func_group uart_func_group[] = {
++	{
++		.name = "hsuart",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_HSUART_MODE_MASK | GPIO_HSUART_CTS_RTS_MODE_MASK,
++			GPIO_HSUART_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++	{
++		.name = "hsuart_cts_rts",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_HSUART_MODE_MASK | GPIO_HSUART_CTS_RTS_MODE_MASK,
++			GPIO_HSUART_MODE_MASK | GPIO_HSUART_CTS_RTS_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++/* shared */
++static const struct airoha_pinctrl_func_group jtag_func_group[] = {
++	{
++		.name = "jtag_udi",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_NPU_UART_EN,
++			JTAG_UDI_EN_MASK,
++			JTAG_UDI_EN_MASK
++		},
++		.regmap_size = 1,
++	}, {
++		.name = "jtag_dfd",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_NPU_UART_EN,
++			JTAG_DFD_EN_MASK,
++			JTAG_DFD_EN_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++/* shared */
++static const struct airoha_pinctrl_func_group pcm_func_group[] = {
++	{
++		.name = "pcm1",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_SPI_CS1_MODE,
++			GPIO_PCM1_MODE_MASK,
++			GPIO_PCM1_MODE_MASK
++		},
++		.regmap_size = 1,
++	}, {
++		.name = "pcm2",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_SPI_CS1_MODE,
++			GPIO_PCM2_MODE_MASK,
++			GPIO_PCM2_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++/* shared */
++static const struct airoha_pinctrl_func_group spi_func_group[] = {
++	{
++		.name = "spi_quad",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_SPI_CS1_MODE,
++			GPIO_SPI_QUAD_MODE_MASK,
++			GPIO_SPI_QUAD_MODE_MASK
++		},
++		.regmap_size = 1,
++	}, {
++		.name = "spi_cs1",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_SPI_CS1_MODE,
++			GPIO_SPI_CS1_MODE_MASK,
++			GPIO_SPI_CS1_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++/* shared */
++static const struct airoha_pinctrl_func_group pnand_func_group[] = {
++	{
++		.name = "pnand",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_PARALLEL_NAND_MODE_MASK,
++			GPIO_PARALLEL_NAND_MODE_MASK
++		},
++		.regmap_size = 1,
++	},
++};
++
++static const struct airoha_pinctrl_func_group gpio_func_group[] = {
++	AIROHA_PINCTRL_GPIO_EXT("gpio28", GPIO28_FLASH_MODE_CFG,
++				GPIO_PCIE_RESET0_MASK),
++	AIROHA_PINCTRL_GPIO_EXT("gpio29", GPIO29_FLASH_MODE_CFG,
++				GPIO_PCIE_RESET1_MASK),
++	AIROHA_PINCTRL_GPIO_EXT("gpio30", GPIO30_FLASH_MODE_CFG,
++				I2C_SCL_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO_EXT("gpio31", GPIO31_FLASH_MODE_CFG,
++				I2C_SDA_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO("gpio32", SPI_CLK_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO("gpio33", SPI_CS_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO("gpio34", SPI_MOSI_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO("gpio35", SPI_MISO_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO_EXT("gpio36", GPIO36_FLASH_MODE_CFG,
++				UART_TXD_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_GPIO_EXT("gpio37", GPIO37_FLASH_MODE_CFG,
++				UART_RXD_GPIO_MODE_MASK),
++};
++
++/*
++ * On AN7563 a set GPIO_PCIE_RESET{0,1} bit routes the pad to its GPIO
++ * function, so the PCIe reset function must clear it.
++ */
++static const struct airoha_pinctrl_func_group pcie_reset_func_group[] = {
++	{
++		.name = "pcie_reset0",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_PCIE_RESET0_MASK,
++			0
++		},
++		.regmap_size = 1,
++	}, {
++		.name = "pcie_reset1",
++		.regmap[0] = {
++			AIROHA_FUNC_MUX,
++			REG_GPIO_PON_MODE,
++			GPIO_PCIE_RESET1_MASK,
++			0
++		},
++		.regmap_size = 1,
++	},
++};
++
++static const struct airoha_pinctrl_func_group pwm_func_group[] = {
++	AIROHA_PINCTRL_PWM("gpio0", GPIO0_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio1", GPIO1_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio2", GPIO2_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio3", GPIO3_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio4", GPIO4_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio5", GPIO5_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio6", GPIO6_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio7", GPIO7_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio8", GPIO8_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio9", GPIO9_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio10", GPIO10_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio11", GPIO11_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio12", GPIO12_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio13", GPIO13_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio14", GPIO14_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM("gpio15", GPIO15_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio16", GPIO16_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio17", GPIO17_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio18", GPIO18_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio19", GPIO19_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio20", GPIO20_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio21", GPIO21_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio22", GPIO22_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio23", GPIO23_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio24", GPIO24_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio25", GPIO25_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio26", GPIO26_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT("gpio27", GPIO27_FLASH_MODE_CFG),
++	AIROHA_PINCTRL_PWM_EXT_SEC("gpio28", GPIO28_FLASH_MODE_CFG,
++				   GPIO_PCIE_RESET0_MASK),
++	AIROHA_PINCTRL_PWM_EXT_SEC("gpio29", GPIO29_FLASH_MODE_CFG,
++				   GPIO_PCIE_RESET1_MASK),
++	AIROHA_PINCTRL_PWM_EXT_SEC("gpio30", GPIO30_FLASH_MODE_CFG,
++				   I2C_SCL_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_PWM_EXT_SEC("gpio31", GPIO31_FLASH_MODE_CFG,
++				   I2C_SDA_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_PWM_EXT_SEC("gpio36", GPIO36_FLASH_MODE_CFG,
++				   UART_TXD_GPIO_MODE_MASK),
++	AIROHA_PINCTRL_PWM_EXT_SEC("gpio37", GPIO37_FLASH_MODE_CFG,
++				   UART_RXD_GPIO_MODE_MASK),
++};
++
++/*
++ * LED pad mapping (datasheet table 4-9):
++ * GPIO8: LAN0_LED0, GPIO9: LAN1_LED0, GPIO10: LAN2_LED0, GPIO11: LAN3_LED0
++ * GPIO7: LAN0_LED1, GPIO6: LAN1_LED1, GPIO5: LAN2_LED1, GPIO4: LAN3_LED1
++ */
++static const struct airoha_pinctrl_func_group phy1_led0_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED0("gpio8", GPIO_LAN0_LED0_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(0)),
++	AIROHA_PINCTRL_PHY_LED0("gpio9", GPIO_LAN1_LED0_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(0)),
++	AIROHA_PINCTRL_PHY_LED0("gpio10", GPIO_LAN2_LED0_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(0)),
++	AIROHA_PINCTRL_PHY_LED0("gpio11", GPIO_LAN3_LED0_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(0)),
++};
++
++static const struct airoha_pinctrl_func_group phy2_led0_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED0("gpio8", GPIO_LAN0_LED0_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(1)),
++	AIROHA_PINCTRL_PHY_LED0("gpio9", GPIO_LAN1_LED0_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(1)),
++	AIROHA_PINCTRL_PHY_LED0("gpio10", GPIO_LAN2_LED0_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(1)),
++	AIROHA_PINCTRL_PHY_LED0("gpio11", GPIO_LAN3_LED0_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(1)),
++};
++
++static const struct airoha_pinctrl_func_group phy3_led0_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED0("gpio8", GPIO_LAN0_LED0_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(2)),
++	AIROHA_PINCTRL_PHY_LED0("gpio9", GPIO_LAN1_LED0_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(2)),
++	AIROHA_PINCTRL_PHY_LED0("gpio10", GPIO_LAN2_LED0_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(2)),
++	AIROHA_PINCTRL_PHY_LED0("gpio11", GPIO_LAN3_LED0_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(2)),
++};
++
++static const struct airoha_pinctrl_func_group phy4_led0_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED0("gpio8", GPIO_LAN0_LED0_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(3)),
++	AIROHA_PINCTRL_PHY_LED0("gpio9", GPIO_LAN1_LED0_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(3)),
++	AIROHA_PINCTRL_PHY_LED0("gpio10", GPIO_LAN2_LED0_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(3)),
++	AIROHA_PINCTRL_PHY_LED0("gpio11", GPIO_LAN3_LED0_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(3)),
++};
++
++static const struct airoha_pinctrl_func_group phy1_led1_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED1("gpio4", GPIO_LAN3_LED1_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(0)),
++	AIROHA_PINCTRL_PHY_LED1("gpio5", GPIO_LAN2_LED1_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(0)),
++	AIROHA_PINCTRL_PHY_LED1("gpio6", GPIO_LAN1_LED1_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(0)),
++	AIROHA_PINCTRL_PHY_LED1("gpio7", GPIO_LAN0_LED1_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(0)),
++};
++
++static const struct airoha_pinctrl_func_group phy2_led1_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED1("gpio4", GPIO_LAN3_LED1_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(1)),
++	AIROHA_PINCTRL_PHY_LED1("gpio5", GPIO_LAN2_LED1_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(1)),
++	AIROHA_PINCTRL_PHY_LED1("gpio6", GPIO_LAN1_LED1_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(1)),
++	AIROHA_PINCTRL_PHY_LED1("gpio7", GPIO_LAN0_LED1_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(1)),
++};
++
++static const struct airoha_pinctrl_func_group phy3_led1_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED1("gpio4", GPIO_LAN3_LED1_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(2)),
++	AIROHA_PINCTRL_PHY_LED1("gpio5", GPIO_LAN2_LED1_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(2)),
++	AIROHA_PINCTRL_PHY_LED1("gpio6", GPIO_LAN1_LED1_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(2)),
++	AIROHA_PINCTRL_PHY_LED1("gpio7", GPIO_LAN0_LED1_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(2)),
++};
++
++static const struct airoha_pinctrl_func_group phy4_led1_func_group[] = {
++	AIROHA_PINCTRL_PHY_LED1("gpio4", GPIO_LAN3_LED1_MODE_MASK,
++				LAN3_LED_MAPPING_MASK, LAN3_PHY_LED_MAP(3)),
++	AIROHA_PINCTRL_PHY_LED1("gpio5", GPIO_LAN2_LED1_MODE_MASK,
++				LAN2_LED_MAPPING_MASK, LAN2_PHY_LED_MAP(3)),
++	AIROHA_PINCTRL_PHY_LED1("gpio6", GPIO_LAN1_LED1_MODE_MASK,
++				LAN1_LED_MAPPING_MASK, LAN1_PHY_LED_MAP(3)),
++	AIROHA_PINCTRL_PHY_LED1("gpio7", GPIO_LAN0_LED1_MODE_MASK,
++				LAN0_LED_MAPPING_MASK, LAN0_PHY_LED_MAP(3)),
++};
++
++static const struct airoha_pinctrl_func pinctrl_funcs[] = {
++	PINCTRL_FUNC_DESC("pon", pon),
++	PINCTRL_FUNC_DESC("sipo", sipo),
++	PINCTRL_FUNC_DESC("mdio", mdio),
++	PINCTRL_FUNC_DESC("uart", uart),
++	PINCTRL_FUNC_DESC("jtag", jtag),
++	PINCTRL_FUNC_DESC("pcm", pcm),
++	PINCTRL_FUNC_DESC("spi", spi),
++	PINCTRL_FUNC_DESC("pnand", pnand),
++	PINCTRL_FUNC_DESC("gpio", gpio),
++	PINCTRL_FUNC_DESC("pcie_reset", pcie_reset),
++	PINCTRL_FUNC_DESC("pwm", pwm),
++	PINCTRL_FUNC_DESC("phy1_led0", phy1_led0),
++	PINCTRL_FUNC_DESC("phy2_led0", phy2_led0),
++	PINCTRL_FUNC_DESC("phy3_led0", phy3_led0),
++	PINCTRL_FUNC_DESC("phy4_led0", phy4_led0),
++	PINCTRL_FUNC_DESC("phy1_led1", phy1_led1),
++	PINCTRL_FUNC_DESC("phy2_led1", phy2_led1),
++	PINCTRL_FUNC_DESC("phy3_led1", phy3_led1),
++	PINCTRL_FUNC_DESC("phy4_led1", phy4_led1),
++};
++
++static const struct airoha_pinctrl_conf pinctrl_pullup_conf[] = {
++	PINCTRL_CONF_DESC(0, REG_GPIO_L_PU, BIT(0)),
++	PINCTRL_CONF_DESC(1, REG_GPIO_L_PU, BIT(1)),
++	PINCTRL_CONF_DESC(2, REG_GPIO_L_PU, BIT(2)),
++	PINCTRL_CONF_DESC(3, REG_GPIO_L_PU, BIT(3)),
++	PINCTRL_CONF_DESC(4, REG_GPIO_L_PU, BIT(4)),
++	PINCTRL_CONF_DESC(5, REG_GPIO_L_PU, BIT(5)),
++	PINCTRL_CONF_DESC(6, REG_GPIO_L_PU, BIT(6)),
++	PINCTRL_CONF_DESC(7, REG_GPIO_L_PU, BIT(7)),
++	PINCTRL_CONF_DESC(8, REG_GPIO_L_PU, BIT(8)),
++	PINCTRL_CONF_DESC(9, REG_GPIO_L_PU, BIT(9)),
++	PINCTRL_CONF_DESC(10, REG_GPIO_L_PU, BIT(10)),
++	PINCTRL_CONF_DESC(11, REG_GPIO_L_PU, BIT(11)),
++	PINCTRL_CONF_DESC(12, REG_GPIO_L_PU, BIT(12)),
++	PINCTRL_CONF_DESC(13, REG_GPIO_L_PU, BIT(13)),
++	PINCTRL_CONF_DESC(14, REG_GPIO_L_PU, BIT(14)),
++	PINCTRL_CONF_DESC(15, REG_GPIO_L_PU, BIT(15)),
++	PINCTRL_CONF_DESC(16, REG_GPIO_L_PU, BIT(16)),
++	PINCTRL_CONF_DESC(17, REG_GPIO_L_PU, BIT(17)),
++	PINCTRL_CONF_DESC(18, REG_GPIO_L_PU, BIT(18)),
++	PINCTRL_CONF_DESC(19, REG_GPIO_L_PU, BIT(19)),
++	PINCTRL_CONF_DESC(20, REG_GPIO_L_PU, BIT(20)),
++	PINCTRL_CONF_DESC(21, REG_GPIO_L_PU, BIT(21)),
++	PINCTRL_CONF_DESC(22, REG_GPIO_L_PU, BIT(22)),
++	PINCTRL_CONF_DESC(23, REG_GPIO_L_PU, BIT(23)),
++	PINCTRL_CONF_DESC(24, REG_GPIO_L_PU, BIT(24)),
++	PINCTRL_CONF_DESC(25, REG_GPIO_L_PU, BIT(25)),
++	PINCTRL_CONF_DESC(26, REG_GPIO_L_PU, BIT(26)),
++	PINCTRL_CONF_DESC(27, REG_GPIO_L_PU, BIT(27)),
++	PINCTRL_CONF_DESC(28, REG_I2C_SDA_PU, PCIE0_RESET_PU_MASK),
++	PINCTRL_CONF_DESC(29, REG_I2C_SDA_PU, PCIE1_RESET_PU_MASK),
++	PINCTRL_CONF_DESC(30, REG_I2C_SDA_PU, I2C_SCL_PU_MASK),
++	PINCTRL_CONF_DESC(31, REG_I2C_SDA_PU, I2C_SDA_PU_MASK),
++	PINCTRL_CONF_DESC(32, REG_I2C_SDA_PU, SPI_CLK_PU_MASK),
++	PINCTRL_CONF_DESC(33, REG_I2C_SDA_PU, SPI_CS0_PU_MASK),
++	PINCTRL_CONF_DESC(34, REG_I2C_SDA_PU, SPI_MOSI_PU_MASK),
++	PINCTRL_CONF_DESC(35, REG_I2C_SDA_PU, SPI_MISO_PU_MASK),
++	PINCTRL_CONF_DESC(36, REG_I2C_SDA_PU, UART1_TXD_PU_MASK),
++	PINCTRL_CONF_DESC(37, REG_I2C_SDA_PU, UART1_RXD_PU_MASK),
++};
++
++static const struct airoha_pinctrl_conf pinctrl_pulldown_conf[] = {
++	PINCTRL_CONF_DESC(0, REG_GPIO_L_PD, BIT(0)),
++	PINCTRL_CONF_DESC(1, REG_GPIO_L_PD, BIT(1)),
++	PINCTRL_CONF_DESC(2, REG_GPIO_L_PD, BIT(2)),
++	PINCTRL_CONF_DESC(3, REG_GPIO_L_PD, BIT(3)),
++	PINCTRL_CONF_DESC(4, REG_GPIO_L_PD, BIT(4)),
++	PINCTRL_CONF_DESC(5, REG_GPIO_L_PD, BIT(5)),
++	PINCTRL_CONF_DESC(6, REG_GPIO_L_PD, BIT(6)),
++	PINCTRL_CONF_DESC(7, REG_GPIO_L_PD, BIT(7)),
++	PINCTRL_CONF_DESC(8, REG_GPIO_L_PD, BIT(8)),
++	PINCTRL_CONF_DESC(9, REG_GPIO_L_PD, BIT(9)),
++	PINCTRL_CONF_DESC(10, REG_GPIO_L_PD, BIT(10)),
++	PINCTRL_CONF_DESC(11, REG_GPIO_L_PD, BIT(11)),
++	PINCTRL_CONF_DESC(12, REG_GPIO_L_PD, BIT(12)),
++	PINCTRL_CONF_DESC(13, REG_GPIO_L_PD, BIT(13)),
++	PINCTRL_CONF_DESC(14, REG_GPIO_L_PD, BIT(14)),
++	PINCTRL_CONF_DESC(15, REG_GPIO_L_PD, BIT(15)),
++	PINCTRL_CONF_DESC(16, REG_GPIO_L_PD, BIT(16)),
++	PINCTRL_CONF_DESC(17, REG_GPIO_L_PD, BIT(17)),
++	PINCTRL_CONF_DESC(18, REG_GPIO_L_PD, BIT(18)),
++	PINCTRL_CONF_DESC(19, REG_GPIO_L_PD, BIT(19)),
++	PINCTRL_CONF_DESC(20, REG_GPIO_L_PD, BIT(20)),
++	PINCTRL_CONF_DESC(21, REG_GPIO_L_PD, BIT(21)),
++	PINCTRL_CONF_DESC(22, REG_GPIO_L_PD, BIT(22)),
++	PINCTRL_CONF_DESC(23, REG_GPIO_L_PD, BIT(23)),
++	PINCTRL_CONF_DESC(24, REG_GPIO_L_PD, BIT(24)),
++	PINCTRL_CONF_DESC(25, REG_GPIO_L_PD, BIT(25)),
++	PINCTRL_CONF_DESC(26, REG_GPIO_L_PD, BIT(26)),
++	PINCTRL_CONF_DESC(27, REG_GPIO_L_PD, BIT(27)),
++	PINCTRL_CONF_DESC(28, REG_I2C_SDA_PD, PCIE0_RESET_PD_MASK),
++	PINCTRL_CONF_DESC(29, REG_I2C_SDA_PD, PCIE1_RESET_PD_MASK),
++	PINCTRL_CONF_DESC(30, REG_I2C_SDA_PD, I2C_SCL_PD_MASK),
++	PINCTRL_CONF_DESC(31, REG_I2C_SDA_PD, I2C_SDA_PD_MASK),
++	PINCTRL_CONF_DESC(32, REG_I2C_SDA_PD, SPI_CLK_PD_MASK),
++	PINCTRL_CONF_DESC(33, REG_I2C_SDA_PD, SPI_CS0_PD_MASK),
++	PINCTRL_CONF_DESC(34, REG_I2C_SDA_PD, SPI_MOSI_PD_MASK),
++	PINCTRL_CONF_DESC(35, REG_I2C_SDA_PD, SPI_MISO_PD_MASK),
++	PINCTRL_CONF_DESC(36, REG_I2C_SDA_PD, UART1_TXD_PD_MASK),
++	PINCTRL_CONF_DESC(37, REG_I2C_SDA_PD, UART1_RXD_PD_MASK),
++};
++
++static const struct airoha_pinctrl_conf pinctrl_drive_e2_conf[] = {
++	PINCTRL_CONF_DESC(0, REG_GPIO_L_E2, BIT(0)),
++	PINCTRL_CONF_DESC(1, REG_GPIO_L_E2, BIT(1)),
++	PINCTRL_CONF_DESC(2, REG_GPIO_L_E2, BIT(2)),
++	PINCTRL_CONF_DESC(3, REG_GPIO_L_E2, BIT(3)),
++	PINCTRL_CONF_DESC(4, REG_GPIO_L_E2, BIT(4)),
++	PINCTRL_CONF_DESC(5, REG_GPIO_L_E2, BIT(5)),
++	PINCTRL_CONF_DESC(6, REG_GPIO_L_E2, BIT(6)),
++	PINCTRL_CONF_DESC(7, REG_GPIO_L_E2, BIT(7)),
++	PINCTRL_CONF_DESC(8, REG_GPIO_L_E2, BIT(8)),
++	PINCTRL_CONF_DESC(9, REG_GPIO_L_E2, BIT(9)),
++	PINCTRL_CONF_DESC(10, REG_GPIO_L_E2, BIT(10)),
++	PINCTRL_CONF_DESC(11, REG_GPIO_L_E2, BIT(11)),
++	PINCTRL_CONF_DESC(12, REG_GPIO_L_E2, BIT(12)),
++	PINCTRL_CONF_DESC(13, REG_GPIO_L_E2, BIT(13)),
++	PINCTRL_CONF_DESC(14, REG_GPIO_L_E2, BIT(14)),
++	PINCTRL_CONF_DESC(15, REG_GPIO_L_E2, BIT(15)),
++	PINCTRL_CONF_DESC(16, REG_GPIO_L_E2, BIT(16)),
++	PINCTRL_CONF_DESC(17, REG_GPIO_L_E2, BIT(17)),
++	PINCTRL_CONF_DESC(18, REG_GPIO_L_E2, BIT(18)),
++	PINCTRL_CONF_DESC(19, REG_GPIO_L_E2, BIT(19)),
++	PINCTRL_CONF_DESC(20, REG_GPIO_L_E2, BIT(20)),
++	PINCTRL_CONF_DESC(21, REG_GPIO_L_E2, BIT(21)),
++	PINCTRL_CONF_DESC(22, REG_GPIO_L_E2, BIT(22)),
++	PINCTRL_CONF_DESC(23, REG_GPIO_L_E2, BIT(23)),
++	PINCTRL_CONF_DESC(24, REG_GPIO_L_E2, BIT(24)),
++	PINCTRL_CONF_DESC(25, REG_GPIO_L_E2, BIT(25)),
++	PINCTRL_CONF_DESC(26, REG_GPIO_L_E2, BIT(26)),
++	PINCTRL_CONF_DESC(27, REG_GPIO_L_E2, BIT(27)),
++	PINCTRL_CONF_DESC(28, REG_I2C_SDA_E2, PCIE0_RESET_E2_MASK),
++	PINCTRL_CONF_DESC(29, REG_I2C_SDA_E2, PCIE1_RESET_E2_MASK),
++	PINCTRL_CONF_DESC(30, REG_I2C_SDA_E2, I2C_SCL_E2_MASK),
++	PINCTRL_CONF_DESC(31, REG_I2C_SDA_E2, I2C_SDA_E2_MASK),
++	PINCTRL_CONF_DESC(32, REG_I2C_SDA_E2, SPI_CLK_E2_MASK),
++	PINCTRL_CONF_DESC(33, REG_I2C_SDA_E2, SPI_CS0_E2_MASK),
++	PINCTRL_CONF_DESC(34, REG_I2C_SDA_E2, SPI_MOSI_E2_MASK),
++	PINCTRL_CONF_DESC(35, REG_I2C_SDA_E2, SPI_MISO_E2_MASK),
++	PINCTRL_CONF_DESC(36, REG_I2C_SDA_E2, UART1_TXD_E2_MASK),
++	PINCTRL_CONF_DESC(37, REG_I2C_SDA_E2, UART1_RXD_E2_MASK),
++};
++
++static const struct airoha_pinctrl_conf pinctrl_drive_e4_conf[] = {
++	PINCTRL_CONF_DESC(0, REG_GPIO_L_E4, BIT(0)),
++	PINCTRL_CONF_DESC(1, REG_GPIO_L_E4, BIT(1)),
++	PINCTRL_CONF_DESC(2, REG_GPIO_L_E4, BIT(2)),
++	PINCTRL_CONF_DESC(3, REG_GPIO_L_E4, BIT(3)),
++	PINCTRL_CONF_DESC(4, REG_GPIO_L_E4, BIT(4)),
++	PINCTRL_CONF_DESC(5, REG_GPIO_L_E4, BIT(5)),
++	PINCTRL_CONF_DESC(6, REG_GPIO_L_E4, BIT(6)),
++	PINCTRL_CONF_DESC(7, REG_GPIO_L_E4, BIT(7)),
++	PINCTRL_CONF_DESC(8, REG_GPIO_L_E4, BIT(8)),
++	PINCTRL_CONF_DESC(9, REG_GPIO_L_E4, BIT(9)),
++	PINCTRL_CONF_DESC(10, REG_GPIO_L_E4, BIT(10)),
++	PINCTRL_CONF_DESC(11, REG_GPIO_L_E4, BIT(11)),
++	PINCTRL_CONF_DESC(12, REG_GPIO_L_E4, BIT(12)),
++	PINCTRL_CONF_DESC(13, REG_GPIO_L_E4, BIT(13)),
++	PINCTRL_CONF_DESC(14, REG_GPIO_L_E4, BIT(14)),
++	PINCTRL_CONF_DESC(15, REG_GPIO_L_E4, BIT(15)),
++	PINCTRL_CONF_DESC(16, REG_GPIO_L_E4, BIT(16)),
++	PINCTRL_CONF_DESC(17, REG_GPIO_L_E4, BIT(17)),
++	PINCTRL_CONF_DESC(18, REG_GPIO_L_E4, BIT(18)),
++	PINCTRL_CONF_DESC(19, REG_GPIO_L_E4, BIT(19)),
++	PINCTRL_CONF_DESC(20, REG_GPIO_L_E4, BIT(20)),
++	PINCTRL_CONF_DESC(21, REG_GPIO_L_E4, BIT(21)),
++	PINCTRL_CONF_DESC(22, REG_GPIO_L_E4, BIT(22)),
++	PINCTRL_CONF_DESC(23, REG_GPIO_L_E4, BIT(23)),
++	PINCTRL_CONF_DESC(24, REG_GPIO_L_E4, BIT(24)),
++	PINCTRL_CONF_DESC(25, REG_GPIO_L_E4, BIT(25)),
++	PINCTRL_CONF_DESC(26, REG_GPIO_L_E4, BIT(26)),
++	PINCTRL_CONF_DESC(27, REG_GPIO_L_E4, BIT(27)),
++	PINCTRL_CONF_DESC(28, REG_I2C_SDA_E4, PCIE0_RESET_E4_MASK),
++	PINCTRL_CONF_DESC(29, REG_I2C_SDA_E4, PCIE1_RESET_E4_MASK),
++	PINCTRL_CONF_DESC(30, REG_I2C_SDA_E4, I2C_SCL_E4_MASK),
++	PINCTRL_CONF_DESC(31, REG_I2C_SDA_E4, I2C_SDA_E4_MASK),
++	PINCTRL_CONF_DESC(32, REG_I2C_SDA_E4, SPI_CLK_E4_MASK),
++	PINCTRL_CONF_DESC(33, REG_I2C_SDA_E4, SPI_CS0_E4_MASK),
++	PINCTRL_CONF_DESC(34, REG_I2C_SDA_E4, SPI_MOSI_E4_MASK),
++	PINCTRL_CONF_DESC(35, REG_I2C_SDA_E4, SPI_MISO_E4_MASK),
++	PINCTRL_CONF_DESC(36, REG_I2C_SDA_E4, UART1_TXD_E4_MASK),
++	PINCTRL_CONF_DESC(37, REG_I2C_SDA_E4, UART1_RXD_E4_MASK),
++};
++
++static const struct airoha_pinctrl_conf pinctrl_pcie_rst_od_conf[] = {
++	PINCTRL_CONF_DESC(28, REG_PCIE_RESET_OD, PCIE0_RESET_OD_MASK),
++	PINCTRL_CONF_DESC(29, REG_PCIE_RESET_OD, PCIE1_RESET_OD_MASK),
++};
++
++/* Release shared functions and PWM when a pad is requested as GPIO. */
++static const struct airoha_pinctrl_gpio_mux gpio_muxes[] = {
++	{ 0, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(0) }, 0 },
++	{ 1, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(1) }, 0 },
++	{ 1, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 1, AIROHA_FUNC_MUX, { REG_GPIO_SPI_CS1_MODE, GPIO_PCM2_MODE_MASK }, 0 },
++	{ 2, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(2) }, 0 },
++	{ 2, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 2, AIROHA_FUNC_MUX,
++	  { REG_GPIO_SPI_CS1_MODE,
++	    GPIO_PCM2_MODE_MASK |
++	    GPIO_SPI_QUAD_MODE_MASK }, 0 },
++	{ 3, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(3) }, 0 },
++	{ 3, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 3, AIROHA_FUNC_MUX,
++	  { REG_GPIO_SPI_CS1_MODE,
++	    GPIO_PCM2_MODE_MASK |
++	    GPIO_SPI_QUAD_MODE_MASK }, 0 },
++	{ 4, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(4) }, 0 },
++	{ 4, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 4, AIROHA_FUNC_MUX,
++	  { REG_GPIO_SPI_CS1_MODE,
++	    GPIO_PCM2_MODE_MASK |
++	    GPIO_SPI_CS1_MODE_MASK }, 0 },
++	{ 4, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(4) }, 0 },
++	{ 5, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(5) }, 0 },
++	{ 5, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 5, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(6) }, 0 },
++	{ 6, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(6) }, 0 },
++	{ 6, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 6, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(8) }, 0 },
++	{ 7, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(7) }, 0 },
++	{ 7, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 7, AIROHA_FUNC_MUX, { REG_NPU_UART_EN, JTAG_UDI_EN_MASK | JTAG_DFD_EN_MASK }, 0 },
++	{ 7, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(10) }, 0 },
++	{ 8, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(8) }, 0 },
++	{ 8, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 8, AIROHA_FUNC_MUX, { REG_NPU_UART_EN, JTAG_UDI_EN_MASK | JTAG_DFD_EN_MASK }, 0 },
++	{ 8, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(3) }, 0 },
++	{ 9, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(9) }, 0 },
++	{ 9, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 9, AIROHA_FUNC_MUX, { REG_NPU_UART_EN, JTAG_UDI_EN_MASK | JTAG_DFD_EN_MASK }, 0 },
++	{ 9, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(5) }, 0 },
++	{ 10, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(10) }, 0 },
++	{ 10, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 10, AIROHA_FUNC_MUX, { REG_NPU_UART_EN, JTAG_UDI_EN_MASK | JTAG_DFD_EN_MASK }, 0 },
++	{ 10, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(7) }, 0 },
++	{ 11, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(11) }, 0 },
++	{ 11, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 11, AIROHA_FUNC_MUX, { REG_NPU_UART_EN, JTAG_UDI_EN_MASK | JTAG_DFD_EN_MASK }, 0 },
++	{ 11, AIROHA_FUNC_MUX, { REG_GPIO_2ND_I2C_MODE, BIT(9) }, 0 },
++	{ 12, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(12) }, 0 },
++	{ 12, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 13, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(13) }, 0 },
++	{ 14, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(14) }, 0 },
++	{ 14, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    GPIO_PON_MODE_MASK |
++	    GPIO_HSUART_MODE_MASK |
++	    GPIO_HSUART_CTS_RTS_MODE_MASK }, 0 },
++	{ 15, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG, BIT(15) }, 0 },
++	{ 15, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    GPIO_PON_MODE_MASK |
++	    GPIO_HSUART_MODE_MASK |
++	    GPIO_HSUART_CTS_RTS_MODE_MASK }, 0 },
++	{ 16, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(0) }, 0 },
++	{ 16, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    GPIO_PON_MODE_MASK |
++	    GPIO_HSUART_MODE_MASK |
++	    GPIO_HSUART_CTS_RTS_MODE_MASK }, 0 },
++	{ 17, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(1) }, 0 },
++	{ 17, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    GPIO_PON_MODE_MASK |
++	    GPIO_HSUART_MODE_MASK |
++	    GPIO_HSUART_CTS_RTS_MODE_MASK }, 0 },
++	{ 18, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(2) }, 0 },
++	{ 18, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PON_MODE_MASK }, 0 },
++	{ 19, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(3) }, 0 },
++	{ 19, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PON_MODE_MASK }, 0 },
++	{ 20, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(4) }, 0 },
++	{ 20, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_SIPO_MODE_MASK }, 0 },
++	{ 21, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(5) }, 0 },
++	{ 21, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_SIPO_MODE_MASK }, 0 },
++	{ 22, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(6) }, 0 },
++	{ 22, AIROHA_FUNC_MUX, { REG_GPIO_SPI_CS1_MODE, GPIO_PCM1_MODE_MASK }, 0 },
++	{ 23, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(7) }, 0 },
++	{ 23, AIROHA_FUNC_MUX, { REG_GPIO_SPI_CS1_MODE, GPIO_PCM1_MODE_MASK }, 0 },
++	{ 24, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(8) }, 0 },
++	{ 24, AIROHA_FUNC_MUX, { REG_GPIO_SPI_CS1_MODE, GPIO_PCM1_MODE_MASK }, 0 },
++	{ 25, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(9) }, 0 },
++	{ 25, AIROHA_FUNC_MUX, { REG_GPIO_SPI_CS1_MODE, GPIO_PCM1_MODE_MASK }, 0 },
++	{ 26, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(10) }, 0 },
++	{ 26, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, SIPO_RCLK_MODE_MASK }, 0 },
++	{ 27, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(11) }, 0 },
++	{ 27, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 28, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(12) }, 0 },
++	{ 28, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    GPIO_PCIE_RESET0_MASK }, GPIO_PCIE_RESET0_MASK },
++	{ 29, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(13) }, 0 },
++	{ 29, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    GPIO_PCIE_RESET1_MASK }, GPIO_PCIE_RESET1_MASK },
++	{ 30, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(14) }, 0 },
++	{ 30, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_SGMII_MDIO_MODE_MASK }, 0 },
++	{ 30, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    I2C_SCL_GPIO_MODE_MASK }, I2C_SCL_GPIO_MODE_MASK },
++	{ 31, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(15) }, 0 },
++	{ 31, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_SGMII_MDIO_MODE_MASK }, 0 },
++	{ 31, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    I2C_SDA_GPIO_MODE_MASK }, I2C_SDA_GPIO_MODE_MASK },
++	{ 32, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 32, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    SPI_CLK_GPIO_MODE_MASK }, SPI_CLK_GPIO_MODE_MASK },
++	{ 33, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 33, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    SPI_CS_GPIO_MODE_MASK }, SPI_CS_GPIO_MODE_MASK },
++	{ 34, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 34, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    SPI_MOSI_GPIO_MODE_MASK }, SPI_MOSI_GPIO_MODE_MASK },
++	{ 35, AIROHA_FUNC_MUX, { REG_GPIO_PON_MODE, GPIO_PARALLEL_NAND_MODE_MASK }, 0 },
++	{ 35, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    SPI_MISO_GPIO_MODE_MASK }, SPI_MISO_GPIO_MODE_MASK },
++	{ 36, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(16) }, 0 },
++	{ 36, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    UART_TXD_GPIO_MODE_MASK }, UART_TXD_GPIO_MODE_MASK },
++	{ 37, AIROHA_FUNC_PWM_MUX, { REG_GPIO_FLASH_MODE_CFG_EXT, BIT(17) }, 0 },
++	{ 37, AIROHA_FUNC_MUX,
++	  { REG_GPIO_PON_MODE,
++	    UART_RXD_GPIO_MODE_MASK }, UART_RXD_GPIO_MODE_MASK },
++};
++
++static const struct airoha_pinctrl_match_data pinctrl_match_data = {
++	.gpio_offs = 0,
++	.gpio_pin_cnt = 38,
++	.gpio_muxes = gpio_muxes,
++	.num_gpio_muxes = ARRAY_SIZE(gpio_muxes),
++	.pins = pinctrl_pins,
++	.num_pins = ARRAY_SIZE(pinctrl_pins),
++	.grps = pinctrl_groups,
++	.num_grps = ARRAY_SIZE(pinctrl_groups),
++	.funcs = pinctrl_funcs,
++	.num_funcs = ARRAY_SIZE(pinctrl_funcs),
++	.confs_info = {
++		[AIROHA_PINCTRL_CONFS_PULLUP] = {
++			.confs = pinctrl_pullup_conf,
++			.num_confs = ARRAY_SIZE(pinctrl_pullup_conf),
++		},
++		[AIROHA_PINCTRL_CONFS_PULLDOWN] = {
++			.confs = pinctrl_pulldown_conf,
++			.num_confs = ARRAY_SIZE(pinctrl_pulldown_conf),
++		},
++		[AIROHA_PINCTRL_CONFS_DRIVE_E2] = {
++			.confs = pinctrl_drive_e2_conf,
++			.num_confs = ARRAY_SIZE(pinctrl_drive_e2_conf),
++		},
++		[AIROHA_PINCTRL_CONFS_DRIVE_E4] = {
++			.confs = pinctrl_drive_e4_conf,
++			.num_confs = ARRAY_SIZE(pinctrl_drive_e4_conf),
++		},
++		[AIROHA_PINCTRL_CONFS_PCIE_RST_OD] = {
++			.confs = pinctrl_pcie_rst_od_conf,
++			.num_confs = ARRAY_SIZE(pinctrl_pcie_rst_od_conf),
++		},
++	},
++};
++
++static const struct udevice_id pinctrl_of_match[] = {
++	{ .compatible = "airoha,an7563-pinctrl",
++	  .data = (ulong)&pinctrl_match_data },
++	{ }
++};
++
++U_BOOT_DRIVER(airoha_an7563_pinctrl) = {
++	.name = "airoha-an7563-pinctrl",
++	.id = UCLASS_PINCTRL,
++	.of_match = pinctrl_of_match,
++	.probe = airoha_pinctrl_probe,
++	.bind = airoha_pinctrl_bind,
++	.priv_auto = sizeof(struct airoha_pinctrl),
++	.ops = &airoha_pinctrl_ops,
++};
+diff --git a/drivers/reset/reset-airoha.c b/drivers/reset/reset-airoha.c
+--- a/drivers/reset/reset-airoha.c
++++ b/drivers/reset/reset-airoha.c
+@@ -364,7 +364,8 @@ static int airoha_reset_probe(struct udevice *dev)
+ 		return reset_init(dev, en7580_rst_map, en7581_rst_ofs,
+ 				  ARRAY_SIZE(en7580_rst_map));
+ 
+-	if (ofnode_device_is_compatible(node, "airoha,en7523-scu"))
++	if (ofnode_device_is_compatible(node, "airoha,en7523-scu") ||
++	    ofnode_device_is_compatible(node, "airoha,an7552-scu"))
+ 		return reset_init(dev, en7523_rst_map, en7581_rst_ofs,
+ 				  ARRAY_SIZE(en7523_rst_map));
+ 
+diff --git a/include/configs/an7552.h b/include/configs/an7552.h
+new file mode 100644
+--- /dev/null
++++ b/include/configs/an7552.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Configuration for Airoha AN7552
++ *
++ * Author: Mikhail Kshevetskiy <mikhail.kshevetskiy@iopsys.eu>
++ */
++
++#ifndef __AN7552_H
++#define __AN7552_H
++
++#include <linux/sizes.h>
++
++#define CFG_SYS_UBOOT_BASE		CONFIG_TEXT_BASE
++
++#define CFG_SYS_INIT_RAM_ADDR	CONFIG_TEXT_BASE
++#define CFG_SYS_INIT_RAM_SIZE	SZ_2M
++
++/* DRAM */
++#define CFG_SYS_SDRAM_BASE		0x80000000
++
++#endif
+
