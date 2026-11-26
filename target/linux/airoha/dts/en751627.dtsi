@@ -152,7 +152,7 @@
 				interrupt-controller;
 				#interrupt-cells = <2>;
 
-				gpio-ranges = <&pinctrl 0 0 42>;
+				gpio-ranges = <&pinctrl 0 0 49>;
 
 				pcie0_rst_pins: pcie0-rst-pins {
 					mux {
@@ -244,6 +244,20 @@
 						groups = "gpio37";
 					};
 				};
+
+				swp5_led0: switch_port-5-led0 {
+					mux {
+						function = "phy5_led0";
+						groups = "gpio38";
+					};
+				};
+
+				swp5_led1: switch_port-5-led1 {
+					mux {
+						function = "phy5_led1";
+						groups = "gpio39";
+					};
+				};
 			};
 		};
 
@@ -261,15 +275,13 @@
 		};
 
 		spi0: spi@1fa10000 {
-			compatible = "airoha,en7523-spi";
+			compatible = "airoha,en751627-spi";
 			reg = <0x1fa10000 0x140>,
-			      <0x1fa11000 0x160>;
+			      <0x1fa11000 0x600>;
+			reg-names = "ctrl", "nfi";
 
 			clocks = <&scuclk EN7523_CLK_SPI>;
 			clock-names = "spi";
-
-			airoha,scu = <&scuclk>, <&chip_scu>;
-			airoha,scu-names = "scuclk", "chip-scu";
 
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -305,16 +317,19 @@
 			status = "disabled";
 		};
 
-		usb_phy: usb-phy@1fa80000 {
+		usb_phy: usb-phy@1fa80800 {
 			compatible = "econet,en751627-usb-phy";
-			reg = <0x1fa80000 0x1400>;
+			reg = <0x1fa80800 0x900>,
+			      <0x1fa80000 0x114>;
+			reg-names = "phy", "fm";
+			airoha,scu = <&scuclk>;
 			#phy-cells = <1>;
 		};
 
 		usb0: usb@1fb90000 {
 			compatible = "econet,en751627-xhci";
 			reg = <0x1fb90000 0x3e00>,
-			      <0x1fb93e00 0x100>;
+			      <0x1fa80700 0x100>;
 			reg-names = "mac", "ippc";
 			interrupts = <GIC_SHARED 17 IRQ_TYPE_LEVEL_HIGH>;
 			phys = <&usb_phy PHY_TYPE_USB2>, <&usb_phy PHY_TYPE_USB3>;
@@ -323,12 +338,11 @@
 		};
 
 		uart1: serial@1fbf0000 {
-			compatible = "airoha,en7523-uart";
+			compatible = "airoha,en751627-uart";
 			reg = <0x1fbf0000 0x30>;
 			reg-io-width = <4>;
 			reg-shift = <2>;
-			native-endian;
-			clock-frequency = <20000000>;
+			big-endian;
 
 			interrupts = <GIC_SHARED 2 IRQ_TYPE_LEVEL_HIGH>;
 		};
@@ -441,7 +455,7 @@
 				 <0x82000000 0 0x28000000 0x28000000 0 0x08000000>;
 
 			pinctrl-names = "default";
-			pinctrl-0 = <&pcie0_rst_pins>;
+			pinctrl-0 = <&pcie1_rst_pins>;
 
 			status = "disabled";
 
@@ -662,6 +676,7 @@
 				gdm2_xdsl: ethernet-port@1 {
 					compatible = "airoha,eth-xdsl";
 					reg = <1>;
+					airoha,xdsl = <&xdsl>;
 					phy-mode = "internal";
 					status = "disabled";
 				};
@@ -686,11 +701,20 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 
+				gsw_port0: port@0 {
+					reg = <0>;
+					phy-mode = "internal";
+					phy-handle = <&gsw_phy0>;
+					status = "disabled";
+					label = "lan1";
+				};
+
 				gsw_port1: port@1 {
 					reg = <1>;
 					phy-mode = "internal";
 					phy-handle = <&gsw_phy1>;
 					status = "disabled";
+					label = "lan2";
 				};
 
 				gsw_port2: port@2 {
@@ -698,6 +722,7 @@
 					phy-mode = "internal";
 					phy-handle = <&gsw_phy2>;
 					status = "disabled";
+					label = "lan3";
 				};
 
 				gsw_port3: port@3 {
@@ -705,6 +730,7 @@
 					phy-mode = "internal";
 					phy-handle = <&gsw_phy3>;
 					status = "disabled";
+					label = "lan4";
 				};
 
 				gsw_port4: port@4 {
@@ -712,6 +738,7 @@
 					phy-mode = "internal";
 					phy-handle = <&gsw_phy4>;
 					status = "disabled";
+					label = "lan5";
 				};
 
 				gsw_port6: port@6 {
@@ -731,6 +758,37 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 
+				gsw_phy0: ethernet-phy@8 {
+					compatible = "ethernet-phy-ieee802.3-c22";
+					reg = <8>;
+					phy-mode = "internal";
+
+					status = "disabled";
+
+					pinctrl-names = "gbe-led";
+					pinctrl-0 = <&swp1_led0 &swp1_led1>;
+					airoha,scu = <&scuclk>;
+
+					leds {
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						gsw_phy0_led0: led@0 {
+							reg = <0>;
+							function = LED_FUNCTION_LAN;
+							status = "disabled";
+							active-low;
+						};
+
+						gsw_phy0_led1: led@1 {
+							reg = <1>;
+							function = LED_FUNCTION_ACTIVITY;
+							status = "disabled";
+							active-low;
+						};
+					};
+				};
+
 				gsw_phy1: ethernet-phy@9 {
 					compatible = "ethernet-phy-ieee802.3-c22";
 					reg = <9>;
@@ -738,7 +796,7 @@
 					status = "disabled";
 
 					pinctrl-names = "gbe-led";
-					pinctrl-0 = <&swp1_led0 &swp1_led1>;
+					pinctrl-0 = <&swp2_led0 &swp2_led1>;
 					airoha,scu = <&scuclk>;
 
 					leds {
@@ -768,7 +826,7 @@
 					status = "disabled";
 
 					pinctrl-names = "gbe-led";
-					pinctrl-0 = <&swp2_led0 &swp2_led1>;
+					pinctrl-0 = <&swp3_led0 &swp3_led1>;
 					airoha,scu = <&scuclk>;
 
 					leds {
@@ -798,7 +856,7 @@
 					status = "disabled";
 
 					pinctrl-names = "gbe-led";
-					pinctrl-0 = <&swp3_led0 &swp3_led1>;
+					pinctrl-0 = <&swp4_led0 &swp4_led1>;
 					airoha,scu = <&scuclk>;
 
 					leds {
@@ -828,7 +886,7 @@
 					status = "disabled";
 
 					pinctrl-names = "gbe-led";
-					pinctrl-0 = <&swp4_led0 &swp4_led1>;
+					pinctrl-0 = <&swp5_led0 &swp5_led1>;
 					airoha,scu = <&scuclk>;
 
 					leds {

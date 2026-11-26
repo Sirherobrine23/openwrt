@@ -568,6 +568,7 @@
 			phys = <&xpon_phy>;
 			phy-names = "xpon";
 
+			ethernet = <&gdm2_pon>;
 			airoha,scu = <&scuclk>;
 		};
 
@@ -717,6 +718,7 @@
 					fixed-link {
 						speed = <1000>;
 						full-duplex;
+						pause;
 					};
 				};
 
@@ -729,6 +731,7 @@
 					fixed-link {
 						speed = <1000>;
 						full-duplex;
+						pause;
 					};
 				};
 			};
@@ -934,6 +937,7 @@
 							fixed-link {
 								speed = <1000>;
 								full-duplex;
+								pause;
 							};
 						};
 					};

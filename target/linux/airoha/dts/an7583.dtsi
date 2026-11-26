@@ -762,6 +762,7 @@
 			reset-names = "mac";
 			phys = <&xpon_phy>;
 			phy-names = "xpon";
+			ethernet = <&gdm2_pon>;
 			airoha,scu = <&scuclk>;
 		};
 
