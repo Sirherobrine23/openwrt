@@ -206,6 +206,16 @@ define U-Boot/en751627_zyxel_vmg8623-t50b
 endef
 UBOOT_TARGETS += en751627_zyxel_vmg8623-t50b
 
+define U-Boot/an7552_nokia_g-1426g-c
+  NAME:=Nokia G-1426G-C
+  UBOOT_IMAGE:=u-boot.bin
+  UBOOT_CONFIG:=an7552_nokia_g-1426g-c
+  BUILD_SUBTARGET:=an7552
+  BUILD_DEVICES:=nokia_g-1426g-c
+  LZMA_COMPRESS:=
+endef
+UBOOT_TARGETS += an7552_nokia_g-1426g-c
+
 UBOOT_CUSTOMIZE_CONFIG := \
 	--disable TOOLS_KWBIMAGE \
 	--disable TOOLS_LIBCRYPTO \

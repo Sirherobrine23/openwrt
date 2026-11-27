@@ -1,0 +1,256 @@
+From: Ifran Ali <khanu.i.i.k.2000@gmail.com>
+Date: Fri, 27 Nov 2026 05:46:30 +0530
+Subject: [PATCH] arm: airoha: an7552: add Nokia G-1426G-C chainloader support
+
+Add U-Boot DTS, defconfig, and default environment for the Nokia G-1426G-C
+(Airtel AOT4221NK) to support chainloading from the stock signed U-Boot
+and booting OpenWrt from UBI on the data partition while preserving the
+vendor U-Boot BMT pool at 0x1c000000..0x20000000.
+
+Signed-off-by: Ifran Ali <khanu.i.i.k.2000@gmail.com>
+---
+ arch/arm/dts/Makefile                      |   2 +-
+ arch/arm/dts/an7552-nokia-g-1426g-c.dts    | 114 +++++++++++++++++++++
+ configs/an7552_nokia_g-1426g-c_defconfig   |  90 ++++++++++++++++
+ defenvs/an7552_nokia_g-1426g-c_env         |  18 ++++
+ 4 files changed, 223 insertions(+), 1 deletion(-)
+ create mode 100644 arch/arm/dts/an7552-nokia-g-1426g-c.dts
+ create mode 100644 configs/an7552_nokia_g-1426g-c_defconfig
+ create mode 100644 defenvs/an7552_nokia_g-1426g-c_env
+
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -1194,5 +1194,5 @@ dtb-$(CONFIG_TARGET_COREPRIMEVELTE) += pxa1908-samsung-coreprimevelte.dtb
+ 
+ dtb-$(CONFIG_TARGET_EN7523) += en7523-evb.dtb
+-dtb-$(CONFIG_TARGET_AN7552) += an7552-evb.dtb an7563-evb.dtb
++dtb-$(CONFIG_TARGET_AN7552) += an7552-evb.dtb an7552-nokia-g-1426g-c.dtb an7563-evb.dtb
+ 
+ include $(srctree)/scripts/Makefile.dts
+--- /dev/null
++++ b/arch/arm/dts/an7552-nokia-g-1426g-c.dts
+@@ -0,0 +1,109 @@
++// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++/dts-v1/;
++
++#include "an7552.dtsi"
++
++/ {
++	model = "Nokia G-1426G-C (Airtel AOT4221NK)";
++	compatible = "nokia,g-1426g-c", "airoha,an7552";
++};
++
++&eth {
++	status = "okay";
++};
++
++&spi0 {
++	status = "okay";
++
++	nand@0 {
++		compatible = "spi-nand";
++		reg = <0>;
++		spi-max-frequency = <50000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <2>;
++
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			partition@0 {
++				label = "bootloader";
++				reg = <0x0000000 0x0080000>;
++				read-only;
++			};
++
++			partition@80000 {
++				label = "tclinux";
++				reg = <0x0080000 0x4600000>;
++			};
++
++			partition@4680000 {
++				label = "tclinux_slave";
++				reg = <0x4680000 0x4600000>;
++			};
++
++			partition@8c80000 {
++				label = "uboot_env1";
++				reg = <0x8c80000 0x0100000>;
++			};
++
++			partition@8d80000 {
++				label = "uboot_env2";
++				reg = <0x8d80000 0x0100000>;
++			};
++
++			partition@8e80000 {
++				label = "RI";
++				reg = <0x8e80000 0x0200000>;
++				read-only;
++			};
++
++			partition@9080000 {
++				label = "Binfo";
++				reg = <0x9080000 0x0200000>;
++			};
++
++			partition@9280000 {
++				label = "cfg";
++				reg = <0x9280000 0x1400000>;
++			};
++
++			partition@a680000 {
++				label = "cfg_bak";
++				reg = <0xa680000 0x1400000>;
++			};
++
++			partition@ba80000 {
++				label = "log";
++				reg = <0xba80000 0x0f00000>;
++			};
++
++			partition@c980000 {
++				label = "extfs";
++				reg = <0xc980000 0x0500000>;
++			};
++
++			partition@ce80000 {
++				label = "mft_data";
++				reg = <0xce80000 0x0800000>;
++				read-only;
++			};
++
++			partition@d680000 {
++				label = "art";
++				reg = <0xd680000 0x0300000>;
++				read-only;
++			};
++
++			/*
++			 * Ends at 0x1c000000; 0x1c000000..0x20000000 (64 MiB) is left
++			 * unmapped to preserve the vendor U-Boot BMT pool.
++			 */
++			partition@d980000 {
++				label = "data";
++				reg = <0xd980000 0xe680000>;
++			};
++		};
++	};
++};
+--- /dev/null
++++ b/configs/an7552_nokia_g-1426g-c_defconfig
+@@ -0,0 +1,93 @@
++CONFIG_ARM=y
++CONFIG_POSITION_INDEPENDENT=y
++CONFIG_SYS_ARCH_TIMER=y
++CONFIG_ARCH_AIROHA=y
++CONFIG_TARGET_AN7552=y
++CONFIG_TEXT_BASE=0x81E00000
++CONFIG_SYS_MALLOC_F_LEN=0x4000
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_ENV_SIZE=0x4000
++CONFIG_DM_GPIO=y
++CONFIG_DEFAULT_DEVICE_TREE="an7552-nokia-g-1426g-c"
++CONFIG_SYS_LOAD_ADDR=0x8a000000
++CONFIG_SYS_BOOTM_LEN=0x4000000
++CONFIG_BUILD_TARGET="u-boot.bin"
++# CONFIG_EFI_LOADER is not set
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++CONFIG_BOOTDELAY=3
++CONFIG_USE_BOOTCOMMAND=y
++CONFIG_BOOTCOMMAND="run boot_ubi"
++CONFIG_DEFAULT_FDT_FILE="airoha/an7552-nokia-g-1426g-c.dtb"
++CONFIG_SYS_PBSIZE=1049
++CONFIG_SYS_CONSOLE_IS_IN_ENV=y
++# CONFIG_DISPLAY_BOARDINFO is not set
++CONFIG_HUSH_PARSER=y
++CONFIG_SYS_PROMPT="U-Boot> "
++CONFIG_SYS_MAXARGS=8
++CONFIG_CMD_BOOTZ=y
++CONFIG_CMD_BOOTMENU=y
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++CONFIG_CMD_BIND=y
++CONFIG_CMD_BIN2MAC=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_MTD=y
++# CONFIG_CMD_SETEXPR is not set
++CONFIG_CMD_MII=y
++CONFIG_CMD_PING=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_LOG=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_UBIFS=y
++CONFIG_CMD_SPI=y
++CONFIG_CMD_SF=y
++CONFIG_CMD_SF_TEST=y
++# CONFIG_OF_UPSTREAM is not set
++CONFIG_ENV_OVERWRITE=y
++# CONFIG_ENV_IS_IN_MTD is not set
++# CONFIG_ENV_IS_NOWHERE is not set
++CONFIG_ENV_IS_IN_UBI=y
++CONFIG_ENV_REDUNDANT=y
++CONFIG_ENV_UBI_PART="data"
++CONFIG_ENV_UBI_VOLUME="ubootenv"
++CONFIG_ENV_UBI_VOLUME_REDUND="ubootenv2"
++CONFIG_ENV_UBI_VID_OFFSET=0
++CONFIG_ENV_USE_DEFAULT_ENV_TEXT_FILE=y
++CONFIG_ENV_DEFAULT_ENV_TEXT_FILE="defenvs/an7552_nokia_g-1426g-c_env"
++CONFIG_ENV_VARS_UBOOT_RUNTIME_CONFIG=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_SYS_RX_ETH_BUFFER=8
++CONFIG_CLK=y
++CONFIG_DMA=y
++CONFIG_LED=y
++CONFIG_LED_GPIO=y
++# CONFIG_MMC is not set
++CONFIG_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_DM_SPI_FLASH=y
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_SPI_FLASH_GIGADEVICE=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_MTD_UBI=y
++CONFIG_MTD_UBI_WL_THRESHOLD=4096
++CONFIG_MTD_UBI_BEB_LIMIT=20
++CONFIG_UBI_BLOCK=y
++CONFIG_DM_MDIO=y
++CONFIG_AIROHA_ETH=y
++CONFIG_PHY=y
++CONFIG_PINCTRL=y
++CONFIG_PINCTRL_AIROHA_AN7563=y
++CONFIG_RAM=y
++CONFIG_DM_SERIAL=y
++CONFIG_SYS_NS16550=y
++CONFIG_SPI=y
++CONFIG_DM_SPI=y
++CONFIG_AIROHA_SNFI_SPI=y
++# CONFIG_UBIFS_SILENCE_MSG is not set
++CONFIG_SHA512=y
++# CONFIG_TOOLS_MKEFICAPSULE is not set
+--- /dev/null
++++ b/defenvs/an7552_nokia_g-1426g-c_env
+@@ -0,0 +1,16 @@
++loadaddr=0x8a000000
++ipaddr=192.168.1.1
++serverip=192.168.1.10
++bootfile=openwrt-airoha-an7552-nokia_g-1426g-c-initramfs-kernel.bin
++boot_ubi=ubi part data && run boot_production
++boot_production=ubi read $loadaddr kernel && bootm $loadaddr
++boot_tftp=tftpboot $loadaddr $bootfile && bootm $loadaddr
++bootcmd=run boot_ubi
++bootdelay=3
++bootmenu_confirm_return=askenv - Press ENTER to return to menu ; bootmenu 60
++bootmenu_default=0
++bootmenu_delay=3
++bootmenu_title=      OpenWrt (Nokia G-1426G-C)
++bootmenu_0=Run default boot command.=run boot_ubi
++bootmenu_1=Boot initramfs via TFTP.=run boot_tftp ; run bootmenu_confirm_return
++bootmenu_2=Reboot.=reset

@@ -1,0 +1,22 @@
+From: Ifran Ali <khanu.i.i.k.2000@gmail.com>
+Date: Fri, 27 Nov 2026 05:46:00 +0530
+Subject: [PATCH] arm: dts: an7552: fix spi0 alias in an7552.dtsi
+
+The SPI-NAND controller node in an7552.dtsi is labeled spi0, not snfi.
+Fix the aliases entry so boards including an7552.dtsi compile cleanly.
+
+Signed-off-by: Ifran Ali <khanu.i.i.k.2000@gmail.com>
+---
+ arch/arm/dts/an7552.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/arch/arm/dts/an7552.dtsi
++++ b/arch/arm/dts/an7552.dtsi
+@@ -15,7 +15,7 @@
+ 
+ 	aliases {
+ 		serial0 = &uart1;
+-		spi0 = &snfi;
++		spi0 = &spi0;
+ 		ethernet0 = &gdm1;
+ 	};
