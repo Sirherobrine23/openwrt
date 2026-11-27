@@ -12,7 +12,8 @@ setup_interfaces()
 
   case "$board" in
   airoha,an7552-evb |\
-  airoha,an7563-evb)
+  airoha,an7563-evb |\
+  nokia,g-1426g-c)
     ucidef_set_interface_lan "lan1 lan2 lan3 lan4"
     ucidef_set_interface_wan "pon0" "dhcp"
     ;;
@@ -22,9 +23,29 @@ setup_interfaces()
   esac
 }
 
+setup_macs()
+{
+  local board="$1"
+  local lan_mac wan_mac label_mac
+
+  case "$board" in
+  nokia,g-1426g-c)
+    # Base MAC, stored as text in the RI factory partition
+    label_mac=$(mtd_get_mac_text "RI" 0x440 17)
+    lan_mac="$label_mac"
+    wan_mac=$(macaddr_add "$label_mac" 1)
+    ;;
+  esac
+
+  [ -n "$lan_mac" ] && ucidef_set_interface_macaddr "lan" $lan_mac
+  [ -n "$wan_mac" ] && ucidef_set_interface_macaddr "wan" $wan_mac
+  [ -n "$label_mac" ] && ucidef_set_label_macaddr $label_mac
+}
+
 board_config_update
 board=$(board_name)
 setup_interfaces $board
+setup_macs $board
 board_config_flush
 
 exit 0
